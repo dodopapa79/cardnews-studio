@@ -32,6 +32,17 @@ export interface SlidePositions {
   imageFocal?: { x: number; y: number };
 }
 
+/** 슬라이드별 텍스트 오버라이드 (프리셋 위에 덮어쓰기) */
+export interface SlideTextOverride {
+  headlineSize?: number;
+  headlineColor?: string;
+  headlineWeight?: number;
+  bodySize?: number;
+  bodyColor?: string;
+  highlightColor?: string;
+  autoShrink?: boolean;
+}
+
 export interface Slide {
   id: string;
   type: SlideType;
@@ -43,6 +54,7 @@ export interface Slide {
   imagePrompt: string;
   imageLayout: ImageLayout;
   positions?: SlidePositions;
+  textOverride?: SlideTextOverride;
 }
 
 export interface ColorVariant {

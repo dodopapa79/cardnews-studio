@@ -53,9 +53,6 @@ export default function Page() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const skipAutoSaveRef = useRef(false);
 
-  // ─────────────────────────────────────────
-  // 초기 로드
-  // ─────────────────────────────────────────
   useEffect(() => {
     (async () => {
       setMounted(true);
@@ -111,17 +108,11 @@ export default function Page() {
     }
   }
 
-  // ─────────────────────────────────────────
-  // 설정 저장
-  // ─────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
     saveSettings(settings);
   }, [settings, mounted]);
 
-  // ─────────────────────────────────────────
-  // 프리셋
-  // ─────────────────────────────────────────
   function handlePresetChange(p: Preset, colorId?: string) {
     setPreset(p);
     const cid = colorId || p.colorVariants[0].id;
@@ -169,9 +160,6 @@ export default function Page() {
     alert(`${imported.length}개의 프리셋을 가져왔습니다.`);
   }
 
-  // ─────────────────────────────────────────
-  // 프로젝트 저장
-  // ─────────────────────────────────────────
   async function handleSaveProject() {
     if (slides.length === 0) {
       alert('저장할 카드뉴스가 없습니다.');
@@ -280,9 +268,6 @@ export default function Page() {
     }, 500);
   }
 
-  // ─────────────────────────────────────────
-  // 자동 저장 (디바운스)
-  // ─────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
     if (skipAutoSaveRef.current) return;
@@ -369,7 +354,6 @@ export default function Page() {
           preset={preset}
           presetColorId={presetColorId}
           brand={settings.brand}
-          cardRefs={cardRefs}
           projects={projects}
           currentProjectId={currentProjectId}
           onSelectProject={handleSelectProject}

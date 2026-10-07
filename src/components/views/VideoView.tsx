@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { VideoLayoutPicker } from '@/components/VideoLayoutPicker';
@@ -7,6 +7,8 @@ import { Modal } from '@/components/ui/Modal';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { renderNodeToDataUrl } from '@/lib/card-renderer';
 import { generateShorts, downloadBlob } from '@/lib/video-generator';
+import { getPresetById } from '@/presets';
+import { CardSlide } from '@/templates';
 import type {
   Slide,
   Preset,
@@ -19,8 +21,6 @@ import type {
 import { EMPTY_LOGO } from '@/lib/types';
 import { BGM_SOURCES, BGM_CATEGORY_LABELS, getAudioDuration } from '@/lib/bgm';
 import { formatRelativeTime } from '@/lib/utils';
-import { getPresetById } from '@/presets';
-import { CardSlide } from '@/templates';
 import {
   Film,
   AlertCircle,
@@ -32,14 +32,15 @@ import {
   RotateCcw,
   FolderOpen,
   Smartphone,
+  Check,
+  Loader2,
 } from 'lucide-react';
 
 export function VideoView({
-  slides,
-  preset,
-  presetColorId,
-  brand,
-  cardRefs,
+  slides: currentSlides,
+  preset: currentPreset,
+  presetColorId: currentColorId,
+  brand: currentBrand,
   projects,
   currentProjectId,
   onSelectProject,
@@ -48,11 +49,65 @@ export function VideoView({
   preset: Preset;
   presetColorId?: string;
   brand?: BrandInfo;
-  cardRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
+  cardRefs?: React.MutableRefObject<(HTMLDivElement | null)[]>;
   projects: CardNewsProject[];
   currentProjectId: string | null;
   onSelectProject: (p: CardNewsProject) => void;
 }) {
+  // ─────────────────────────────────────────
+  // 로컬 상태: 선택된 프로젝트의 슬라이드/프리셋
+  // ─────────────────────────────────────────
+  const [selectedSlides, setSelectedSlides] = useState<Slide[]>(currentSlides);
+  const [selectedPreset, setSelectedPreset] = useState<Preset>(currentPreset);
+  const [selectedColorId, setSelectedColorId] = useState<string>(
+    currentColorId || currentPreset.colorVariants[0]?.id || ''
+  );
+  const [selectedBrand, setSelectedBrand] = useState<BrandInfo | undefined>(currentBrand);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(currentProjectId);
+
+  // 프로젝트 목록에서 로드하는 함수
+  const loadFromProject = (project: CardNewsProject) => {
+    const p = getPresetById(project.presetId);
+    setSelectedSlides(project.slides);
+    setSelectedPreset(p);
+    setSelectedColorId(
+      project.presetColorId || p.colorVariants[0]?.id || 'neon-green'
+    );
+    setSelectedBrand(project.brand);
+    setSelectedProjectId(project.id);
+  };
+
+  // 초기 로드: currentProjectId가 있으면 그 프로젝트를 로드
+  useEffect(() => {
+    if (currentProjectId) {
+      const proj = projects.find((p) => p.id === currentProjectId);
+      if (proj && proj.id !== selectedProjectId) {
+        loadFromProject(proj);
+      }
+    } else if (currentSlides.length > 0 && selectedSlides.length === 0) {
+      setSelectedSlides(currentSlides);
+      setSelectedPreset(currentPreset);
+      setSelectedColorId(currentColorId || currentPreset.colorVariants[0]?.id || '');
+      setSelectedBrand(currentBrand);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId, projects]);
+
+  // 프로젝트 선택 시
+  function handleSelectProject(project: CardNewsProject) {
+    loadFromProject(project);
+    onSelectProject(project);
+    setProjectListOpen(false);
+  }
+
+  // ─────────────────────────────────────────
+  // 로컬 refs (VideoView 전용 숨겨진 카드 DOM용)
+  // ─────────────────────────────────────────
+  const localCardRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // ─────────────────────────────────────────
+  // 상태
+  // ─────────────────────────────────────────
   const [layout, setLayout] = useState<VideoLayout>('split-news');
   const [transition, setTransition] = useState<'fade' | 'slide' | 'zoom'>('fade');
   const [loading, setLoading] = useState(false);
@@ -72,31 +127,44 @@ export function VideoView({
   const previewRafRef = useRef<number>();
   const previewStartRef = useRef<number>(0);
   const [previewImages, setPreviewImages] = useState<HTMLImageElement[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
-  // 슬라이드별 소요 시간 (TTS 없으므로 2.5초 고정)
   const SLIDE_DURATION_MS = 2500;
   const TRANSITION_MS = 400;
 
   // ─────────────────────────────────────────
-  // 카드 이미지 로드 (실시간 미리보기용)
+  // 카드 DOM → 이미지 로드
   // ─────────────────────────────────────────
   useEffect(() => {
-    if (slides.length === 0) return;
+    if (selectedSlides.length === 0) {
+      setPreviewImages([]);
+      return;
+    }
     let cancelled = false;
+    setPreviewLoading(true);
 
     async function loadImages() {
-      const nodes = cardRefs.current.filter(Boolean) as HTMLDivElement[];
-      if (nodes.length === 0) return;
+      // DOM이 렌더될 때까지 잠깐 대기
+      await new Promise((r) => setTimeout(r, 300));
+
+      const nodes = localCardRefs.current.filter(Boolean) as HTMLDivElement[];
+      if (nodes.length === 0) {
+        console.warn('카드 DOM이 없습니다');
+        setPreviewLoading(false);
+        return;
+      }
+
       const urls: string[] = [];
       for (const node of nodes) {
         try {
           const url = await renderNodeToDataUrl(node);
           urls.push(url);
         } catch (e) {
-          console.warn('미리보기 카드 렌더 실패:', e);
+          console.warn('카드 렌더 실패:', e);
         }
       }
       if (cancelled) return;
+
       const imgs = await Promise.all(
         urls.map(
           (src) =>
@@ -108,15 +176,17 @@ export function VideoView({
             })
         )
       );
-      if (!cancelled) setPreviewImages(imgs);
+      if (!cancelled) {
+        setPreviewImages(imgs);
+        setPreviewLoading(false);
+      }
     }
 
-    const timer = setTimeout(loadImages, 500);
+    loadImages();
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
-  }, [slides, presetColorId, layout, cardRefs]);
+  }, [selectedSlides, selectedColorId, selectedPreset.id]);
 
   // ─────────────────────────────────────────
   // 미리보기 재생 루프
@@ -126,7 +196,6 @@ export function VideoView({
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-
     const W = canvas.width;
     const H = canvas.height;
     const TOP_RATIO = 0.42;
@@ -186,12 +255,11 @@ export function VideoView({
     };
 
     const tick = () => {
-      const elapsed = performance.now() - previewStartRef.current;
-      if (elapsed >= totalMs) {
-        // 루프
-        previewStartRef.current = performance.now();
-      }
       const e = performance.now() - previewStartRef.current;
+      if (e >= totalMs) {
+        previewStartRef.current = performance.now();
+        return;
+      }
 
       const slideIdx = Math.min(
         Math.floor(e / SLIDE_DURATION_MS),
@@ -251,9 +319,7 @@ export function VideoView({
     };
   }, [previewPlaying, previewImages, layout, transition]);
 
-  // ─────────────────────────────────────────
-  // 정지 상태일 때 첫 프레임 그리기
-  // ─────────────────────────────────────────
+  // 정지 상태일 때 첫 프레임
   useEffect(() => {
     if (previewPlaying) return;
     const canvas = previewCanvasRef.current;
@@ -362,8 +428,8 @@ export function VideoView({
   // 영상 생성
   // ─────────────────────────────────────────
   async function handleGenerate() {
-    const nodes = cardRefs.current.filter(Boolean) as HTMLDivElement[];
-    if (!nodes.length) {
+    const nodes = localCardRefs.current.filter(Boolean) as HTMLDivElement[];
+    if (nodes.length === 0) {
       setError('카드뉴스가 없습니다. 먼저 카드뉴스를 만들어주세요.');
       return;
     }
@@ -385,7 +451,7 @@ export function VideoView({
       const blob = await generateShorts(cardPngs, {
         layout,
         transition,
-        subtitleTexts: slides.map((s) => s.headline),
+        subtitleTexts: selectedSlides.map((s) => s.headline),
         showSubtitle: false,
         bgm: bgm
           ? {
@@ -416,7 +482,7 @@ export function VideoView({
   // ─────────────────────────────────────────
   // 빈 상태
   // ─────────────────────────────────────────
-  if (slides.length === 0) {
+  if (selectedSlides.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
         <Card>
@@ -424,19 +490,16 @@ export function VideoView({
             <div className="w-16 h-16 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-4">
               <Film size={28} />
             </div>
-            <div className="text-base font-semibold mb-1">카드뉴스가 필요합니다</div>
+            <div className="text-base font-semibold mb-1">카드뉴스를 선택하세요</div>
             <div className="text-sm text-ink-secondary mb-6">
-              먼저 &quot;카드뉴스 만들기&quot;에서 카드뉴스를 생성해주세요
+              저장된 카드뉴스를 불러와서 숏츠 영상으로 만드세요
             </div>
-            {projects.length > 0 && (
-              <Button
-                variant="secondary"
-                icon={<FolderOpen size={16} />}
-                onClick={() => setProjectListOpen(true)}
-              >
-                저장된 카드뉴스 열기 ({projects.length})
-              </Button>
-            )}
+            <Button
+              icon={<FolderOpen size={16} />}
+              onClick={() => setProjectListOpen(true)}
+            >
+              카드뉴스 불러오기 ({projects.length})
+            </Button>
           </div>
         </Card>
 
@@ -444,14 +507,16 @@ export function VideoView({
           open={projectListOpen}
           onClose={() => setProjectListOpen(false)}
           projects={projects}
-          currentProjectId={currentProjectId}
-          onSelect={onSelectProject}
+          currentProjectId={selectedProjectId}
+          onSelect={handleSelectProject}
         />
       </div>
     );
   }
 
-  const currentProject = projects.find((p) => p.id === currentProjectId);
+  const currentProjectName = selectedProjectId
+    ? projects.find((p) => p.id === selectedProjectId)?.name
+    : undefined;
 
   return (
     <>
@@ -461,9 +526,11 @@ export function VideoView({
           <div className="flex items-center gap-2">
             <Film size={16} className="text-primary-600" />
             <span className="text-sm font-medium">
-              {currentProject?.name || '카드뉴스'}
+              {currentProjectName || '카드뉴스'}
             </span>
-            <span className="text-xs text-ink-muted">({slides.length}장)</span>
+            <span className="text-xs text-ink-muted">
+              ({selectedSlides.length}장)
+            </span>
           </div>
           <Button
             size="sm"
@@ -477,7 +544,7 @@ export function VideoView({
         </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* 좌측: 컨트롤 */}
+          {/* 좌측 컨트롤 */}
           <div className="lg:col-span-7 space-y-4">
             <VideoLayoutPicker layout={layout} onChange={setLayout} />
 
@@ -761,7 +828,7 @@ export function VideoView({
             </Card>
           </div>
 
-          {/* 우측: 실시간 미리보기 + 생성 */}
+          {/* 우측 미리보기 + 생성 */}
           <div className="lg:col-span-5 space-y-4">
             <Card padding={false} className="sticky top-20 p-4">
               <div className="flex items-center justify-between mb-3">
@@ -790,21 +857,31 @@ export function VideoView({
                 />
               </div>
 
-              {/* 재생 컨트롤 */}
               <div className="flex items-center justify-center gap-3 mt-3">
                 <button
-                  onClick={() => setPreviewPlaying(!previewPlaying)}
-                  disabled={previewImages.length === 0}
+                  onClick={() => {
+                    if (previewImages.length === 0) return;
+                    setPreviewPlaying(!previewPlaying);
+                  }}
+                  disabled={previewImages.length === 0 || previewLoading}
                   className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {previewPlaying ? <Pause size={18} /> : <Play size={18} fill="white" />}
+                  {previewLoading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : previewPlaying ? (
+                    <Pause size={18} />
+                  ) : (
+                    <Play size={18} fill="white" />
+                  )}
                 </button>
                 <div className="text-xs text-ink-secondary">
-                  {previewImages.length === 0
+                  {previewLoading
                     ? '로딩 중...'
+                    : previewImages.length === 0
+                    ? '준비 안 됨'
                     : previewPlaying
                     ? `재생 중 ${previewSlideIdx + 1}/${previewImages.length}`
-                    : `${previewSlideIdx + 1}/${previewImages.length} (일시정지)`}
+                    : `${previewSlideIdx + 1}/${previewImages.length}`}
                 </div>
                 <button
                   onClick={() => {
@@ -823,13 +900,13 @@ export function VideoView({
               <CardHeader title="영상 정보" />
               <div className="space-y-2.5 text-sm">
                 <Row label="해상도" value="1080 × 1920" />
-                <Row label="슬라이드" value={`${slides.length}장`} />
+                <Row label="슬라이드" value={`${selectedSlides.length}장`} />
                 <Row
                   label="예상 길이"
-                  value={`약 ${Math.round((slides.length * 2.5) / 10) * 10}초`}
+                  value={`약 ${Math.round((selectedSlides.length * 2.5) / 10) * 10}초`}
                 />
                 <Row label="포맷" value="WebM" />
-                <Row label="테마" value={preset.name} />
+                <Row label="테마" value={selectedPreset.name} />
                 {bgm && <Row label="배경음악" value="포함" />}
                 {logo.imageUrl && <Row label="로고" value="포함" />}
               </div>
@@ -844,7 +921,7 @@ export function VideoView({
 
             <Button
               onClick={handleGenerate}
-              disabled={loading}
+              disabled={loading || previewImages.length === 0}
               size="lg"
               className="w-full"
               loading={loading}
@@ -870,13 +947,43 @@ export function VideoView({
         </div>
       </div>
 
+      {/* ─────────────────────────────────── */}
+      {/* 숨겨진 카드 DOM (이미지 렌더용)      */}
+      {/* ─────────────────────────────────── */}
+      <div
+        style={{
+          position: 'fixed',
+          left: -99999,
+          top: 0,
+          pointerEvents: 'none',
+          opacity: 0,
+        }}
+        aria-hidden="true"
+      >
+        {selectedSlides.map((slide, i) => (
+          <div
+            key={slide.id}
+            ref={(el) => (localCardRefs.current[i] = el)}
+            style={{ width: 1080, height: 1350 }}
+          >
+            <CardSlide
+              slide={slide}
+              preset={selectedPreset}
+              colorId={selectedColorId}
+              brand={selectedBrand}
+              isLast={i === selectedSlides.length - 1}
+            />
+          </div>
+        ))}
+      </div>
+
       {/* 프로젝트 선택 모달 */}
       <ProjectPickerModal
         open={projectListOpen}
         onClose={() => setProjectListOpen(false)}
         projects={projects}
-        currentProjectId={currentProjectId}
-        onSelect={onSelectProject}
+        currentProjectId={selectedProjectId}
+        onSelect={handleSelectProject}
       />
 
       {/* 폰 목업 모달 */}
@@ -886,12 +993,12 @@ export function VideoView({
         title="스마트폰에서 보기"
         maxWidth="md"
       >
-        {slides[0] && (
+        {selectedSlides[0] && (
           <PhoneMockup
-            slide={slides[0]}
-            preset={preset}
-            colorId={presetColorId}
-            brand={brand}
+            slide={selectedSlides[0]}
+            preset={selectedPreset}
+            colorId={selectedColorId}
+            brand={selectedBrand}
             isLast={false}
           />
         )}
@@ -926,7 +1033,12 @@ function ProjectPickerModal({
   onSelect: (p: CardNewsProject) => void;
 }) {
   return (
-    <Modal open={open} onClose={onClose} title={`카드뉴스 선택 (${projects.length})`} maxWidth="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`카드뉴스 선택 (${projects.length})`}
+      maxWidth="lg"
+    >
       {projects.length === 0 ? (
         <div className="text-center py-8 text-sm text-ink-muted">
           저장된 카드뉴스가 없습니다
@@ -940,10 +1052,7 @@ function ProjectPickerModal({
             return (
               <button
                 key={p.id}
-                onClick={() => {
-                  onSelect(p);
-                  onClose();
-                }}
+                onClick={() => onSelect(p)}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
                   isCurrent
                     ? 'border-primary-500 bg-primary-50'
@@ -978,6 +1087,7 @@ function ProjectPickerModal({
                     <div className="text-sm font-semibold truncate">{p.name}</div>
                     {isCurrent && (
                       <span className="text-[10px] font-bold text-primary-700 bg-primary-100 px-1.5 py-0.5 rounded shrink-0">
+                        <Check size={10} className="inline mr-0.5" />
                         현재
                       </span>
                     )}
