@@ -6,6 +6,11 @@ import type {
   Slide,
 } from './types';
 import { EMPTY_SETTINGS, EMPTY_BRAND } from './types';
+import {
+  extractAndSaveImages,
+  restoreImages,
+  deleteProjectImages,
+} from './projectStore';
 
 const SETTINGS_KEY = 'cardnews.settings.v3';
 const PROJECTS_KEY = 'cardnews.projects.v3';
@@ -39,7 +44,7 @@ export function saveSettings(s: Settings) {
 }
 
 // ─────────────────────────────────────────────
-// 카드뉴스 프로젝트
+// 카드뉴스 프로젝트 (localStorage)
 // ─────────────────────────────────────────────
 export function loadProjects(): CardNewsProject[] {
   if (typeof window === 'undefined') return [];
@@ -58,7 +63,7 @@ export function saveProjects(projects: CardNewsProject[]) {
   try {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
   } catch (e) {
-    console.error('프로젝트 저장 실패 (용량 초과 가능성):', e);
+    console.error('프로젝트 저장 실패:', e);
     throw e;
   }
 }
@@ -83,19 +88,67 @@ export function createProject(
   };
 }
 
+/**
+ * 프로젝트 저장 (이미지는 IndexedDB로 분리)
+ */
+export async function saveProjectWithImages(
+  projects: CardNewsProject[],
+  project: CardNewsProject
+): Promise<CardNewsProject[]> {
+  // 이미지 분리 저장 (IndexedDB)
+  const cleaned = await extractAndSaveImages(project);
+  const updated = { ...cleaned, updatedAt: Date.now() };
+
+  const existing = projects.findIndex((p) => p.id === updated.id);
+  let next: CardNewsProject[];
+  if (existing >= 0) {
+    next = [...projects];
+    next[existing] = updated;
+  } else {
+    next = [updated, ...projects];
+  }
+  next.sort((a, b) => b.updatedAt - a.updatedAt);
+  saveProjects(next);
+  return next;
+}
+
+/**
+ * 프로젝트 로드 시 이미지 복원
+ */
+export async function loadProjectWithImages(
+  project: CardNewsProject
+): Promise<CardNewsProject> {
+  return await restoreImages(project);
+}
+
+/**
+ * 프로젝트 삭제 (이미지도 함께)
+ */
+export async function deleteProjectWithImages(
+  projects: CardNewsProject[],
+  id: string
+): Promise<CardNewsProject[]> {
+  await deleteProjectImages(id);
+  const next = projects.filter((p) => p.id !== id);
+  saveProjects(next);
+  return next;
+}
+
+/** 동기 버전 (레거시) — 이미지 없이 프로젝트 목록만 저장 */
 export function upsertProject(
   projects: CardNewsProject[],
   project: CardNewsProject
 ): CardNewsProject[] {
   const existing = projects.findIndex((p) => p.id === project.id);
   const updated = { ...project, updatedAt: Date.now() };
+  let next: CardNewsProject[];
   if (existing >= 0) {
-    const next = [...projects];
+    next = [...projects];
     next[existing] = updated;
-    saveProjects(next);
-    return next;
+  } else {
+    next = [updated, ...projects];
   }
-  const next = [updated, ...projects].sort((a, b) => b.updatedAt - a.updatedAt);
+  next.sort((a, b) => b.updatedAt - a.updatedAt);
   saveProjects(next);
   return next;
 }
@@ -110,7 +163,7 @@ export function deleteProject(
 }
 
 // ─────────────────────────────────────────────
-// 현재 프로젝트 ID (영상 만들기에서 사용)
+// 현재 프로젝트 ID
 // ─────────────────────────────────────────────
 export function loadCurrentProjectId(): string | null {
   if (typeof window === 'undefined') return null;
@@ -164,7 +217,7 @@ export function incrementPresetStat(presetId: string): Record<string, number> {
 }
 
 // ─────────────────────────────────────────────
-// 즐겨찾기 프리셋
+// 즐겨찾기
 // ─────────────────────────────────────────────
 export function loadFavorites(): string[] {
   if (typeof window === 'undefined') return [];
@@ -188,7 +241,7 @@ export function toggleFavorite(presetId: string): string[] {
 }
 
 // ─────────────────────────────────────────────
-// 레거시 (이전 버전 호환 — 첫 로드 시 마이그레이션)
+// 레거시 마이그레이션
 // ─────────────────────────────────────────────
 export function migrateLegacySlides(settings: Settings): CardNewsProject | null {
   if (typeof window === 'undefined') return null;

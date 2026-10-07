@@ -39,6 +39,7 @@ export interface Slide {
   body: string;
   highlight: string;
   imageUrl: string;
+  imageId?: string;
   imagePrompt: string;
   imageLayout: ImageLayout;
   positions?: SlidePositions;
@@ -106,7 +107,6 @@ export interface Preset {
   version?: number;
 }
 
-/** 브랜드 정보 (설정에서 입력) */
 export interface BrandInfo {
   brandName: string;
   website: string;
@@ -121,7 +121,6 @@ export const EMPTY_BRAND: BrandInfo = {
   logoUrl: '',
 };
 
-/** 카드뉴스 프로젝트 (저장 단위) */
 export interface CardNewsProject {
   id: string;
   name: string;

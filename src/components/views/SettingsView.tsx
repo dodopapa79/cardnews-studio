@@ -8,7 +8,8 @@ import { BrandInfoForm } from '@/components/BrandInfoForm';
 import type { Settings } from '@/lib/types';
 import { EMPTY_BRAND } from '@/lib/types';
 import { saveSettings } from '@/lib/storage';
-import { ExternalLink, Check, AlertCircle, RotateCcw } from 'lucide-react';
+import { clearAllImages, getStorageUsage } from '@/lib/imageStore';
+import { ExternalLink, Check, AlertCircle, RotateCcw, HardDrive } from 'lucide-react';
 
 export function SettingsView({
   settings,
@@ -21,10 +22,18 @@ export function SettingsView({
 }) {
   const [local, setLocal] = useState(settings);
   const [saved, setSaved] = useState(false);
+  const [usage, setUsage] = useState<{ count: number; bytes: number }>({
+    count: 0,
+    bytes: 0,
+  });
 
   useEffect(() => {
     setLocal(settings);
   }, [settings]);
+
+  useEffect(() => {
+    getStorageUsage().then(setUsage).catch(() => {});
+  }, []);
 
   const update = (patch: Partial<Settings>) => {
     setLocal({ ...local, ...patch });
@@ -40,6 +49,26 @@ export function SettingsView({
 
   const geminiOk = !!local.geminiApiKey;
   const cfOk = !!local.cfAccountId && !!local.cfApiToken;
+
+  const usageMB = (usage.bytes / 1024 / 1024).toFixed(2);
+
+  async function handleReset() {
+    if (
+      !confirm(
+        '모든 데이터를 초기화할까요?\n\n(카드뉴스, 프리셋, 이미지, 설정 전부 삭제)'
+      )
+    )
+      return;
+
+    try {
+      await clearAllImages();
+      localStorage.clear();
+      setUsage({ count: 0, bytes: 0 });
+      onReset();
+    } catch (e: any) {
+      alert(`초기화 실패: ${e.message}`);
+    }
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -118,21 +147,22 @@ export function SettingsView({
         onChange={(b) => update({ brand: b })}
       />
 
+      {/* 저장 용량 */}
+      <Card>
+        <CardHeader title="💾 저장 용량" subtitle="IndexedDB에 저장된 이미지" />
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-surface-bg">
+          <div className="w-12 h-12 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center">
+            <HardDrive size={20} />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold">{usageMB} MB</div>
+            <div className="text-xs text-ink-muted">이미지 {usage.count}개 저장됨</div>
+          </div>
+        </div>
+      </Card>
+
       <div className="flex justify-between items-center">
-        <Button
-          variant="danger"
-          icon={<RotateCcw size={16} />}
-          onClick={() => {
-            if (
-              confirm(
-                '모든 데이터를 초기화할까요?\n\n(카드뉴스, 프리셋, 설정 전부 삭제)'
-              )
-            ) {
-              localStorage.clear();
-              onReset();
-            }
-          }}
-        >
+        <Button variant="danger" icon={<RotateCcw size={16} />} onClick={handleReset}>
           데이터 초기화
         </Button>
         <div className="flex items-center gap-3">
