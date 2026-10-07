@@ -1,8 +1,14 @@
 import React from 'react';
-import type { Slide, Preset, ColorVariant, ElementPosition } from '@/lib/types';
+import type {
+  Slide,
+  Preset,
+  ColorVariant,
+  ElementPosition,
+  BrandInfo,
+} from '@/lib/types';
 
 // ─────────────────────────────────────────────
-// 배경 렌더 (solid / gradient / mesh / pattern)
+// 배경 레이어
 // ─────────────────────────────────────────────
 function BackgroundLayer({
   color,
@@ -12,7 +18,6 @@ function BackgroundLayer({
   pattern: string;
 }) {
   const isGradient = !!color.backgroundEnd;
-
   return (
     <>
       <div
@@ -30,7 +35,8 @@ function BackgroundLayer({
             position: 'absolute',
             inset: 0,
             background: `radial-gradient(circle at 20% 20%, ${color.accent}40 0%, transparent 40%),
-                         radial-gradient(circle at 80% 60%, ${color.accent}30 0%, transparent 45%)`,
+                         radial-gradient(circle at 80% 60%, ${color.accent}30 0%, transparent 45%),
+                         radial-gradient(circle at 50% 90%, ${color.accent}20 0%, transparent 40%)`,
             pointerEvents: 'none',
           }}
         />
@@ -76,13 +82,11 @@ function BackgroundLayer({
 }
 
 // ─────────────────────────────────────────────
-// 드래그 가능한 요소 wrapper
+// 드래그 가능 wrapper (레이아웃 안에서 상대적 offset만 적용)
 // ─────────────────────────────────────────────
-function DraggableElement({
+function DraggableBox({
   elementKey,
   position,
-  defaultX,
-  defaultY,
   editable,
   selectedElement,
   onElementClick,
@@ -93,8 +97,6 @@ function DraggableElement({
 }: {
   elementKey: string;
   position?: ElementPosition;
-  defaultX: number;
-  defaultY: number;
   editable: boolean;
   selectedElement?: string | null;
   onElementClick?: (el: any) => void;
@@ -103,25 +105,13 @@ function DraggableElement({
   style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  const resolved = position ?? { x: defaultX, y: defaultY };
-
   if (!editable) {
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          left: `${resolved.x * 100}%`,
-          top: `${resolved.y * 100}%`,
-          maxWidth: `calc(100% - ${resolved.x * 200}px)`,
-          ...style,
-        }}
-      >
-        {children}
-      </div>
-    );
+    return <div style={style}>{children}</div>;
   }
 
   const isSelected = selectedElement === elementKey;
+  const offsetX = position?.x ?? 0;
+  const offsetY = position?.y ?? 0;
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -133,14 +123,15 @@ function DraggableElement({
     if (!container) return;
     const rect = container.getBoundingClientRect();
 
-    const startPos = { ...resolved };
+    const startOffset = { x: offsetX, y: offsetY };
 
     const onMove = (ev: MouseEvent) => {
       const dx = (ev.clientX - startX) / rect.width;
       const dy = (ev.clientY - startY) / rect.height;
-      const newX = Math.max(0, Math.min(1, startPos.x + dx));
-      const newY = Math.max(0, Math.min(1, startPos.y + dy));
-      onElementDrag?.(elementKey, { x: newX, y: newY });
+      onElementDrag?.(elementKey, {
+        x: Math.max(-0.5, Math.min(0.5, startOffset.x + dx)),
+        y: Math.max(-0.5, Math.min(0.5, startOffset.y + dy)),
+      });
     };
 
     const onUp = () => {
@@ -160,14 +151,12 @@ function DraggableElement({
         onElementClick?.(elementKey);
       }}
       style={{
-        position: 'absolute',
-        left: `${resolved.x * 100}%`,
-        top: `${resolved.y * 100}%`,
         cursor: 'move',
         outline: isSelected ? `3px solid ${accent}` : '2px dashed transparent',
         outlineOffset: 8,
-        borderRadius: 4,
+        borderRadius: 6,
         transition: 'outline-color 0.15s',
+        transform: `translate(${offsetX * 100}%, ${offsetY * 100}%)`,
         ...style,
       }}
       onMouseEnter={(e) => {
@@ -188,14 +177,197 @@ function DraggableElement({
 interface CardSlideProps {
   slide: Slide;
   preset: Preset;
-  /** 색상 variant (없으면 프리셋 첫 번째) */
   colorId?: string;
+  brand?: BrandInfo;
   editable?: boolean;
   onElementClick?: (el: any) => void;
   selectedElement?: string | null;
   onElementDrag?: (el: string, pos: ElementPosition) => void;
   width?: number;
   height?: number;
+  isLast?: boolean;
+}
+
+// ─────────────────────────────────────────────
+// 공통 컴포넌트들
+// ─────────────────────────────────────────────
+
+/** 모든 카드에 들어가는 푸터 (사이트명 + 스와이프) */
+function CardFooter({
+  brand,
+  color,
+  isLast,
+  accent,
+  textMuted,
+}: {
+  brand?: BrandInfo;
+  color: ColorVariant;
+  isLast: boolean;
+  accent: string;
+  textMuted: string;
+}) {
+  if (!brand?.website && !brand?.brandName && !brand?.handle) {
+    if (isLast) return null;
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          gap: 12,
+          fontSize: 18,
+          fontWeight: 700,
+          color: textMuted,
+          letterSpacing: '0.1em',
+        }}
+      >
+        SWIPE
+        <span style={{ color: accent, fontSize: 20 }}>→</span>
+      </div>
+    );
+  }
+
+  if (isLast) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          alignItems: 'flex-start',
+        }}
+      >
+        {brand.brandName && (
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: accent,
+              letterSpacing: '0.05em',
+            }}
+          >
+            {brand.brandName}
+          </div>
+        )}
+        {brand.website && (
+          <div style={{ fontSize: 18, color: textMuted, fontWeight: 500 }}>
+            {brand.website}
+          </div>
+        )}
+        {brand.handle && (
+          <div style={{ fontSize: 16, color: textMuted, opacity: 0.7 }}>
+            {brand.handle}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: 16,
+        color: textMuted,
+      }}
+    >
+      <div style={{ fontWeight: 500, opacity: 0.85 }}>
+        {brand.website || brand.brandName}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+        }}
+      >
+        SWIPE
+        <span style={{ color: accent, fontSize: 20 }}>→</span>
+      </div>
+    </div>
+  );
+}
+
+/** 뱃지 */
+function Badge({
+  slide,
+  color,
+  layout,
+}: {
+  slide: Slide;
+  color: ColorVariant;
+  layout: string;
+}) {
+  const labels: Record<string, string> = {
+    cover: 'FEATURED',
+    point: 'INFO',
+    data: 'DATA',
+    quote: 'QUOTE',
+    cta: 'READY',
+  };
+  const label = labels[slide.type] || slide.type.toUpperCase();
+
+  if (layout === 'dark-minimal' || layout === 'light-minimal') {
+    return (
+      <div
+        style={{
+          display: 'inline-block',
+          fontSize: 18,
+          fontWeight: 700,
+          letterSpacing: '0.25em',
+          color: color.accent,
+          textTransform: 'uppercase',
+          borderBottom: `2px solid ${color.accent}`,
+          paddingBottom: 6,
+        }}
+      >
+        {label}
+      </div>
+    );
+  }
+
+  if (layout.startsWith('light')) {
+    return (
+      <div
+        style={{
+          display: 'inline-block',
+          padding: '8px 20px',
+          fontSize: 16,
+          fontWeight: 700,
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          color: color.accent,
+          backgroundColor: color.accentSoft,
+          borderRadius: 999,
+        }}
+      >
+        {label}
+      </div>
+    );
+  }
+
+  // 다크 계열
+  return (
+    <div
+      style={{
+        display: 'inline-block',
+        padding: '8px 20px',
+        fontSize: 16,
+        fontWeight: 700,
+        letterSpacing: '0.15em',
+        textTransform: 'uppercase',
+        color: color.background,
+        backgroundColor: color.accent,
+        borderRadius: 4,
+      }}
+    >
+      {label}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -205,19 +377,21 @@ export function CardSlide({
   slide,
   preset,
   colorId,
+  brand,
   editable = false,
   onElementClick,
   selectedElement,
   onElementDrag,
   width = 1080,
   height = 1350,
+  isLast = false,
 }: CardSlideProps) {
   const color =
     preset.colorVariants.find((c) => c.id === colorId) || preset.colorVariants[0];
   const { typography, decoration, padding, layout } = preset;
   const { positions } = slide;
-
   const presetPositions = preset.positions;
+
   const headlinePos = positions?.headline ?? presetPositions?.headline;
   const bodyPos = positions?.body ?? presetPositions?.body;
   const highlightPos = positions?.highlight ?? presetPositions?.highlight;
@@ -232,12 +406,10 @@ export function CardSlide({
       ? 'contrast(1.2) saturate(0.6) hue-rotate(180deg)'
       : 'none';
 
-  const hasImage = !!slide.imageUrl;
   const hasFullBleed = !!(slide.imageUrl && slide.imageLayout === 'full-bleed');
   const hasTopImage = !!(slide.imageUrl && slide.imageLayout === 'top-image');
   const hasSplit = !!(slide.imageUrl && slide.imageLayout === 'split');
 
-  // 공통 요소 props
   const commonDragProps = {
     editable,
     selectedElement,
@@ -246,639 +418,83 @@ export function CardSlide({
     accent: color.accent,
   };
 
-  // 텍스트 색상 — 사진 배경이면 흰색 강제
-  const textColor = hasFullBleed ? '#ffffff' : color.text;
-  const textMutedColor = hasFullBleed ? '#ffffffcc' : color.textMuted;
+  // 이미지 위 흰 텍스트 강제 여부
+  const onImageOverlay = hasFullBleed && layout !== 'photo-mood';
+  const textColor = onImageOverlay ? '#ffffff' : color.text;
+  const textMutedColor = onImageOverlay ? '#ffffffcc' : color.textMuted;
 
-  // ─────────────────────────────────────────
-  // 레이아웃별 렌더 함수
-  // ─────────────────────────────────────────
-
-  // 1. 다크 볼드
-  const renderDarkBold = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        zIndex: 2,
-        color: textColor,
-      }}
+  // ─────────────────────────────────────
+  // 공통 컨텐츠 (헤드라인, 본문, highlight)
+  // ─────────────────────────────────────
+  const headlineEl = (
+    <DraggableBox
+      elementKey="headline"
+      position={headlinePos}
+      {...commonDragProps}
     >
-      {/* 상단 라벨 */}
-      <div
+      <h1
         style={{
-          position: 'absolute',
-          top: padding.top / 2,
-          left: padding.left,
-          fontSize: 22,
-          fontWeight: 700,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: color.textMuted,
-        }}
-      >
-        {slide.type === 'cover' ? 'FEATURED' : 'NEXT'}
-      </div>
-
-      {/* 우측 상단 페이지 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top / 2,
-          right: padding.right,
-          fontSize: 22,
-          fontWeight: 700,
-          color: color.textMuted,
-        }}
-      >
-        ● ● ●
-      </div>
-
-      <DraggableElement
-        elementKey="badge"
-        position={badgePos}
-        defaultX={0}
-        defaultY={0.35}
-        {...commonDragProps}
-      >
-        {slide.type === 'cover' && (
-          <div
-            style={{
-              display: 'inline-block',
-              padding: '8px 18px',
-              backgroundColor: color.accent,
-              color: color.background,
-              fontSize: 20,
-              fontWeight: 800,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              marginBottom: 32,
-            }}
-          >
-            {slide.type.toUpperCase()}
-          </div>
-        )}
-      </DraggableElement>
-
-      {slide.type === 'data' && slide.highlight && (
-        <DraggableElement
-          elementKey="highlight"
-          position={highlightPos}
-          defaultX={0}
-          defaultY={0.35}
-          {...commonDragProps}
-        >
-          <div
-            style={{
-              fontSize: 200,
-              fontWeight: 900,
-              lineHeight: 0.95,
-              color: color.accent,
-              letterSpacing: '-0.04em',
-              marginBottom: 32,
-            }}
-          >
-            {slide.highlight}
-          </div>
-        </DraggableElement>
-      )}
-
-      <DraggableElement
-        elementKey="headline"
-        position={headlinePos}
-        defaultX={0}
-        defaultY={slide.type === 'data' && slide.highlight ? 0.62 : 0.45}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        <h1
-          style={{
-            fontSize: typography.headlineSize,
-            fontWeight: typography.headlineWeight,
-            lineHeight: typography.lineHeight,
-            letterSpacing: typography.headlineLetterSpacing,
-            textTransform: typography.headlineUppercase ? 'uppercase' : 'none',
-            color: textColor,
-            margin: 0,
-            wordBreak: 'keep-all',
-          }}
-        >
-          {slide.headline}
-        </h1>
-      </DraggableElement>
-
-      <DraggableElement
-        elementKey="body"
-        position={bodyPos}
-        defaultX={0}
-        defaultY={slide.type === 'data' && slide.highlight ? 0.82 : 0.72}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        {slide.body && (
-          <p
-            style={{
-              fontSize: typography.bodySize,
-              lineHeight: 1.5,
-              color: textMutedColor,
-              margin: 0,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {slide.body}
-          </p>
-        )}
-      </DraggableElement>
-    </div>
-  );
-
-  // 2. 넘버링
-  const renderNumbering = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        zIndex: 2,
-        color: color.text,
-      }}
-    >
-      {/* 상단 라인 */}
-      {decoration.topLine && (
-        <div
-          style={{
-            position: 'absolute',
-            top: padding.top - 40,
-            left: padding.left,
-            right: padding.right,
-            height: 2,
-            backgroundColor: color.accent,
-          }}
-        />
-      )}
-
-      {/* 좌측 큰 숫자 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top,
-          left: padding.left,
-          fontSize: 56,
-          fontWeight: 800,
-          color: color.accent,
-          letterSpacing: '-0.03em',
-        }}
-      >
-        01
-      </div>
-
-      {/* 우측 상단 라벨 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top + 12,
-          right: padding.right,
-          fontSize: 18,
-          fontWeight: 600,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: color.textMuted,
-        }}
-      >
-        STEP 01
-      </div>
-
-      {/* 본문 콘텐츠 (숫자 아래) */}
-      <div
-        style={{
-          marginTop: 120,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 32,
-        }}
-      >
-        <DraggableElement
-          elementKey="headline"
-          position={headlinePos}
-          defaultX={0}
-          defaultY={0.32}
-          {...commonDragProps}
-          style={{ position: 'relative', left: 0, top: 0, maxWidth: width - padding.left - padding.right }}
-        >
-          <h1
-            style={{
-              fontSize: typography.headlineSize,
-              fontWeight: typography.headlineWeight,
-              lineHeight: typography.lineHeight,
-              letterSpacing: typography.headlineLetterSpacing,
-              color: color.text,
-              margin: 0,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {slide.headline}
-          </h1>
-        </DraggableElement>
-
-        {slide.body && (
-          <DraggableElement
-            elementKey="body"
-            position={bodyPos}
-            defaultX={0}
-            defaultY={0.55}
-            {...commonDragProps}
-            style={{ position: 'relative', left: 0, top: 0, maxWidth: width - padding.left - padding.right }}
-          >
-            <p
-              style={{
-                fontSize: typography.bodySize,
-                lineHeight: 1.6,
-                color: color.textMuted,
-                margin: 0,
-                wordBreak: 'keep-all',
-              }}
-            >
-              {slide.body}
-            </p>
-          </DraggableElement>
-        )}
-      </div>
-    </div>
-  );
-
-  // 3. 포토 감성
-  const renderPhotoMood = () => (
-    <>
-      {/* 사진 배경이 있으면 하단 그라데이션 오버레이 */}
-      {hasFullBleed && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background}99 55%, ${color.background}ee 100%)`,
-            zIndex: 1,
-          }}
-        />
-      )}
-
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          zIndex: 2,
+          fontSize:
+            slide.type === 'cover' ? typography.headlineSize : typography.headlineSize * 0.82,
+          fontWeight: typography.headlineWeight,
+          lineHeight: typography.lineHeight,
+          letterSpacing: typography.headlineLetterSpacing,
           color: textColor,
+          margin: 0,
+          wordBreak: 'keep-all',
+          overflowWrap: 'anywhere',
         }}
       >
-        {/* 상단 뱃지 */}
-        <DraggableElement
-          elementKey="badge"
-          position={badgePos}
-          defaultX={0}
-          defaultY={0.08}
-          {...commonDragProps}
-          style={{ position: 'absolute', top: padding.top, left: padding.left }}
-        >
-          <div
-            style={{
-              display: 'inline-block',
-              padding: '8px 18px',
-              backgroundColor: color.accent,
-              color: '#ffffff',
-              fontSize: 18,
-              fontWeight: 700,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              borderRadius: 999,
-            }}
-          >
-            TRAVEL
-          </div>
-        </DraggableElement>
-
-        <DraggableElement
-          elementKey="headline"
-          position={headlinePos}
-          defaultX={0}
-          defaultY={0.6}
-          {...commonDragProps}
-          style={{ position: 'relative', left: 0, top: 0, maxWidth: width - padding.left - padding.right }}
-        >
-          <h1
-            style={{
-              fontSize: typography.headlineSize,
-              fontWeight: typography.headlineWeight,
-              lineHeight: typography.lineHeight,
-              letterSpacing: typography.headlineLetterSpacing,
-              color: '#ffffff',
-              margin: 0,
-              wordBreak: 'keep-all',
-              marginBottom: 24,
-            }}
-          >
-            {slide.headline}
-          </h1>
-        </DraggableElement>
-
-        <DraggableElement
-          elementKey="body"
-          position={bodyPos}
-          defaultX={0}
-          defaultY={0.78}
-          {...commonDragProps}
-          style={{ position: 'relative', left: 0, top: 0, maxWidth: width - padding.left - padding.right }}
-        >
-          {slide.body && (
-            <p
-              style={{
-                fontSize: typography.bodySize,
-                lineHeight: 1.5,
-                color: '#ffffffdd',
-                margin: 0,
-                wordBreak: 'keep-all',
-              }}
-            >
-              {slide.body}
-            </p>
-          )}
-        </DraggableElement>
-      </div>
-    </>
+        {slide.headline}
+      </h1>
+    </DraggableBox>
   );
 
-  // 4. 미니멀 리스트
-  const renderMinimalList = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        zIndex: 2,
-        color: color.text,
-      }}
-    >
-      {/* 상단 탑 넘버링 */}
-      <div
+  const bodyEl = slide.body ? (
+    <DraggableBox elementKey="body" position={bodyPos} {...commonDragProps}>
+      <p
         style={{
-          position: 'absolute',
-          top: padding.top,
-          left: padding.left,
-          fontSize: 20,
-          fontWeight: 700,
-          letterSpacing: '0.3em',
-          textTransform: 'uppercase',
-          color: color.accent,
+          fontSize: typography.bodySize,
+          lineHeight: 1.55,
+          color: textMutedColor,
+          margin: 0,
+          wordBreak: 'keep-all',
+          overflowWrap: 'anywhere',
         }}
       >
-        TOP 3
-      </div>
+        {slide.body}
+      </p>
+    </DraggableBox>
+  ) : null;
 
-      {/* 상단 우측 페이지 번호 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top,
-          right: padding.right,
-          fontSize: 20,
-          fontWeight: 700,
-          color: color.textMuted,
-        }}
-      >
-        01/05
-      </div>
-
-      {/* 헤드라인 (중앙 상단) */}
-      <DraggableElement
-        elementKey="headline"
-        position={headlinePos}
-        defaultX={0}
-        defaultY={0.28}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        <h1
+  const highlightEl =
+    slide.type === 'data' && slide.highlight ? (
+      <DraggableBox elementKey="highlight" position={highlightPos} {...commonDragProps}>
+        <div
           style={{
-            fontSize: typography.headlineSize,
-            fontWeight: typography.headlineWeight,
-            lineHeight: typography.lineHeight,
-            letterSpacing: typography.headlineLetterSpacing,
-            color: color.text,
-            margin: 0,
+            fontSize: Math.min(220, typography.headlineSize * 2),
+            fontWeight: 900,
+            lineHeight: 0.95,
+            color: onImageOverlay ? '#ffffff' : color.accent,
+            letterSpacing: '-0.04em',
             wordBreak: 'keep-all',
           }}
         >
-          {slide.headline}
-        </h1>
-      </DraggableElement>
-
-      {/* 하단 리스트 */}
-      <DraggableElement
-        elementKey="body"
-        position={bodyPos}
-        defaultX={0}
-        defaultY={0.62}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {[1, 2, 3].map((n) => (
-            <div
-              key={n}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 16,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 24,
-                  fontWeight: 800,
-                  color: color.accent,
-                  minWidth: 40,
-                }}
-              >
-                {n}.
-              </div>
-              <div
-                style={{
-                  fontSize: typography.bodySize,
-                  lineHeight: 1.5,
-                  color: color.textMuted,
-                  flex: 1,
-                }}
-              >
-                {n === 1 ? slide.body : `리스트 항목 ${n}`}
-              </div>
-            </div>
-          ))}
+          {slide.highlight}
         </div>
-      </DraggableElement>
+      </DraggableBox>
+    ) : null;
 
-      {/* 우측 하단 로고 */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: padding.bottom - 40,
-          right: padding.right,
-          fontSize: 16,
-          fontWeight: 700,
-          letterSpacing: '0.2em',
-          color: color.textMuted,
-        }}
-      >
-        BRAND
-      </div>
-    </div>
+  const badgeEl = (
+    <DraggableBox elementKey="badge" position={badgePos} {...commonDragProps}>
+      <Badge slide={slide} color={color} layout={layout} />
+    </DraggableBox>
   );
 
-  // 5. 비즈니스 뱃지
-  const renderBusinessBadge = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        zIndex: 2,
-        color: color.text,
-      }}
-    >
-      {/* 좌측 accent bar */}
-      {decoration.accentBar === 'left' && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 80,
-            bottom: 80,
-            left: 60,
-            width: 6,
-            backgroundColor: color.accent,
-            borderRadius: 3,
-          }}
-        />
-      )}
-
-      {/* 원형 뱃지 (좌측 상단) */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top,
-          left: padding.left,
-          width: 100,
-          height: 100,
-          borderRadius: '50%',
-          backgroundColor: color.accent,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 36,
-          fontWeight: 800,
-          color: '#ffffff',
-        }}
-      >
-        01
-      </div>
-
-      {/* 우측 상단 카테고리 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top + 30,
-          right: padding.right,
-          fontSize: 18,
-          fontWeight: 700,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: color.textMuted,
-        }}
-      >
-        STRATEGY
-      </div>
-
-      {/* 헤드라인 */}
-      <DraggableElement
-        elementKey="headline"
-        position={headlinePos}
-        defaultX={0}
-        defaultY={0.32}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        <h1
-          style={{
-            fontSize: typography.headlineSize,
-            fontWeight: typography.headlineWeight,
-            lineHeight: typography.lineHeight,
-            letterSpacing: typography.headlineLetterSpacing,
-            color: color.text,
-            margin: 0,
-            wordBreak: 'keep-all',
-          }}
-        >
-          {slide.headline}
-        </h1>
-      </DraggableElement>
-
-      {/* 본문 */}
-      <DraggableElement
-        elementKey="body"
-        position={bodyPos}
-        defaultX={0}
-        defaultY={0.58}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        {slide.body && (
-          <p
-            style={{
-              fontSize: typography.bodySize,
-              lineHeight: 1.6,
-              color: color.textMuted,
-              margin: 0,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {slide.body}
-          </p>
-        )}
-      </DraggableElement>
-
-      {/* CTA 버튼 (하단) */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: padding.bottom,
-          left: padding.left,
-        }}
-      >
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '16px 28px',
-            backgroundColor: color.accent,
-            color: '#ffffff',
-            fontSize: 20,
-            fontWeight: 700,
-            borderRadius: 999,
-          }}
-        >
-          자세히 보기 →
-        </div>
-      </div>
-    </div>
-  );
-
-  // 6. 그라데이션 볼드
-  const renderGradientBold = () => (
+  // ─────────────────────────────────────
+  // 레이아웃 렌더 — flex column, 절대 화면 밖으로 안 나감
+  // ─────────────────────────────────────
+  const content = (
     <div
       style={{
         position: 'absolute',
@@ -886,177 +502,43 @@ export function CardSlide({
         padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
         zIndex: 2,
-        color: color.text,
+        boxSizing: 'border-box',
       }}
     >
-      {/* 좌측 상단 라벨 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: padding.top,
-          left: padding.left,
-          fontSize: 20,
-          fontWeight: 700,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: color.textMuted,
-        }}
-      >
-        {slide.type === 'cover' ? 'CHAPTER' : 'STEP'}
+      {/* 상단 */}
+      <div style={{ marginBottom: 24 }}>
+        {badgeEl}
       </div>
 
-      {/* 우측 상단 아이콘 */}
+      {/* 중앙 (여기서 flex: 1로 공간 차지) */}
       <div
         style={{
-          position: 'absolute',
-          top: padding.top - 8,
-          right: padding.right,
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          backgroundColor: '#ffffff22',
+          flex: 1,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#ffffff',
-          fontSize: 22,
+          flexDirection: 'column',
+          justifyContent: layout.includes('minimal') ? 'flex-start' : 'center',
+          gap: 28,
+          minHeight: 0,
         }}
       >
-        ⌘
+        {highlightEl}
+        {headlineEl}
+        {bodyEl}
       </div>
 
-      {slide.type === 'data' && slide.highlight && (
-        <DraggableElement
-          elementKey="highlight"
-          position={highlightPos}
-          defaultX={0}
-          defaultY={0.3}
-          {...commonDragProps}
-        >
-          <div
-            style={{
-              fontSize: 220,
-              fontWeight: 900,
-              lineHeight: 0.9,
-              color: '#ffffff',
-              letterSpacing: '-0.05em',
-              marginBottom: 40,
-              opacity: 0.95,
-            }}
-          >
-            {slide.highlight}
-          </div>
-        </DraggableElement>
-      )}
-
-      <DraggableElement
-        elementKey="headline"
-        position={headlinePos}
-        defaultX={0}
-        defaultY={slide.type === 'data' && slide.highlight ? 0.58 : 0.45}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        <h1
-          style={{
-            fontSize: typography.headlineSize,
-            fontWeight: typography.headlineWeight,
-            lineHeight: typography.lineHeight,
-            letterSpacing: typography.headlineLetterSpacing,
-            color: '#ffffff',
-            margin: 0,
-            wordBreak: 'keep-all',
-            marginBottom: 28,
-          }}
-        >
-          {slide.headline}
-        </h1>
-      </DraggableElement>
-
-      <DraggableElement
-        elementKey="body"
-        position={bodyPos}
-        defaultX={0}
-        defaultY={slide.type === 'data' && slide.highlight ? 0.78 : 0.68}
-        {...commonDragProps}
-        style={{ maxWidth: width - padding.left - padding.right }}
-      >
-        {slide.body && (
-          <p
-            style={{
-              fontSize: typography.bodySize,
-              lineHeight: 1.5,
-              color: '#ffffffcc',
-              margin: 0,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {slide.body}
-          </p>
-        )}
-      </DraggableElement>
-
-      {/* 하단 원형 화살표 */}
-      {decoration.bottomCircle && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: padding.bottom,
-            left: padding.left,
-            width: 80,
-            height: 80,
-            borderRadius: '50%',
-            backgroundColor: '#ffffff22',
-            backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff',
-            fontSize: 28,
-          }}
-        >
-          →
-        </div>
-      )}
-
-      {/* 우측 하단 브랜드 */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: padding.bottom + 24,
-          right: padding.right,
-          fontSize: 16,
-          fontWeight: 700,
-          letterSpacing: '0.3em',
-          color: color.textMuted,
-        }}
-      >
-        BRAND
+      {/* 하단 푸터 */}
+      <div style={{ marginTop: 24, minHeight: 60 }}>
+        <CardFooter
+          brand={brand}
+          color={color}
+          isLast={isLast}
+          accent={color.accent}
+          textMuted={textMutedColor}
+        />
       </div>
     </div>
   );
-
-  // 레이아웃 분기
-  const renderLayout = () => {
-    switch (layout) {
-      case 'dark-bold':
-        return renderDarkBold();
-      case 'numbering':
-        return renderNumbering();
-      case 'photo-mood':
-        return renderPhotoMood();
-      case 'minimal-list':
-        return renderMinimalList();
-      case 'business-badge':
-        return renderBusinessBadge();
-      case 'gradient-bold':
-        return renderGradientBold();
-      default:
-        return renderDarkBold();
-    }
-  };
 
   return (
     <div
@@ -1075,7 +557,7 @@ export function CardSlide({
       {/* 배경 */}
       <BackgroundLayer color={color} pattern={decoration.backgroundPattern} />
 
-      {/* 이미지 (photo-mood는 배경으로, 나머지는 레이아웃별 처리) */}
+      {/* 이미지 */}
       {hasFullBleed && (
         <>
           <img
@@ -1093,44 +575,75 @@ export function CardSlide({
               zIndex: 0,
             }}
           />
-          {layout !== 'photo-mood' && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: `linear-gradient(180deg, ${color.background}66 0%, ${color.background}dd 100%)`,
-                zIndex: 1,
-              }}
-            />
-          )}
+          {/* 상단 그라데이션 (이미지가 상단에서 부드럽게) */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '60%',
+              background: `linear-gradient(180deg, ${color.background} 0%, ${color.background}dd 30%, ${color.background}66 70%, ${color.background}00 100%)`,
+              zIndex: 1,
+              pointerEvents: 'none',
+            }}
+          />
+          {/* 하단 그라데이션 */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '70%',
+              background: `linear-gradient(0deg, ${color.background} 0%, ${color.background}f0 40%, ${color.background}99 70%, ${color.background}00 100%)`,
+              zIndex: 1,
+              pointerEvents: 'none',
+            }}
+          />
         </>
       )}
 
       {hasTopImage && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: height * 0.5,
-            overflow: 'hidden',
-            zIndex: 0,
-          }}
-        >
-          <img
-            src={slide.imageUrl}
-            alt=""
-            crossOrigin="anonymous"
+        <>
+          <div
             style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: `${focal.x * 100}% ${focal.y * 100}%`,
-              filter: imageFilter,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: height * 0.55,
+              overflow: 'hidden',
+              zIndex: 0,
+            }}
+          >
+            <img
+              src={slide.imageUrl}
+              alt=""
+              crossOrigin="anonymous"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: `${focal.x * 100}% ${focal.y * 100}%`,
+                filter: imageFilter,
+              }}
+            />
+          </div>
+          {/* 상단 이미지 하단 그라데이션 (배경으로 부드럽게 이어짐) */}
+          <div
+            style={{
+              position: 'absolute',
+              top: height * 0.4,
+              left: 0,
+              right: 0,
+              height: height * 0.25,
+              background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background} 100%)`,
+              zIndex: 1,
+              pointerEvents: 'none',
             }}
           />
-        </div>
+        </>
       )}
 
       {hasSplit && (
@@ -1157,11 +670,22 @@ export function CardSlide({
               filter: imageFilter,
             }}
           />
+          {/* 좌측으로 부드럽게 이어짐 */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: '40%',
+              background: `linear-gradient(90deg, ${color.background} 0%, ${color.background}00 100%)`,
+            }}
+          />
         </div>
       )}
 
-      {/* 레이아웃 렌더 */}
-      {renderLayout()}
+      {/* 콘텐츠 */}
+      {content}
 
       {/* 그림자 */}
       {decoration.shadow && (
@@ -1169,7 +693,7 @@ export function CardSlide({
           style={{
             position: 'absolute',
             inset: 0,
-            boxShadow: 'inset 0 0 160px rgba(0,0,0,0.35)',
+            boxShadow: 'inset 0 0 160px rgba(0,0,0,0.3)',
             pointerEvents: 'none',
             zIndex: 5,
           }}

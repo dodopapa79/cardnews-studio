@@ -1,10 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { BrandInfoForm } from '@/components/BrandInfoForm';
 import type { Settings } from '@/lib/types';
+import { EMPTY_BRAND } from '@/lib/types';
 import { saveSettings } from '@/lib/storage';
 import { ExternalLink, Check, AlertCircle, RotateCcw } from 'lucide-react';
 
@@ -20,7 +22,14 @@ export function SettingsView({
   const [local, setLocal] = useState(settings);
   const [saved, setSaved] = useState(false);
 
-  const update = (patch: Partial<Settings>) => setLocal({ ...local, ...patch });
+  useEffect(() => {
+    setLocal(settings);
+  }, [settings]);
+
+  const update = (patch: Partial<Settings>) => {
+    setLocal({ ...local, ...patch });
+    setSaved(false);
+  };
 
   const handleSave = () => {
     onChange(local);
@@ -104,13 +113,31 @@ export function SettingsView({
         </div>
       </Card>
 
+      <BrandInfoForm
+        brand={local.brand || EMPTY_BRAND}
+        onChange={(b) => update({ brand: b })}
+      />
+
       <div className="flex justify-between items-center">
-        <Button variant="danger" icon={<RotateCcw size={16} />} onClick={onReset}>
+        <Button
+          variant="danger"
+          icon={<RotateCcw size={16} />}
+          onClick={() => {
+            if (
+              confirm(
+                '모든 데이터를 초기화할까요?\n\n(카드뉴스, 프리셋, 설정 전부 삭제)'
+              )
+            ) {
+              localStorage.clear();
+              onReset();
+            }
+          }}
+        >
           데이터 초기화
         </Button>
         <div className="flex items-center gap-3">
           {saved && (
-            <span className="text-sm text-green-600 flex items-center gap-1">
+            <span className="text-sm text-primary-600 flex items-center gap-1">
               <Check size={14} /> 저장됨
             </span>
           )}

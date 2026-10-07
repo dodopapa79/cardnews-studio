@@ -2,12 +2,13 @@
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useRef } from 'react';
 import { CardSlide } from '@/templates';
-import type { Slide, Preset } from '@/lib/types';
+import type { Slide, Preset, BrandInfo } from '@/lib/types';
 
 export function HorizontalSlideStrip({
   slides,
   preset,
   colorId,
+  brand,
   selectedIdx,
   onSelect,
   onAdd,
@@ -15,6 +16,7 @@ export function HorizontalSlideStrip({
   slides: Slide[];
   preset: Preset;
   colorId?: string;
+  brand?: BrandInfo;
   selectedIdx: number;
   onSelect: (i: number) => void;
   onAdd?: () => void;
@@ -67,7 +69,13 @@ export function HorizontalSlideStrip({
                 left: 0,
               }}
             >
-              <CardSlide slide={s} preset={preset} colorId={colorId} />
+              <CardSlide
+                slide={s}
+                preset={preset}
+                colorId={colorId}
+                brand={brand}
+                isLast={i === slides.length - 1}
+              />
             </div>
 
             <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">

@@ -23,10 +23,12 @@ export function Sidebar({
   active,
   onChange,
   hasSlides,
+  projectName,
 }: {
   active: ViewId;
   onChange: (v: ViewId) => void;
   hasSlides: boolean;
+  projectName?: string;
 }) {
   return (
     <aside className="w-64 bg-white border-r border-surface-border flex flex-col h-screen sticky top-0 shrink-0">
@@ -37,7 +39,7 @@ export function Sidebar({
           </div>
           <div>
             <div className="font-bold text-sm">CardNews Studio</div>
-            <div className="text-[10px] text-ink-muted">v2.0</div>
+            <div className="text-[10px] text-ink-muted">v3.0</div>
           </div>
         </div>
       </div>
@@ -64,15 +66,21 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="p-4 border-t border-surface-border">
+      <div className="p-4 border-t border-surface-border space-y-2">
+        {hasSlides && projectName && (
+          <div className="text-xs">
+            <div className="text-ink-muted mb-0.5">현재 카드뉴스</div>
+            <div className="font-medium text-ink-primary truncate">{projectName}</div>
+          </div>
+        )}
         <div className="flex items-center gap-2 text-xs text-ink-secondary">
           <div
             className={clsx(
               'w-2 h-2 rounded-full',
-              hasSlides ? 'bg-green-500' : 'bg-gray-300'
+              hasSlides ? 'bg-primary-500' : 'bg-gray-300'
             )}
           />
-          {hasSlides ? '카드뉴스 준비됨' : '카드뉴스 없음'}
+          {hasSlides ? '편집 중' : '카드뉴스 없음'}
         </div>
       </div>
     </aside>

@@ -15,18 +15,22 @@ import {
   PlusSquare,
   User,
 } from 'lucide-react';
-import type { PhoneApp, Slide, Preset } from '@/lib/types';
+import type { PhoneApp, Slide, Preset, BrandInfo } from '@/lib/types';
 import { CardSlide } from '@/templates';
 
 export function PhoneMockup({
   slide,
   preset,
   colorId,
+  brand,
+  isLast,
   initialApp = 'tiktok',
 }: {
   slide: Slide;
   preset: Preset;
   colorId?: string;
+  brand?: BrandInfo;
+  isLast?: boolean;
   initialApp?: PhoneApp;
 }) {
   const [app, setApp] = useState<PhoneApp>(initialApp);
@@ -61,7 +65,13 @@ export function PhoneMockup({
                   transformOrigin: 'top left',
                 }}
               >
-                <CardSlide slide={slide} preset={preset} colorId={colorId} />
+                <CardSlide
+                  slide={slide}
+                  preset={preset}
+                  colorId={colorId}
+                  brand={brand}
+                  isLast={isLast}
+                />
               </div>
             </div>
 
@@ -80,7 +90,6 @@ export function PhoneMockup({
   );
 }
 
-// ─────────────────────────────────────────────
 function TikTokOverlay() {
   return (
     <div className="absolute inset-0 pointer-events-none">

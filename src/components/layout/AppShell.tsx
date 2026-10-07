@@ -15,16 +15,23 @@ export function AppShell({
   active,
   onChange,
   hasSlides,
+  projectName,
   children,
 }: {
   active: ViewId;
   onChange: (v: ViewId) => void;
   hasSlides: boolean;
+  projectName?: string;
   children: ReactNode;
 }) {
   return (
     <div className="flex min-h-screen bg-surface-bg">
-      <Sidebar active={active} onChange={onChange} hasSlides={hasSlides} />
+      <Sidebar
+        active={active}
+        onChange={onChange}
+        hasSlides={hasSlides}
+        projectName={projectName}
+      />
       <div className="flex-1 flex flex-col min-w-0">
         <Header title={TITLES[active]} />
         <main className="flex-1 p-6 overflow-x-hidden">{children}</main>

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
@@ -7,8 +7,9 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { STYLE_PRESETS, INDUSTRY_PRESETS } from '@/presets';
 import { CardSlide } from '@/templates';
-import type { Preset } from '@/lib/types';
-import { Check, Plus, Trash2, Download, Upload } from 'lucide-react';
+import { sortPresets } from '@/lib/utils';
+import type { Preset, BrandInfo } from '@/lib/types';
+import { Check, Plus, Trash2, Download, Upload, Star } from 'lucide-react';
 
 const SAMPLE_SLIDE = {
   id: 'preview',
@@ -25,30 +26,44 @@ export function PresetPicker({
   current,
   currentColorId,
   customPresets,
+  favorites,
+  stats,
+  brand,
   onSelect,
   onColorChange,
   onSaveCustom,
   onDeleteCustom,
   onImport,
   onExport,
+  onToggleFavorite,
 }: {
   current: Preset;
   currentColorId?: string;
   customPresets: Preset[];
+  favorites: string[];
+  stats: Record<string, number>;
+  brand?: BrandInfo;
   onSelect: (p: Preset, colorId?: string) => void;
   onColorChange?: (colorId: string) => void;
   onSaveCustom: (name: string) => void;
   onDeleteCustom: (id: string) => void;
   onImport?: (presets: Preset[]) => void;
   onExport?: (preset: Preset) => void;
+  onToggleFavorite?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<'style' | 'industry' | 'custom'>('style');
   const [saveModal, setSaveModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [detailPreset, setDetailPreset] = useState<Preset | null>(null);
 
-  const list =
+  const rawList =
     tab === 'style' ? STYLE_PRESETS : tab === 'industry' ? INDUSTRY_PRESETS : customPresets;
+
+  // 정렬 (즐겨찾기 → 사용 빈도 → 이름)
+  const list = useMemo(
+    () => sortPresets(rawList, favorites, stats),
+    [rawList, favorites, stats]
+  );
 
   function handleExport(preset: Preset) {
     if (onExport) return onExport(preset);
@@ -84,7 +99,7 @@ export function PresetPicker({
     <Card>
       <CardHeader
         title="프리셋"
-        subtitle="스타일을 선택하면 카드가 즉시 변경됩니다"
+        subtitle="클릭하면 즉시 적용됩니다"
         action={
           <div className="flex gap-1">
             <label className="cursor-pointer">
@@ -131,16 +146,19 @@ export function PresetPicker({
           저장된 커스텀 프리셋이 없습니다
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[560px] overflow-y-auto pr-1">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[520px] overflow-y-auto pr-1">
           {list.map((p) => (
             <PresetCard
               key={p.id}
               preset={p}
               selected={current.id === p.id}
+              favorite={favorites.includes(p.id)}
+              brand={brand}
               onClick={() => {
                 onSelect(p);
                 setDetailPreset(p);
               }}
+              onToggleFavorite={() => onToggleFavorite?.(p.id)}
               onDelete={
                 !p.builtin && tab === 'custom' ? () => onDeleteCustom(p.id) : undefined
               }
@@ -149,7 +167,7 @@ export function PresetPicker({
         </div>
       )}
 
-      {/* 프리셋 상세 모달 */}
+      {/* 프리셋 상세 모달 — 적용 시 자동 닫힘 */}
       <Modal
         open={!!detailPreset}
         onClose={() => setDetailPreset(null)}
@@ -160,9 +178,11 @@ export function PresetPicker({
           <PresetDetail
             preset={detailPreset}
             currentColorId={currentColorId}
-            onColorChange={(cid) => {
+            brand={brand}
+            onApply={(cid) => {
               onColorChange?.(cid);
               onSelect(detailPreset, cid);
+              setDetailPreset(null); // ← 자동 닫힘
             }}
             onClose={() => setDetailPreset(null)}
             onExport={() => handleExport(detailPreset)}
@@ -212,16 +232,20 @@ export function PresetPicker({
 function PresetCard({
   preset,
   selected,
+  favorite,
+  brand,
   onClick,
+  onToggleFavorite,
   onDelete,
 }: {
   preset: Preset;
   selected: boolean;
+  favorite: boolean;
+  brand?: BrandInfo;
   onClick: () => void;
+  onToggleFavorite?: () => void;
   onDelete?: () => void;
 }) {
-  const firstColor = preset.colorVariants[0];
-
   return (
     <div className="relative group">
       <button
@@ -232,6 +256,7 @@ function PresetCard({
             : 'border border-surface-border hover:border-primary-300 shadow-card'
         }`}
       >
+        {/* 미리보기 — aspect ratio로 잘림 방지 */}
         <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4 / 5' }}>
           <div
             style={{
@@ -244,7 +269,12 @@ function PresetCard({
               left: 0,
             }}
           >
-            <CardSlide slide={SAMPLE_SLIDE} preset={preset} />
+            <CardSlide
+              slide={SAMPLE_SLIDE}
+              preset={preset}
+              brand={brand}
+              isLast={false}
+            />
           </div>
           {selected && (
             <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-primary-600 flex items-center justify-center text-white">
@@ -253,13 +283,17 @@ function PresetCard({
           )}
         </div>
         <div className="p-3 border-t border-surface-border bg-white">
-          <div className="text-sm font-semibold truncate">{preset.name}</div>
+          <div className="flex items-center gap-1.5">
+            <div className="text-sm font-semibold truncate flex-1">{preset.name}</div>
+            {favorite && (
+              <Star size={12} className="text-amber-500 shrink-0" fill="currentColor" />
+            )}
+          </div>
           {preset.description && (
             <div className="text-xs text-ink-muted truncate mt-0.5">
               {preset.description}
             </div>
           )}
-          {/* 색상 미리보기 도트 */}
           <div className="flex gap-1 mt-2">
             {preset.colorVariants.slice(0, 4).map((c) => (
               <span
@@ -278,13 +312,32 @@ function PresetCard({
         </div>
       </button>
 
+      {/* 즐겨찾기 버튼 */}
+      {onToggleFavorite && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+            favorite
+              ? 'bg-amber-500 text-white opacity-100'
+              : 'bg-white/80 text-ink-secondary opacity-0 group-hover:opacity-100'
+          }`}
+          title={favorite ? '즐겨찾기 해제' : '즐겨찾기'}
+        >
+          <Star size={13} fill={favorite ? 'currentColor' : 'none'} />
+        </button>
+      )}
+
+      {/* 삭제 버튼 */}
       {onDelete && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             if (confirm(`"${preset.name}" 프리셋을 삭제할까요?`)) onDelete();
           }}
-          className="absolute top-2 left-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute bottom-2 left-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
           title="삭제"
         >
           <Trash2 size={13} />
@@ -295,18 +348,20 @@ function PresetCard({
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 상세 (큰 미리보기 + 색상 선택)
+// 프리셋 상세 모달
 // ─────────────────────────────────────────────
 function PresetDetail({
   preset,
   currentColorId,
-  onColorChange,
+  brand,
+  onApply,
   onClose,
   onExport,
 }: {
   preset: Preset;
   currentColorId?: string;
-  onColorChange: (colorId: string) => void;
+  brand?: BrandInfo;
+  onApply: (colorId: string) => void;
   onClose: () => void;
   onExport: () => void;
 }) {
@@ -316,7 +371,6 @@ function PresetDetail({
 
   return (
     <div className="space-y-4">
-      {/* 큰 미리보기 */}
       <div className="flex justify-center">
         <div
           className="rounded-xl overflow-hidden border-2 border-white shadow-lg bg-white"
@@ -330,16 +384,19 @@ function PresetDetail({
               transformOrigin: 'top left',
             }}
           >
-            <CardSlide slide={SAMPLE_SLIDE} preset={preset} colorId={previewColorId} />
+            <CardSlide
+              slide={SAMPLE_SLIDE}
+              preset={preset}
+              colorId={previewColorId}
+              brand={brand}
+              isLast={false}
+            />
           </div>
         </div>
       </div>
 
-      {/* 색상 선택 */}
       <div>
-        <div className="text-xs font-semibold text-ink-secondary mb-2">
-          색상 선택
-        </div>
+        <div className="text-xs font-semibold text-ink-secondary mb-2">색상 선택</div>
         <div className="flex gap-2 flex-wrap">
           {preset.colorVariants.map((c) => (
             <button
@@ -361,7 +418,6 @@ function PresetDetail({
         </div>
       </div>
 
-      {/* 액션 */}
       <div className="flex gap-2 justify-between pt-2 border-t">
         <Button variant="ghost" size="sm" icon={<Download size={14} />} onClick={onExport}>
           파일로 내보내기
@@ -370,12 +426,7 @@ function PresetDetail({
           <Button variant="ghost" onClick={onClose}>
             닫기
           </Button>
-          <Button
-            onClick={() => {
-              onColorChange(previewColorId);
-              onClose();
-            }}
-          >
+          <Button onClick={() => onApply(previewColorId)}>
             이 프리셋 적용
           </Button>
         </div>

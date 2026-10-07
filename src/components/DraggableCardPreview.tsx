@@ -3,19 +3,23 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { CardSlide } from '@/templates';
-import type { Slide, Preset, ElementPosition } from '@/lib/types';
+import type { Slide, Preset, ElementPosition, BrandInfo } from '@/lib/types';
 import { RotateCcw, Grid3x3, Smartphone } from 'lucide-react';
 
 export function DraggableCardPreview({
   slide,
   preset,
   colorId,
+  brand,
+  isLast,
   onSlideChange,
   onOpenPhoneMockup,
 }: {
   slide: Slide;
   preset: Preset;
   colorId?: string;
+  brand?: BrandInfo;
+  isLast?: boolean;
   onSlideChange: (slide: Slide) => void;
   onOpenPhoneMockup: () => void;
 }) {
@@ -138,6 +142,8 @@ export function DraggableCardPreview({
                 slide={slide}
                 preset={preset}
                 colorId={colorId}
+                brand={brand}
+                isLast={isLast}
                 editable
                 selectedElement={selectedElement}
                 onElementClick={setSelectedElement}
