@@ -7,12 +7,14 @@ import type { Slide, Preset } from '@/lib/types';
 export function HorizontalSlideStrip({
   slides,
   preset,
+  colorId,
   selectedIdx,
   onSelect,
   onAdd,
 }: {
   slides: Slide[];
   preset: Preset;
+  colorId?: string;
   selectedIdx: number;
   onSelect: (i: number) => void;
   onAdd?: () => void;
@@ -25,21 +27,19 @@ export function HorizontalSlideStrip({
 
   return (
     <div className="relative">
-      {/* 좌우 스크롤 버튼 */}
       <button
         onClick={() => scrollBy(-320)}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-ink-secondary hover:text-primary-700 hover:bg-white"
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-ink-secondary hover:text-primary-700"
       >
         <ChevronLeft size={18} />
       </button>
       <button
         onClick={() => scrollBy(320)}
-        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-ink-secondary hover:text-primary-700 hover:bg-white"
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-ink-secondary hover:text-primary-700"
       >
         <ChevronRight size={18} />
       </button>
 
-      {/* 스크롤 영역 */}
       <div
         ref={scrollRef}
         className="flex gap-3 overflow-x-auto pb-2 px-10"
@@ -67,7 +67,7 @@ export function HorizontalSlideStrip({
                 left: 0,
               }}
             >
-              <CardSlide slide={s} preset={preset} />
+              <CardSlide slide={s} preset={preset} colorId={colorId} />
             </div>
 
             <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">

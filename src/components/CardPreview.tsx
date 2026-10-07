@@ -5,10 +5,12 @@ import { CardSlide } from '@/templates';
 export function CardPreview({
   slides,
   preset,
+  colorId,
   registerRef,
 }: {
   slides: Slide[];
   preset: Preset;
+  colorId?: string;
   registerRef: (idx: number, el: HTMLDivElement | null) => void;
 }) {
   return (
@@ -28,7 +30,7 @@ export function CardPreview({
             }}
           >
             <div ref={(el) => registerRef(i, el)}>
-              <CardSlide slide={s} preset={preset} />
+              <CardSlide slide={s} preset={preset} colorId={colorId} />
             </div>
           </div>
         </div>
@@ -37,6 +39,14 @@ export function CardPreview({
   );
 }
 
-CardPreview.Single = function Single({ slide, preset }: { slide: Slide; preset: Preset }) {
-  return <CardSlide slide={slide} preset={preset} />;
+CardPreview.Single = function Single({
+  slide,
+  preset,
+  colorId,
+}: {
+  slide: Slide;
+  preset: Preset;
+  colorId?: string;
+}) {
+  return <CardSlide slide={slide} preset={preset} colorId={colorId} />;
 };

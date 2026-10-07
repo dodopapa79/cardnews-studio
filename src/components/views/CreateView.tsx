@@ -11,7 +11,7 @@ import { HorizontalSlideStrip } from '@/components/HorizontalSlideStrip';
 import { DraggableCardPreview } from '@/components/DraggableCardPreview';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { generateImage } from '@/lib/imagegen';
-import type { Preset, Settings, Slide, ElementPosition } from '@/lib/types';
+import type { Preset, Settings, Slide } from '@/lib/types';
 import {
   Sparkles,
   Image as ImageIcon,
@@ -30,6 +30,7 @@ export function CreateView({
   slides,
   onSlidesChange,
   preset,
+  presetColorId,
   onPresetChange,
   customPresets,
   onSaveCustom,
@@ -40,7 +41,8 @@ export function CreateView({
   slides: Slide[];
   onSlidesChange: (s: Slide[]) => void;
   preset: Preset;
-  onPresetChange: (p: Preset) => void;
+  presetColorId?: string;
+  onPresetChange: (p: Preset, colorId?: string) => void;
   customPresets: Preset[];
   onSaveCustom: (name: string) => void;
   onDeleteCustom: (id: string) => void;
@@ -53,6 +55,11 @@ export function CreateView({
   const [presetModalOpen, setPresetModalOpen] = useState(false);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [colorId, setColorId] = useState(presetColorId || preset.colorVariants[0]?.id);
+
+  useEffect(() => {
+    if (presetColorId && presetColorId !== colorId) setColorId(presetColorId);
+  }, [presetColorId, colorId]);
 
   useEffect(() => {
     if (selectedIdx >= slides.length && slides.length > 0) {
@@ -94,9 +101,12 @@ export function CreateView({
     }
     setGeneratingIdx(i);
     try {
-      const url = await generateImage(settings.cfAccountId, settings.cfApiToken, s.imagePrompt, {
-        workerUrl: settings.workerUrl,
-      });
+      const url = await generateImage(
+        settings.cfAccountId,
+        settings.cfApiToken,
+        s.imagePrompt,
+        { workerUrl: settings.workerUrl }
+      );
       update(i, { imageUrl: url });
     } catch (e: any) {
       alert(`이미지 생성 실패: ${e.message}`);
@@ -125,9 +135,12 @@ export function CreateView({
       setBatchProgress({ current: k + 1, total: targets.length });
       if (!s.imagePrompt.trim()) continue;
       try {
-        const url = await generateImage(settings.cfAccountId, settings.cfApiToken, s.imagePrompt, {
-          workerUrl: settings.workerUrl,
-        });
+        const url = await generateImage(
+          settings.cfAccountId,
+          settings.cfApiToken,
+          s.imagePrompt,
+          { workerUrl: settings.workerUrl }
+        );
         update(i, { imageUrl: url });
         await new Promise((r) => setTimeout(r, 1200));
       } catch (e) {
@@ -191,6 +204,27 @@ export function CreateView({
             이미지 {slides.filter((s) => s.imageUrl).length}장 생성됨
           </div>
 
+          {/* 색상 도트 */}
+          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-surface-border">
+            <span className="text-xs text-ink-muted mr-1">색상:</span>
+            {preset.colorVariants.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  setColorId(c.id);
+                  onPresetChange(preset, c.id);
+                }}
+                className={`w-5 h-5 rounded-full border-2 transition-all ${
+                  colorId === c.id
+                    ? 'border-primary-500 scale-110'
+                    : 'border-white shadow-sm hover:scale-110'
+                }`}
+                style={{ background: c.accent }}
+                title={c.name}
+              />
+            ))}
+          </div>
+
           <div className="ml-auto flex gap-2 flex-wrap">
             <Button
               size="sm"
@@ -211,7 +245,11 @@ export function CreateView({
             <Button
               size="sm"
               icon={
-                batchLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />
+                batchLoading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Sparkles size={14} />
+                )
               }
               onClick={genAllImages}
               disabled={batchLoading}
@@ -228,6 +266,7 @@ export function CreateView({
           <HorizontalSlideStrip
             slides={slides}
             preset={preset}
+            colorId={colorId}
             selectedIdx={selectedIdx}
             onSelect={setSelectedIdx}
           />
@@ -235,19 +274,18 @@ export function CreateView({
 
         {/* 2컬럼: 미리보기 | 편집 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* 좌: 드래그 미리보기 */}
           <div className="lg:col-span-7">
             {selected && (
               <DraggableCardPreview
                 slide={selected}
                 preset={preset}
+                colorId={colorId}
                 onSlideChange={(s) => update(selectedIdx, s)}
                 onOpenPhoneMockup={() => setPhoneModalOpen(true)}
               />
             )}
           </div>
 
-          {/* 우: 편집 폼 */}
           <div className="lg:col-span-5">
             <Card className="sticky top-20">
               <CardHeader
@@ -361,7 +399,6 @@ export function CreateView({
                     )}
                   </div>
 
-                  {/* 위치 조정 안내 */}
                   <div className="border-t pt-3">
                     <div className="flex items-center gap-2 text-xs text-ink-secondary mb-2">
                       <MapPin size={12} />
@@ -384,10 +421,15 @@ export function CreateView({
       >
         <PresetPicker
           current={preset}
+          currentColorId={colorId}
           customPresets={customPresets}
-          onSelect={(p) => {
-            onPresetChange(p);
-            setPresetModalOpen(false);
+          onSelect={(p, cid) => {
+            onPresetChange(p, cid);
+            if (cid) setColorId(cid);
+          }}
+          onColorChange={(cid) => {
+            setColorId(cid);
+            onPresetChange(preset, cid);
           }}
           onSaveCustom={onSaveCustom}
           onDeleteCustom={onDeleteCustom}
@@ -418,7 +460,9 @@ export function CreateView({
         title="스마트폰에서 보기"
         maxWidth="md"
       >
-        {selected && <PhoneMockup slide={selected} preset={preset} />}
+        {selected && (
+          <PhoneMockup slide={selected} preset={preset} colorId={colorId} />
+        )}
       </Modal>
     </>
   );

@@ -9,11 +9,13 @@ import { RotateCcw, Grid3x3, Smartphone } from 'lucide-react';
 export function DraggableCardPreview({
   slide,
   preset,
+  colorId,
   onSlideChange,
   onOpenPhoneMockup,
 }: {
   slide: Slide;
   preset: Preset;
+  colorId?: string;
   onSlideChange: (slide: Slide) => void;
   onOpenPhoneMockup: () => void;
 }) {
@@ -48,8 +50,7 @@ export function DraggableCardPreview({
 
   return (
     <Card padding={false} className="p-3">
-      {/* 툴바 */}
-      <div className="flex items-center justify-between mb-3 px-1">
+      <div className="flex items-center justify-between mb-3 px-1 flex-wrap gap-2">
         <div className="text-sm font-semibold">
           미리보기 — <span className="text-primary-600">드래그로 위치 조정</span>
         </div>
@@ -57,7 +58,9 @@ export function DraggableCardPreview({
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={`p-1.5 rounded-lg transition-colors ${
-              showGrid ? 'bg-primary-100 text-primary-700' : 'hover:bg-surface-hover text-ink-secondary'
+              showGrid
+                ? 'bg-primary-100 text-primary-700'
+                : 'hover:bg-surface-hover text-ink-secondary'
             }`}
             title="그리드 표시"
           >
@@ -82,7 +85,6 @@ export function DraggableCardPreview({
         </div>
       </div>
 
-      {/* 카드 (중앙 정렬) */}
       <div className="flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6">
         <div
           className="relative"
@@ -92,7 +94,6 @@ export function DraggableCardPreview({
             aspectRatio: '1080 / 1350',
           }}
         >
-          {/* 그리드 오버레이 */}
           {showGrid && (
             <div className="absolute inset-0 z-10 pointer-events-none">
               <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -124,7 +125,6 @@ export function DraggableCardPreview({
             </div>
           )}
 
-          {/* 카드 (축소 렌더) */}
           <div className="rounded-xl overflow-hidden border-2 border-white shadow-xl bg-white w-full h-full">
             <div
               style={{
@@ -137,6 +137,7 @@ export function DraggableCardPreview({
               <CardSlide
                 slide={slide}
                 preset={preset}
+                colorId={colorId}
                 editable
                 selectedElement={selectedElement}
                 onElementClick={setSelectedElement}

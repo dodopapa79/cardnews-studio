@@ -1,5 +1,20 @@
 import type { VideoLayout } from './types';
 
+export interface BgmOption {
+  file: File;
+  volume: number;
+  fadeIn: number;
+  fadeOut: number;
+}
+
+export interface LogoOption {
+  imageUrl: string;
+  position: 'bottom-left' | 'bottom-right' | 'center' | 'top-left' | 'top-right';
+  frame: 'first' | 'last' | 'both';
+  size: number;
+  opacity: number;
+}
+
 export interface VideoOptions {
   width?: number;
   height?: number;
@@ -11,6 +26,8 @@ export interface VideoOptions {
   showProgressBar?: boolean;
   showSubtitle?: boolean;
   subtitleTexts?: string[];
+  bgm?: BgmOption;
+  logo?: LogoOption;
   onProgress?: (pct: number) => void;
   onStatus?: (msg: string) => void;
 }
@@ -30,6 +47,8 @@ export async function generateShorts(
     showProgressBar = true,
     showSubtitle = false,
     subtitleTexts = [],
+    bgm,
+    logo,
     onProgress,
     onStatus,
   } = options;
@@ -53,14 +72,53 @@ export async function generateShorts(
     )
   );
 
+  // ─────────────────────────────────────────
+  // 오디오 세팅
+  // ─────────────────────────────────────────
+  const audioCtx = new AudioContext();
+  const audioDest = audioCtx.createMediaStreamDestination();
+  const masterGain = audioCtx.createGain();
+  masterGain.connect(audioDest);
+
+  let bgmSource: AudioBufferSourceNode | null = null;
+  let bgmGain: GainNode | null = null;
+
+  if (bgm?.file) {
+    try {
+      const arrayBuffer = await bgm.file.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      bgmGain = audioCtx.createGain();
+      bgmGain.gain.value = bgm.volume;
+      bgmGain.connect(masterGain);
+
+      bgmSource = audioCtx.createBufferSource();
+      bgmSource.buffer = audioBuffer;
+      bgmSource.loop = true;
+      bgmSource.connect(bgmGain);
+    } catch (e) {
+      console.warn('BGM 로드 실패:', e);
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // MediaRecorder
+  // ─────────────────────────────────────────
   const canvasStream = canvas.captureStream(fps);
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-    ? 'video/webm;codecs=vp9'
+  const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
+  tracks.push(...audioDest.stream.getAudioTracks());
+  const mixedStream = new MediaStream(tracks);
+
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+    ? 'video/webm;codecs=vp9,opus'
+    : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+    ? 'video/webm;codecs=vp8,opus'
     : 'video/webm';
 
-  const recorder = new MediaRecorder(canvasStream, {
+  const recorder = new MediaRecorder(mixedStream, {
     mimeType,
     videoBitsPerSecond: 5_000_000,
+    audioBitsPerSecond: 128_000,
   });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
@@ -68,8 +126,29 @@ export async function generateShorts(
   const TOP_RATIO = 0.42;
   const BOTTOM_RATIO = 0.58;
   const totalMs = images.length * slideDurationMs;
-  const startWallTime = performance.now();
+  const totalSec = totalMs / 1000;
 
+  // ─────────────────────────────────────────
+  // 로고 프리로드
+  // ─────────────────────────────────────────
+  let logoImg: HTMLImageElement | null = null;
+  if (logo?.imageUrl) {
+    try {
+      logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = logo.imageUrl;
+      });
+    } catch {
+      console.warn('로고 로드 실패');
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // 그리기 헬퍼
+  // ─────────────────────────────────────────
   function drawFullScreenCard(img: HTMLImageElement, alpha: number, scale = 1, offsetX = 0) {
     const cardH = height * 0.82;
     const scaleFit = Math.min(cardH / img.height, (width * 0.9) / img.width) * scale;
@@ -160,8 +239,76 @@ export async function generateShorts(
     ctx.restore();
   }
 
+  function drawLogo() {
+    if (!logoImg || !logo) return;
+    const pad = 60;
+    const logoW = logo.size;
+    const logoH = (logoImg.height / logoImg.width) * logoW;
+
+    let x = 0;
+    let y = 0;
+
+    switch (logo.position) {
+      case 'bottom-left':
+        x = pad;
+        y = height - pad - logoH;
+        break;
+      case 'bottom-right':
+        x = width - pad - logoW;
+        y = height - pad - logoH;
+        break;
+      case 'top-left':
+        x = pad;
+        y = pad;
+        break;
+      case 'top-right':
+        x = width - pad - logoW;
+        y = pad;
+        break;
+      case 'center':
+        x = (width - logoW) / 2;
+        y = (height - logoH) / 2;
+        break;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = logo.opacity;
+    ctx.drawImage(logoImg, x, y, logoW, logoH);
+    ctx.restore();
+  }
+
+  const shouldShowLogoAt = (elapsed: number) => {
+    if (!logo || !logoImg) return false;
+    const showFirst = logo.frame === 'first' || logo.frame === 'both';
+    const showLast = logo.frame === 'last' || logo.frame === 'both';
+    if (showFirst && elapsed < 2000) return true;
+    if (showLast && elapsed > totalMs - 2000) return true;
+    return false;
+  };
+
+  // ─────────────────────────────────────────
+  // 렌더 루프
+  // ─────────────────────────────────────────
   onStatus?.('영상 녹화 중...');
+  await audioCtx.resume();
+
+  if (bgmSource) {
+    const startAt = audioCtx.currentTime;
+    bgmSource.start(startAt);
+
+    // 페이드 인/아웃
+    if (bgmGain && bgm) {
+      const fadeIn = Math.min(bgm.fadeIn, totalSec / 2);
+      const fadeOut = Math.min(bgm.fadeOut, totalSec / 2);
+      bgmGain.gain.setValueAtTime(0, startAt);
+      bgmGain.gain.linearRampToValueAtTime(bgm.volume, startAt + fadeIn);
+      bgmGain.gain.setValueAtTime(bgm.volume, startAt + totalSec - fadeOut);
+      bgmGain.gain.linearRampToValueAtTime(0, startAt + totalSec);
+    }
+  }
+
   recorder.start();
+  const startWallTime = performance.now();
 
   await new Promise<void>((resolve) => {
     const tick = () => {
@@ -220,6 +367,12 @@ export async function generateShorts(
         }
       }
 
+      // 로고
+      if (shouldShowLogoAt(elapsed)) {
+        drawLogo();
+      }
+
+      // 진행 바
       if (showProgressBar) {
         const progress = elapsed / totalMs;
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
@@ -246,6 +399,11 @@ export async function generateShorts(
 
   recorder.stop();
   await new Promise<void>((r) => (recorder.onstop = () => r()));
+
+  try {
+    bgmSource?.stop();
+    await audioCtx.close();
+  } catch {}
 
   return new Blob(chunks, { type: 'video/webm' });
 }

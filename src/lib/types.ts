@@ -3,20 +3,34 @@ export type ImageLayout = 'full-bleed' | 'top-image' | 'split' | 'none';
 export type VideoLayout = 'full-screen' | 'split-news';
 export type PhoneApp = 'tiktok' | 'youtube' | 'instagram';
 
+/** 카드 레이아웃 종류 */
+export type CardLayout =
+  | 'dark-bold'        // 검정 배경, 좌측 정렬, 큰 대문자
+  | 'numbering'        // 흰 배경, 좌측 큰 숫자(01), 상단 라인
+  | 'photo-mood'       // 사진 배경, 하단 그라데이션
+  | 'minimal-list'     // 흰 배경, 상단 탑 넘버링, 하단 리스트
+  | 'business-badge'   // 흰 배경, 파란 강조, 원형 뱃지
+  | 'gradient-bold';   // 그라데이션 배경, 큰 숫자, 좌측 정렬
+
+/** 배경 타입 */
+export type BackgroundType = 'solid' | 'gradient' | 'mesh' | 'pattern';
+
+/** 텍스트 정렬 */
+export type TextAlign = 'left' | 'center' | 'right';
+
 /** 카드 안에서 요소의 상대 위치 (0~1 비율) */
 export interface ElementPosition {
-  x: number; // 0 = 좌측, 1 = 우측
-  y: number; // 0 = 상단, 1 = 하단
-  scale?: number; // 0.5 ~ 2.0 (선택)
+  x: number;
+  y: number;
+  scale?: number;
 }
 
 export interface SlidePositions {
-  /** 요소별 위치 오버라이드 (없으면 프리셋 기본값 사용) */
   headline?: ElementPosition;
   body?: ElementPosition;
   highlight?: ElementPosition;
   badge?: ElementPosition;
-  imageFocal?: { x: number; y: number }; // 이미지 focal point (0~1)
+  imageFocal?: { x: number; y: number };
 }
 
 export interface Slide {
@@ -28,16 +42,18 @@ export interface Slide {
   imageUrl: string;
   imagePrompt: string;
   imageLayout: ImageLayout;
-  /** 슬라이드별 위치 override */
   positions?: SlidePositions;
 }
 
-export interface Theme {
+/** 하나의 색상 세트 */
+export interface ColorVariant {
   id: string;
   name: string;
-  background: string;
+  background: string;      // 단색 배경 or 그라데이션 시작
+  backgroundEnd?: string;  // 그라데이션 끝 (옵션)
   surface: string;
   text: string;
+  textMuted: string;
   accent: string;
   accentSoft: string;
 }
@@ -49,18 +65,30 @@ export interface Typography {
   bodySize: number;
   headlineLetterSpacing: string;
   lineHeight: number;
+  /** 대문자 변환 (다크 볼드용) */
+  headlineUppercase?: boolean;
+}
+
+export interface Padding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
 }
 
 export interface Decoration {
-  badgeStyle: 'pill' | 'square' | 'underline' | 'none';
+  badgeStyle: 'pill' | 'square' | 'underline' | 'none' | 'circle-number';
   cornerRadius: number;
   accentBar: 'top' | 'left' | 'bottom' | 'none';
   backgroundPattern: 'none' | 'grid' | 'dots' | 'noise' | 'mesh';
   imageTreatment: 'normal' | 'duotone' | 'grayscale';
   shadow: boolean;
+  /** 상단 라인 (넘버링용) */
+  topLine?: boolean;
+  /** 하단 원형 아이콘 (그라데이션 볼드용) */
+  bottomCircle?: boolean;
 }
 
-/** 프리셋에 저장되는 위치 기본값 */
 export interface PresetPositions {
   headline?: ElementPosition;
   body?: ElementPosition;
@@ -73,41 +101,41 @@ export interface Preset {
   name: string;
   category: 'style' | 'industry' | 'custom';
   description?: string;
-  theme: Theme;
+  layout: CardLayout;
+  /** 색상 팔레트 — 첫 번째가 기본값 */
+  colorVariants: ColorVariant[];
   typography: Typography;
   decoration: Decoration;
+  padding: Padding;
   positions?: PresetPositions;
   builtin: boolean;
-  /** 파일 export 시 버전 */
   version?: number;
 }
 
 export interface BgmTrack {
   id: string;
   name: string;
-  url: string; // 미리듣기용 (외부)
-  source: string; // 사이트명
-  sourceUrl: string; // 사이트 링크
+  url: string;
+  source: string;
+  sourceUrl: string;
   category: 'calm' | 'bright' | 'upbeat' | 'emotional' | 'minimal' | 'exciting';
 }
 
 export interface UploadedBgm {
   fileName: string;
   fileType: string;
-  /** 세션 동안만 유지 — File 객체 자체를 보관 */
   file: File;
-  volume: number; // 0 ~ 1
-  fadeIn: number; // 초
-  fadeOut: number; // 초
+  volume: number;
+  fadeIn: number;
+  fadeOut: number;
 }
 
 export interface LogoConfig {
-  /** data URL */
   imageUrl: string;
   position: 'bottom-left' | 'bottom-right' | 'center' | 'top-left' | 'top-right';
   frame: 'first' | 'last' | 'both';
-  size: number; // 픽셀 (예: 200)
-  opacity: number; // 0 ~ 1
+  size: number;
+  opacity: number;
 }
 
 export interface Settings {
@@ -130,13 +158,4 @@ export const EMPTY_LOGO: LogoConfig = {
   frame: 'last',
   size: 200,
   opacity: 0.9,
-};
-
-export const EMPTY_UPLOADED_BGM: UploadedBgm = {
-  fileName: '',
-  fileType: '',
-  file: null as any,
-  volume: 0.3,
-  fadeIn: 1,
-  fadeOut: 1.5,
 };

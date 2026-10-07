@@ -1,23 +1,38 @@
 'use client';
 import { useState } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Music, MoreVertical, ThumbsUp, ThumbsDown, Play, Home, Search, PlusSquare, User } from 'lucide-react';
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  Bookmark,
+  Music,
+  MoreVertical,
+  ThumbsUp,
+  ThumbsDown,
+  Play,
+  Home,
+  Search,
+  PlusSquare,
+  User,
+} from 'lucide-react';
 import type { PhoneApp, Slide, Preset } from '@/lib/types';
 import { CardSlide } from '@/templates';
 
 export function PhoneMockup({
   slide,
   preset,
+  colorId,
   initialApp = 'tiktok',
 }: {
   slide: Slide;
   preset: Preset;
+  colorId?: string;
   initialApp?: PhoneApp;
 }) {
   const [app, setApp] = useState<PhoneApp>(initialApp);
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* 앱 선택 탭 */}
       <div className="inline-flex gap-1 p-1 bg-gray-100 rounded-lg">
         {(['tiktok', 'youtube', 'instagram'] as PhoneApp[]).map((a) => (
           <button
@@ -32,30 +47,24 @@ export function PhoneMockup({
         ))}
       </div>
 
-      {/* 폰 목업 */}
       <div className="relative" style={{ width: 320, aspectRatio: '9 / 19.5' }}>
-        {/* 폰 프레임 */}
         <div className="absolute inset-0 rounded-[3rem] bg-black p-2 shadow-2xl">
-          {/* 노치 */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-b-2xl z-20" />
 
-          {/* 스크린 */}
           <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden bg-black">
-            {/* 카드뉴스 (전체 화면) */}
             <div className="absolute inset-0">
               <div
                 style={{
                   width: 1080,
                   height: 1350,
-                  transform: 'scale(' + (320 - 16) / 1080 + ')',
+                  transform: `scale(${(320 - 16) / 1080})`,
                   transformOrigin: 'top left',
                 }}
               >
-                <CardSlide slide={slide} preset={preset} />
+                <CardSlide slide={slide} preset={preset} colorId={colorId} />
               </div>
             </div>
 
-            {/* 앱별 오버레이 */}
             {app === 'tiktok' && <TikTokOverlay />}
             {app === 'youtube' && <YouTubeOverlay />}
             {app === 'instagram' && <InstagramOverlay />}
@@ -72,12 +81,9 @@ export function PhoneMockup({
 }
 
 // ─────────────────────────────────────────────
-// TikTok 오버레이
-// ─────────────────────────────────────────────
 function TikTokOverlay() {
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {/* 우측 하단 아이콘 */}
       <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 text-white">
         <div className="flex flex-col items-center">
           <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mb-1">
@@ -105,7 +111,6 @@ function TikTokOverlay() {
         </div>
       </div>
 
-      {/* 좌측 하단 프로필 */}
       <div className="absolute left-3 bottom-20 text-white max-w-[60%]">
         <div className="text-sm font-bold mb-1">@your_handle</div>
         <div className="text-xs opacity-90 leading-snug">
@@ -117,7 +122,6 @@ function TikTokOverlay() {
         </div>
       </div>
 
-      {/* 하단 네비게이션 */}
       <div className="absolute bottom-0 left-0 right-0 h-14 bg-black/60 backdrop-blur flex items-center justify-around text-white text-[9px]">
         <div className="flex flex-col items-center gap-0.5 opacity-60">
           <Home size={18} />
@@ -144,13 +148,9 @@ function TikTokOverlay() {
   );
 }
 
-// ─────────────────────────────────────────────
-// YouTube Shorts 오버레이
-// ─────────────────────────────────────────────
 function YouTubeOverlay() {
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {/* 우측 하단 아이콘 */}
       <div className="absolute right-3 bottom-28 flex flex-col items-center gap-5 text-white">
         <div className="flex flex-col items-center">
           <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur flex items-center justify-center mb-1">
@@ -178,7 +178,6 @@ function YouTubeOverlay() {
         </div>
       </div>
 
-      {/* 좌측 하단 채널 */}
       <div className="absolute left-3 bottom-20 flex items-center gap-2 text-white">
         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-xs font-bold">
           YT
@@ -189,14 +188,12 @@ function YouTubeOverlay() {
         </button>
       </div>
 
-      {/* 하단 제목 */}
       <div className="absolute left-3 right-20 bottom-10 text-white">
         <div className="text-xs font-medium leading-snug">
           여기에 영상 제목이 표시됩니다 #shorts
         </div>
       </div>
 
-      {/* 하단 네비게이션 */}
       <div className="absolute bottom-0 left-0 right-0 h-14 bg-black/60 backdrop-blur flex items-center justify-around text-white text-[9px]">
         <div className="flex flex-col items-center gap-0.5 opacity-60">
           <Home size={18} />
@@ -223,13 +220,9 @@ function YouTubeOverlay() {
   );
 }
 
-// ─────────────────────────────────────────────
-// Instagram Reels 오버레이
-// ─────────────────────────────────────────────
 function InstagramOverlay() {
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {/* 우측 하단 아이콘 */}
       <div className="absolute right-3 bottom-32 flex flex-col items-center gap-5 text-white">
         <div className="flex flex-col items-center">
           <Heart size={26} fill="white" />
@@ -246,7 +239,6 @@ function InstagramOverlay() {
         <MoreVertical size={22} />
       </div>
 
-      {/* 좌측 하단 프로필 + 캡션 */}
       <div className="absolute left-3 right-14 bottom-20 text-white">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 p-0.5">
@@ -268,7 +260,6 @@ function InstagramOverlay() {
         </div>
       </div>
 
-      {/* 하단 네비게이션 */}
       <div className="absolute bottom-0 left-0 right-0 h-14 bg-black/60 backdrop-blur flex items-center justify-around text-white text-[9px]">
         <div className="flex flex-col items-center gap-0.5 opacity-60">
           <Home size={18} />

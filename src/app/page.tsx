@@ -29,6 +29,9 @@ export default function Page() {
   const [settings, setSettings] = useState<Settings>(EMPTY_SETTINGS);
   const [slides, setSlides] = useState<Slide[]>([]);
   const [preset, setPreset] = useState<Preset>(STYLE_PRESETS[0]);
+  const [presetColorId, setPresetColorId] = useState<string>(
+    STYLE_PRESETS[0].colorVariants[0].id
+  );
   const [customPresets, setCustomPresets] = useState<Preset[]>([]);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -48,6 +51,12 @@ export default function Page() {
     saveSettings(settings);
   }, [settings]);
 
+  function handlePresetChange(p: Preset, colorId?: string) {
+    setPreset(p);
+    if (colorId) setPresetColorId(colorId);
+    else setPresetColorId(p.colorVariants[0].id);
+  }
+
   function handleSaveCustom(name: string) {
     const next: Preset = {
       ...preset,
@@ -66,7 +75,20 @@ export default function Page() {
     const updated = customPresets.filter((p) => p.id !== id);
     setCustomPresets(updated);
     saveCustomPresets(updated);
-    if (preset.id === id) setPreset(STYLE_PRESETS[0]);
+    if (preset.id === id) handlePresetChange(STYLE_PRESETS[0]);
+  }
+
+  function handleImport(presets: Preset[]) {
+    const imported = presets.map((p) => ({
+      ...p,
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      category: 'custom' as const,
+      builtin: false,
+    }));
+    const updated = [...customPresets, ...imported];
+    setCustomPresets(updated);
+    saveCustomPresets(updated);
+    alert(`${imported.length}개의 프리셋을 가져왔습니다.`);
   }
 
   if (!mounted) return null;
@@ -74,11 +96,7 @@ export default function Page() {
   return (
     <AppShell active={view} onChange={setView} hasSlides={slides.length > 0}>
       {view === 'dashboard' && (
-        <DashboardView
-          settings={settings}
-          slides={slides}
-          onNavigate={setView}
-        />
+        <DashboardView settings={settings} slides={slides} onNavigate={setView} />
       )}
       {view === 'create' && (
         <CreateView
@@ -86,7 +104,8 @@ export default function Page() {
           slides={slides}
           onSlidesChange={setSlides}
           preset={preset}
-          onPresetChange={setPreset}
+          presetColorId={presetColorId}
+          onPresetChange={handlePresetChange}
           customPresets={customPresets}
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
@@ -96,14 +115,22 @@ export default function Page() {
       {view === 'presets' && (
         <PresetsView
           current={preset}
-          onSelect={setPreset}
+          currentColorId={presetColorId}
+          onSelect={handlePresetChange}
+          onColorChange={setPresetColorId}
           customPresets={customPresets}
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
+          onImport={handleImport}
         />
       )}
       {view === 'video' && (
-        <VideoView slides={slides} preset={preset} cardRefs={cardRefs} />
+        <VideoView
+          slides={slides}
+          preset={preset}
+          presetColorId={presetColorId}
+          cardRefs={cardRefs}
+        />
       )}
       {view === 'settings' && (
         <SettingsView
