@@ -4,14 +4,12 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { Tabs } from '@/components/ui/Tabs';
 import { Modal } from '@/components/ui/Modal';
 import { InputPanel } from '@/components/InputPanel';
 import { PresetPicker } from '@/components/PresetPicker';
 import { CardSlide } from '@/templates';
 import { generateImage } from '@/lib/imagegen';
 import type { Preset, Settings, Slide } from '@/lib/types';
-import { STYLE_PRESETS, INDUSTRY_PRESETS } from '@/presets';
 import {
   Sparkles,
   Image as ImageIcon,
@@ -21,7 +19,6 @@ import {
   X,
   Palette,
   PencilRuler,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -183,22 +180,22 @@ export function CreateView({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* 상단 툴바 */}
-      <Card padding={false} className="px-4 py-3 flex items-center gap-3">
+      <Card padding={false} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
         <Badge variant="primary">{slides.length}장</Badge>
         <div className="text-sm text-ink-secondary">
           이미지 {slides.filter((s) => s.imageUrl).length}장 생성됨
         </div>
 
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2 flex-wrap">
           <Button
             size="sm"
             variant="ghost"
             icon={<Palette size={14} />}
             onClick={() => setPresetModalOpen(true)}
           >
-            프리셋: {preset.name}
+            {preset.name}
           </Button>
           <Button
             size="sm"
@@ -222,14 +219,15 @@ export function CreateView({
       </Card>
 
       {/* 3컬럼 레이아웃 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* 좌측: 슬라이드 목록 */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        {/* 좌측: 슬라이드 목록 (2열 그리드) */}
         <div className="lg:col-span-3">
           <Card padding={false} className="p-2">
-            <div className="px-2 py-1.5 text-xs font-semibold text-ink-secondary">
-              슬라이드 ({slides.length})
+            <div className="px-2 py-1.5 text-xs font-semibold text-ink-secondary flex items-center justify-between">
+              <span>슬라이드</span>
+              <span className="text-primary-600">{slides.length}</span>
             </div>
-            <div className="space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2 max-h-[calc(100vh-240px)] overflow-y-auto pr-0.5">
               {slides.map((s, i) => (
                 <SlideThumb
                   key={s.id}
@@ -239,10 +237,6 @@ export function CreateView({
                   selected={selectedIdx === i}
                   hasImage={!!s.imageUrl}
                   onClick={() => setSelectedIdx(i)}
-                  onMoveUp={() => move(i, -1)}
-                  onMoveDown={() => move(i, 1)}
-                  canMoveUp={i > 0}
-                  canMoveDown={i < slides.length - 1}
                 />
               ))}
             </div>
@@ -253,9 +247,7 @@ export function CreateView({
         <div className="lg:col-span-5">
           <Card padding={false} className="p-3 sticky top-20">
             <div className="flex items-center justify-between mb-2 px-1">
-              <div className="text-sm font-semibold">
-                미리보기 #{selectedIdx + 1}
-              </div>
+              <div className="text-sm font-semibold">미리보기 #{selectedIdx + 1}</div>
               <div className="flex gap-1">
                 <button
                   onClick={() => setSelectedIdx(Math.max(0, selectedIdx - 1))}
@@ -274,42 +266,42 @@ export function CreateView({
               </div>
             </div>
 
-            {/* 카드 미리보기 (숨김 ref 등록용 + 실제 표시) */}
-            <div
-              className="rounded-xl overflow-hidden border shadow-card"
-              style={{ aspectRatio: '1080 / 1350' }}
-            >
-              {/* 편집용 (ref 등록) */}
+            {/* 카드 미리보기 (세로 중앙 정렬) */}
+            <div className="flex items-center justify-center bg-gray-100 rounded-xl p-4">
               <div
-                style={{
-                  width: 1080,
-                  height: 1350,
-                  transform: 'scale(0.32)',
-                  transformOrigin: 'top left',
-                }}
+                className="rounded-xl overflow-hidden border shadow-card bg-white"
+                style={{ width: '100%', maxWidth: 380, aspectRatio: '1080 / 1350' }}
               >
-                {/* 모든 슬라이드 ref 등록 (영상/PNG export용) */}
-                <div style={{ position: 'relative' }}>
-                  {slides.map((s, i) => (
-                    <div
-                      key={s.id}
-                      ref={(el) => (cardRefs.current[i] = el)}
-                      style={{
-                        position: i === selectedIdx ? 'relative' : 'absolute',
-                        top: 0,
-                        left: 0,
-                        visibility: i === selectedIdx ? 'visible' : 'hidden',
-                      }}
-                    >
-                      <CardSlide slide={s} preset={preset} />
-                    </div>
-                  ))}
+                <div
+                  style={{
+                    width: 1080,
+                    height: 1350,
+                    transform: 'scale(0.352)',
+                    transformOrigin: 'top left',
+                  }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    {slides.map((s, i) => (
+                      <div
+                        key={s.id}
+                        ref={(el) => (cardRefs.current[i] = el)}
+                        style={{
+                          position: i === selectedIdx ? 'relative' : 'absolute',
+                          top: 0,
+                          left: 0,
+                          visibility: i === selectedIdx ? 'visible' : 'hidden',
+                        }}
+                      >
+                        <CardSlide slide={s} preset={preset} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* 슬라이드 인디케이터 */}
-            <div className="flex justify-center gap-1.5 mt-3">
+            <div className="flex justify-center gap-1.5 mt-3 flex-wrap">
               {slides.map((_, i) => (
                 <button
                   key={i}
@@ -327,9 +319,9 @@ export function CreateView({
 
         {/* 우측: 편집 폼 */}
         <div className="lg:col-span-4">
-          <Card>
+          <Card className="sticky top-20">
             <CardHeader
-              title={`슬라이드 #${selectedIdx + 1} 편집`}
+              title={`슬라이드 #${selectedIdx + 1}`}
               subtitle={selected?.type.toUpperCase()}
               action={
                 <div className="flex gap-1">
@@ -358,7 +350,7 @@ export function CreateView({
             />
 
             {selected && (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
                 <Input
                   label="헤드라인"
                   value={selected.headline}
@@ -488,10 +480,6 @@ function SlideThumb({
   selected,
   hasImage,
   onClick,
-  onMoveUp,
-  onMoveDown,
-  canMoveUp,
-  canMoveDown,
 }: {
   slide: Slide;
   preset: Preset;
@@ -499,26 +487,22 @@ function SlideThumb({
   selected: boolean;
   hasImage: boolean;
   onClick: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
 }) {
   return (
     <div
-      className={`group relative rounded-lg overflow-hidden cursor-pointer transition-all ${
+      className={`relative rounded-lg overflow-hidden cursor-pointer transition-all ${
         selected
-          ? 'ring-2 ring-primary-500 ring-offset-1'
+          ? 'ring-2 ring-primary-500'
           : 'border border-surface-border hover:border-primary-300'
       }`}
       onClick={onClick}
     >
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4 / 5' }}>
+      <div className="relative w-full" style={{ aspectRatio: '4 / 5' }}>
         <div
           style={{
             width: 1080,
             height: 1350,
-            transform: 'scale(0.1)',
+            transform: 'scale(0.09)',
             transformOrigin: 'top left',
             position: 'absolute',
             top: 0,
@@ -528,41 +512,15 @@ function SlideThumb({
           <CardSlide slide={slide} preset={preset} />
         </div>
 
-        {/* 번호 */}
-        <div className="absolute top-1.5 left-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+        <div className="absolute top-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1 py-0.5 rounded">
           #{index + 1}
         </div>
 
-        {/* 이미지 있음 표시 */}
         {hasImage && (
-          <div className="absolute top-1.5 right-1.5 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+          <div className="absolute top-1 right-1 bg-green-500 text-white text-[8px] font-bold px-1 py-0.5 rounded">
             IMG
           </div>
         )}
-
-        {/* 순서 변경 버튼 (hover) */}
-        <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onMoveUp();
-            }}
-            disabled={!canMoveUp}
-            className="w-6 h-6 rounded bg-white/90 flex items-center justify-center disabled:opacity-30 hover:bg-white"
-          >
-            <ArrowUp size={11} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onMoveDown();
-            }}
-            disabled={!canMoveDown}
-            className="w-6 h-6 rounded bg-white/90 flex items-center justify-center disabled:opacity-30 hover:bg-white"
-          >
-            <ArrowDown size={11} />
-          </button>
-        </div>
       </div>
     </div>
   );
