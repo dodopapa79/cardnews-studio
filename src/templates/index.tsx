@@ -138,9 +138,9 @@ function Badge({
 
 export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
   const { theme, typography, decoration } = preset;
-  const hasFullBleed = slide.imageUrl && slide.imageLayout === 'full-bleed';
-  const hasTopImage = slide.imageUrl && slide.imageLayout === 'top-image';
-  const hasSplit = slide.imageUrl && slide.imageLayout === 'split';
+  const hasFullBleed = !!slide.imageUrl && slide.imageLayout === 'full-bleed';
+  const hasTopImage = !!slide.imageUrl && slide.imageLayout === 'top-image';
+  const hasSplit = !!slide.imageUrl && slide.imageLayout === 'split';
 
   const imageFilter = (() => {
     switch (decoration.imageTreatment) {
