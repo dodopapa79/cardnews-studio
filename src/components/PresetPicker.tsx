@@ -1,8 +1,14 @@
 'use client';
-import { useMemo, useState } from 'react';
-import type { Preset } from '@/lib/types';
+import { useState } from 'react';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Tabs } from '@/components/ui/Tabs';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { STYLE_PRESETS, INDUSTRY_PRESETS } from '@/presets';
 import { CardSlide } from '@/templates';
+import type { Preset } from '@/lib/types';
+import { Check, Plus } from 'lucide-react';
 
 const SAMPLE_SLIDE = {
   id: 'preview',
@@ -29,122 +35,119 @@ export function PresetPicker({
   onDeleteCustom: (id: string) => void;
 }) {
   const [tab, setTab] = useState<'style' | 'industry' | 'custom'>('style');
+  const [saveModal, setSaveModal] = useState(false);
+  const [newName, setNewName] = useState('');
 
-  const list = useMemo(() => {
-    if (tab === 'style') return STYLE_PRESETS;
-    if (tab === 'industry') return INDUSTRY_PRESETS;
-    return customPresets;
-  }, [tab, customPresets]);
+  const list =
+    tab === 'style' ? STYLE_PRESETS : tab === 'industry' ? INDUSTRY_PRESETS : customPresets;
 
   return (
-    <div className="border rounded-xl p-4 bg-white space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">🎨 프리셋</h3>
-        <button
-          onClick={() => {
-            const name = prompt('커스텀 프리셋 이름을 입력하세요');
-            if (name?.trim()) onSaveCustom(name.trim());
-          }}
-          className="text-xs bg-brand-500 text-white px-3 py-1.5 rounded-lg"
-        >
-          + 현재 설정 저장
-        </button>
-      </div>
-
-      <div className="flex gap-1 text-sm">
-        {(['style', 'industry', 'custom'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-lg ${
-              tab === t ? 'bg-brand-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            {t === 'style'
-              ? '스타일'
-              : t === 'industry'
-              ? '업종'
-              : `커스텀(${customPresets.length})`}
-          </button>
-        ))}
-      </div>
-
-      {list.length === 0 && tab === 'custom' && (
-        <div className="text-xs text-gray-400 text-center py-6">
-          아직 저장된 커스텀 프리셋이 없습니다.
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2 max-h-[420px] overflow-y-auto">
-        {list.map((p) => (
-          <PresetCard
-            key={p.id}
-            preset={p}
-            selected={current.id === p.id}
-            onClick={() => onSelect(p)}
-            onDelete={!p.builtin ? () => onDeleteCustom(p.id) : undefined}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PresetCard({
-  preset,
-  selected,
-  onClick,
-  onDelete,
-}: {
-  preset: Preset;
-  selected: boolean;
-  onClick: () => void;
-  onDelete?: () => void;
-}) {
-  return (
-    <div className="relative">
-      <button
-        onClick={onClick}
-        className={`w-full rounded-lg border-2 overflow-hidden text-left transition ${
-          selected ? 'border-brand-600 shadow-md' : 'border-transparent hover:border-gray-200'
-        }`}
-      >
-        <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4 / 5' }}>
-          <div
-            style={{
-              width: 1080,
-              height: 1350,
-              transform: 'scale(0.13)',
-              transformOrigin: 'top left',
-              position: 'absolute',
-              top: 0,
-              left: 0,
+    <Card>
+      <CardHeader
+        title="프리셋"
+        subtitle="스타일을 선택하세요"
+        action={
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Plus size={13} />}
+            onClick={() => {
+              setNewName('');
+              setSaveModal(true);
             }}
           >
-            <CardSlide slide={SAMPLE_SLIDE} preset={preset} />
-          </div>
+            저장
+          </Button>
+        }
+      />
+
+      <div className="mb-3">
+        <Tabs
+          tabs={[
+            { id: 'style', label: '스타일' },
+            { id: 'industry', label: '업종' },
+            { id: 'custom', label: `커스텀` },
+          ]}
+          active={tab}
+          onChange={(v) => setTab(v as any)}
+        />
+      </div>
+
+      {list.length === 0 && tab === 'custom' ? (
+        <div className="text-center py-8 text-sm text-ink-muted">
+          저장된 커스텀 프리셋이 없습니다
         </div>
-        <div className="p-2 border-t bg-white">
-          <div className="text-xs font-semibold truncate" style={{ color: preset.theme.text }}>
-            {preset.name}
-          </div>
-          {preset.description && (
-            <div className="text-[10px] text-gray-500 truncate">{preset.description}</div>
-          )}
+      ) : (
+        <div className="grid grid-cols-2 gap-2 max-h-[520px] overflow-y-auto pr-1">
+          {list.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onSelect(p)}
+              className={`rounded-lg overflow-hidden text-left transition-all ${
+                current.id === p.id
+                  ? 'ring-2 ring-primary-500 ring-offset-1'
+                  : 'border border-surface-border hover:border-primary-300'
+              }`}
+            >
+              <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4 / 5' }}>
+                <div
+                  style={{
+                    width: 1080,
+                    height: 1350,
+                    transform: 'scale(0.16)',
+                    transformOrigin: 'top left',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                  }}
+                >
+                  <CardSlide slide={SAMPLE_SLIDE} preset={p} />
+                </div>
+                {current.id === p.id && (
+                  <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center text-white">
+                    <Check size={11} strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+              <div className="p-1.5 bg-white">
+                <div className="text-[10px] font-semibold truncate">{p.name}</div>
+              </div>
+            </button>
+          ))}
         </div>
-      </button>
-      {onDelete && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white text-xs leading-none"
-          title="삭제"
-        >
-          ×
-        </button>
       )}
-    </div>
+
+      <Modal
+        open={saveModal}
+        onClose={() => setSaveModal(false)}
+        title="커스텀 프리셋 저장"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <Input
+            label="프리셋 이름"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="예: 우리 회사 브랜드"
+            autoFocus
+          />
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={() => setSaveModal(false)}>
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                if (newName.trim()) {
+                  onSaveCustom(newName.trim());
+                  setSaveModal(false);
+                }
+              }}
+            >
+              저장
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </Card>
   );
 }

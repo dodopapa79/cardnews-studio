@@ -1,33 +1,35 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { SettingsPanel } from '@/components/SettingsPanel';
-import { InputPanel } from '@/components/InputPanel';
-import { SlideEditor } from '@/components/SlideEditor';
-import { CardPreview } from '@/components/CardPreview';
-import { ExportPanel } from '@/components/ExportPanel';
-import { PresetPicker } from '@/components/PresetPicker';
+import { AppShell } from '@/components/layout/AppShell';
+import type { ViewId } from '@/components/layout/Sidebar';
+import { DashboardView } from '@/components/views/DashboardView';
+import { CreateView } from '@/components/views/CreateView';
+import { PresetsView } from '@/components/views/PresetsView';
+import { VideoView } from '@/components/views/VideoView';
+import { SettingsView } from '@/components/views/SettingsView';
 import {
+  loadCustomPresets,
   loadSettings,
   loadSlides,
+  saveCustomPresets,
   saveSettings,
   saveSlides,
-  loadCustomPresets,
-  saveCustomPresets,
 } from '@/lib/storage';
 import {
   EMPTY_SETTINGS,
+  type Preset,
   type Settings,
   type Slide,
-  type Preset,
 } from '@/lib/types';
 import { STYLE_PRESETS } from '@/presets';
 
 export default function Page() {
+  const [mounted, setMounted] = useState(false);
+  const [view, setView] = useState<ViewId>('dashboard');
   const [settings, setSettings] = useState<Settings>(EMPTY_SETTINGS);
   const [slides, setSlides] = useState<Slide[]>([]);
   const [preset, setPreset] = useState<Preset>(STYLE_PRESETS[0]);
   const [customPresets, setCustomPresets] = useState<Preset[]>([]);
-  const [mounted, setMounted] = useState(false);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
@@ -41,6 +43,10 @@ export default function Page() {
   useEffect(() => {
     if (slides.length) saveSlides(slides);
   }, [slides]);
+
+  useEffect(() => {
+    saveSettings(settings);
+  }, [settings]);
 
   function handleSaveCustom(name: string) {
     const next: Preset = {
@@ -66,61 +72,49 @@ export default function Page() {
   if (!mounted) return null;
 
   return (
-    <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
-      <header className="flex items-baseline justify-between flex-wrap gap-2">
-        <h1 className="text-2xl md:text-3xl font-bold">📰 CardNews Studio</h1>
-        <span className="text-xs text-gray-500">v1.0 · 모든 처리는 브라우저에서</span>
-      </header>
-
-      <SettingsPanel settings={settings} onChange={setSettings} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* 좌 */}
-        <div className="lg:col-span-1 space-y-4">
-          <InputPanel settings={settings} onSlides={setSlides} />
-          <PresetPicker
-            current={preset}
-            customPresets={customPresets}
-            onSelect={setPreset}
-            onSaveCustom={handleSaveCustom}
-            onDeleteCustom={handleDeleteCustom}
-          />
-          {slides.length > 0 && <ExportPanel slides={slides} cardRefs={cardRefs} />}
-        </div>
-
-        {/* 중앙 */}
-        <div className="lg:col-span-1 space-y-4">
-          {slides.length > 0 ? (
-            <SlideEditor slides={slides} onChange={setSlides} settings={settings} />
-          ) : (
-            <div className="border-2 border-dashed rounded-xl p-12 text-center text-gray-400">
-              왼쪽에서 카드뉴스를 생성하면 여기서 편집할 수 있습니다.
-            </div>
-          )}
-        </div>
-
-        {/* 우 */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-4 space-y-4">
-            <h3 className="font-semibold">👁 미리보기</h3>
-            {slides.length > 0 ? (
-              <CardPreview
-                slides={slides}
-                preset={preset}
-                registerRef={(i, el) => (cardRefs.current[i] = el)}
-              />
-            ) : (
-              <div className="border-2 border-dashed rounded-xl p-8 text-center text-gray-400 text-sm">
-                미리보기가 여기에 표시됩니다.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <footer className="text-center text-xs text-gray-400 py-4">
-        CardNews Studio · API 키는 브라우저에만 저장됩니다
-      </footer>
-    </main>
+    <AppShell active={view} onChange={setView} hasSlides={slides.length > 0}>
+      {view === 'dashboard' && (
+        <DashboardView
+          settings={settings}
+          slides={slides}
+          onNavigate={setView}
+        />
+      )}
+      {view === 'create' && (
+        <CreateView
+          settings={settings}
+          slides={slides}
+          onSlidesChange={setSlides}
+          preset={preset}
+          onPresetChange={setPreset}
+          customPresets={customPresets}
+          onSaveCustom={handleSaveCustom}
+          onDeleteCustom={handleDeleteCustom}
+          cardRefs={cardRefs}
+        />
+      )}
+      {view === 'presets' && (
+        <PresetsView
+          current={preset}
+          onSelect={setPreset}
+          customPresets={customPresets}
+          onSaveCustom={handleSaveCustom}
+          onDeleteCustom={handleDeleteCustom}
+        />
+      )}
+      {view === 'video' && (
+        <VideoView slides={slides} preset={preset} cardRefs={cardRefs} />
+      )}
+      {view === 'settings' && (
+        <SettingsView
+          settings={settings}
+          onChange={setSettings}
+          onReset={() => {
+            setSlides([]);
+            localStorage.removeItem('cardnews.slides.v2');
+          }}
+        />
+      )}
+    </AppShell>
   );
 }

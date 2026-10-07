@@ -1,8 +1,30 @@
 import type { Slide, SlideType, ImageLayout } from './types';
 
-const BASE = 
+const BASE =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
+async function fetchWithRetry(
+  url: string,
+  body: any,
+  maxRetries = 3
+): Promise<Response> {
+  let lastErr: any = null;
+  for (let i = 0; i < maxRetries; i++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429 || res.status === 503 || res.status >= 500) {
+      lastErr = res;
+      const wait = (i + 1) * 2000;
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    return res;
+  }
+  return lastErr;
+}
 
 interface GenerateOptions {
   slideCount?: number;
@@ -53,16 +75,12 @@ ${source.slice(0, 8000)}
 }
 `.trim();
 
-  const res = await fetch(`${BASE}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.9,
-      },
-    }),
+  const res = await fetchWithRetry(`${BASE}?key=${apiKey}`, {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.9,
+    },
   });
 
   if (!res.ok) {
@@ -90,10 +108,8 @@ export async function expandKeyword(apiKey: string, keyword: string): Promise<st
   const prompt = `"${keyword}" 주제로 인스타 카드뉴스에 쓸 400~600자 분량의 정보성 글을 작성해줘.
 통계, 대상, 혜택, 신청 방법을 포함하고 과장 없이 사실 위주로. 마크다운 형식으로.`;
 
-  const res = await fetch(`${BASE}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  const res = await fetchWithRetry(`${BASE}?key=${apiKey}`, {
+    contents: [{ parts: [{ text: prompt }] }],
   });
   if (!res.ok) {
     const err = await res.text();
@@ -103,7 +119,9 @@ export async function expandKeyword(apiKey: string, keyword: string): Promise<st
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-export async function fetchBlogContent(url: string): Promise<{ text: string; images: string[] }> {
+export async function fetchBlogContent(
+  url: string
+): Promise<{ text: string; images: string[] }> {
   const proxy = `https://r.jina.ai/${url}`;
   const res = await fetch(proxy);
   if (!res.ok) throw new Error(`블로그 로드 실패 (${res.status})`);

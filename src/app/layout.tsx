@@ -14,14 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard-dynamic-subset.css"
         />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700;900&family=Gowun+Dodum&family=Black+Han+Sans&family=Jua&display=swap"
-          rel="stylesheet"
-        />
       </head>
-      <body className="bg-gray-50">{children}</body>
+      <body className="bg-surface-bg text-ink-primary antialiased">{children}</body>
     </html>
   );
 }

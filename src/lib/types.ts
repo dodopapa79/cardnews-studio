@@ -56,10 +56,12 @@ export interface Settings {
   geminiApiKey: string;
   cfAccountId: string;
   cfApiToken: string;
+  workerUrl: string;
 }
 
 export const EMPTY_SETTINGS: Settings = {
   geminiApiKey: '',
   cfAccountId: '',
   cfApiToken: '',
+  workerUrl: 'https://tight-unit-99da.whyno2617.workers.dev',
 };

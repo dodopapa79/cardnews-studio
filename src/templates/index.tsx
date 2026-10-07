@@ -76,7 +76,6 @@ function Badge({
     cta: 'CTA',
   };
   const label = labels[type] || type.toUpperCase();
-
   const baseColor = invert ? '#ffffff' : theme.accent;
   const bgColor = invert ? 'rgba(255,255,255,0.15)' : theme.accentSoft;
 
@@ -94,43 +93,20 @@ function Badge({
 
   if (decoration.badgeStyle === 'pill') {
     return (
-      <div
-        style={{
-          ...base,
-          padding: '10px 22px',
-          borderRadius: 999,
-          backgroundColor: bgColor,
-          color: baseColor,
-        }}
-      >
+      <div style={{ ...base, padding: '10px 22px', borderRadius: 999, backgroundColor: bgColor, color: baseColor }}>
         {label}
       </div>
     );
   }
   if (decoration.badgeStyle === 'square') {
     return (
-      <div
-        style={{
-          ...base,
-          padding: '10px 22px',
-          borderRadius: 4,
-          backgroundColor: bgColor,
-          color: baseColor,
-        }}
-      >
+      <div style={{ ...base, padding: '10px 22px', borderRadius: 4, backgroundColor: bgColor, color: baseColor }}>
         {label}
       </div>
     );
   }
   return (
-    <div
-      style={{
-        ...base,
-        paddingBottom: 6,
-        borderBottom: `3px solid ${baseColor}`,
-        color: baseColor,
-      }}
-    >
+    <div style={{ ...base, paddingBottom: 6, borderBottom: `3px solid ${baseColor}`, color: baseColor }}>
       {label}
     </div>
   );
@@ -138,9 +114,9 @@ function Badge({
 
 export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
   const { theme, typography, decoration } = preset;
-  const hasFullBleed = !!slide.imageUrl && slide.imageLayout === 'full-bleed';
-  const hasTopImage = !!slide.imageUrl && slide.imageLayout === 'top-image';
-  const hasSplit = !!slide.imageUrl && slide.imageLayout === 'split';
+  const hasFullBleed = !!(slide.imageUrl && slide.imageLayout === 'full-bleed');
+  const hasTopImage = !!(slide.imageUrl && slide.imageLayout === 'top-image');
+  const hasSplit = !!(slide.imageUrl && slide.imageLayout === 'split');
 
   const imageFilter = (() => {
     switch (decoration.imageTreatment) {
@@ -166,48 +142,16 @@ export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
       }}
       data-card
     >
-      {!hasFullBleed && (
-        <PatternOverlay type={decoration.backgroundPattern} color={theme.text} />
-      )}
+      {!hasFullBleed && <PatternOverlay type={decoration.backgroundPattern} color={theme.text} />}
 
       {decoration.accentBar === 'top' && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 16,
-            backgroundColor: theme.accent,
-            zIndex: 3,
-          }}
-        />
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 16, backgroundColor: theme.accent, zIndex: 3 }} />
       )}
       {decoration.accentBar === 'left' && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: 16,
-            backgroundColor: theme.accent,
-            zIndex: 3,
-          }}
-        />
+        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 16, backgroundColor: theme.accent, zIndex: 3 }} />
       )}
       {decoration.accentBar === 'bottom' && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 16,
-            backgroundColor: theme.accent,
-            zIndex: 3,
-          }}
-        />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 16, backgroundColor: theme.accent, zIndex: 3 }} />
       )}
 
       {hasFullBleed && (
@@ -216,23 +160,9 @@ export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
             src={slide.imageUrl}
             alt=""
             crossOrigin="anonymous"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: imageFilter,
-            }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: imageFilter }}
           />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background:
-                'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.78) 100%)',
-            }}
-          />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.78) 100%)' }} />
         </>
       )}
 
@@ -253,12 +183,7 @@ export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
             src={slide.imageUrl}
             alt=""
             crossOrigin="anonymous"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: imageFilter,
-            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', filter: imageFilter }}
           />
         </div>
       )}
@@ -280,12 +205,7 @@ export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
             src={slide.imageUrl}
             alt=""
             crossOrigin="anonymous"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: imageFilter,
-            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', filter: imageFilter }}
           />
         </div>
       )}
@@ -324,10 +244,7 @@ export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
 
         <h1
           style={{
-            fontSize:
-              slide.type === 'cover'
-                ? typography.headlineSize
-                : typography.headlineSize * 0.78,
+            fontSize: slide.type === 'cover' ? typography.headlineSize : typography.headlineSize * 0.78,
             fontWeight: typography.headlineWeight,
             lineHeight: typography.lineHeight,
             letterSpacing: typography.headlineLetterSpacing,
@@ -356,15 +273,7 @@ export function CardSlide({ slide, preset }: { slide: Slide; preset: Preset }) {
       </div>
 
       {decoration.shadow && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            boxShadow: 'inset 0 0 120px rgba(0,0,0,0.25)',
-            pointerEvents: 'none',
-            zIndex: 4,
-          }}
-        />
+        <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 120px rgba(0,0,0,0.25)', pointerEvents: 'none', zIndex: 4 }} />
       )}
     </div>
   );

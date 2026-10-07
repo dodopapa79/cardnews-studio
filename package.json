@@ -1,6 +1,6 @@
 {
   "name": "cardnews-studio",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,7 +15,6 @@
     "html-to-image": "^1.11.11",
     "jszip": "^3.10.1",
     "file-saver": "^2.0.5",
-    "edge-tts-browser": "^1.0.0",
     "lucide-react": "^0.427.0",
     "clsx": "^2.1.1"
   },

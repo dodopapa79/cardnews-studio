@@ -12,18 +12,18 @@ export function CardPreview({
   registerRef: (idx: number, el: HTMLDivElement | null) => void;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="grid grid-cols-2 gap-4">
       {slides.map((s, i) => (
         <div
           key={s.id}
-          className="border rounded-xl overflow-hidden shadow-sm bg-white"
+          className="border rounded-xl overflow-hidden shadow-card bg-white"
           style={{ aspectRatio: '1080 / 1350' }}
         >
           <div
             style={{
               width: 1080,
               height: 1350,
-              transform: 'scale(0.25)',
+              transform: 'scale(0.18)',
               transformOrigin: 'top left',
             }}
           >
@@ -36,3 +36,7 @@ export function CardPreview({
     </div>
   );
 }
+
+CardPreview.Single = function Single({ slide, preset }: { slide: Slide; preset: Preset }) {
+  return <CardSlide slide={slide} preset={preset} />;
+};

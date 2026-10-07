@@ -1,4 +1,3 @@
-import { decodeToAudioBuffer } from './tts';
 import type { VideoLayout } from './types';
 
 export interface VideoOptions {
@@ -12,8 +11,6 @@ export interface VideoOptions {
   showProgressBar?: boolean;
   showSubtitle?: boolean;
   subtitleTexts?: string[];
-  audioBuffers?: ArrayBuffer[];
-  minSlideDurationMs?: number;
   onProgress?: (pct: number) => void;
   onStatus?: (msg: string) => void;
 }
@@ -33,8 +30,6 @@ export async function generateShorts(
     showProgressBar = true,
     showSubtitle = false,
     subtitleTexts = [],
-    audioBuffers = [],
-    minSlideDurationMs = 1500,
     onProgress,
     onStatus,
   } = options;
@@ -44,7 +39,6 @@ export async function generateShorts(
   canvas.height = height;
   const ctx = canvas.getContext('2d')!;
 
-  // ── 이미지 프리로드
   onStatus?.('이미지 준비 중...');
   const images = await Promise.all(
     cardImageUrls.map(
@@ -59,91 +53,33 @@ export async function generateShorts(
     )
   );
 
-  // ── 오디오 그래프
-  const audioCtx = new AudioContext();
-  const hasAudio =
-    audioBuffers.length > 0 && audioBuffers.some((b) => b && b.byteLength > 0);
-
-  const audioDest = audioCtx.createMediaStreamDestination();
-  const masterGain = audioCtx.createGain();
-  masterGain.gain.value = 1.0;
-  masterGain.connect(audioDest);
-  masterGain.connect(audioCtx.destination);
-
-  // ── 오디오 디코딩 및 슬라이드 길이 계산
-  const decodedAudios: (AudioBuffer | null)[] = [];
-  const slideDurations: number[] = [];
-
-  for (let i = 0; i < images.length; i++) {
-    const raw = audioBuffers[i];
-    if (hasAudio && raw && raw.byteLength > 0) {
-      try {
-        const decoded = await decodeToAudioBuffer(audioCtx, raw);
-        decodedAudios.push(decoded);
-        slideDurations.push(
-          Math.max(minSlideDurationMs, decoded.duration * 1000 + 500)
-        );
-      } catch {
-        decodedAudios.push(null);
-        slideDurations.push(slideDurationMs);
-      }
-    } else {
-      decodedAudios.push(null);
-      slideDurations.push(slideDurationMs);
-    }
-  }
-  const totalMs = slideDurations.reduce((a, b) => a + b, 0);
-
-  // ── 오디오 소스 예약
-  if (hasAudio) {
-    await audioCtx.resume();
-    let offsetMs = 0;
-    for (let i = 0; i < decodedAudios.length; i++) {
-      const decoded = decodedAudios[i];
-      if (decoded) {
-        const src = audioCtx.createBufferSource();
-        src.buffer = decoded;
-        src.connect(masterGain);
-        src.start(audioCtx.currentTime + offsetMs / 1000);
-      }
-      offsetMs += slideDurations[i];
-    }
-  }
-
-  // ── MediaRecorder 준비
   const canvasStream = canvas.captureStream(fps);
-  const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
-  if (hasAudio) tracks.push(...audioDest.stream.getAudioTracks());
-  const mixedStream = new MediaStream(tracks);
-
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-    ? 'video/webm;codecs=vp9,opus'
-    : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-    ? 'video/webm;codecs=vp8,opus'
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9'
     : 'video/webm';
 
-  const recorder = new MediaRecorder(mixedStream, {
+  const recorder = new MediaRecorder(canvasStream, {
     mimeType,
     videoBitsPerSecond: 5_000_000,
-    audioBitsPerSecond: 128_000,
   });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
 
   const TOP_RATIO = 0.42;
   const BOTTOM_RATIO = 0.58;
+  const totalMs = images.length * slideDurationMs;
+  const startWallTime = performance.now();
 
-  // ── 그리기 헬퍼
   function drawFullScreenCard(img: HTMLImageElement, alpha: number, scale = 1, offsetX = 0) {
     const cardH = height * 0.82;
-    const scaleFit = Math.min((height * 0.82) / img.height, width / img.width) * scale;
+    const scaleFit = Math.min(cardH / img.height, (width * 0.9) / img.width) * scale;
     const w = img.width * scaleFit;
     const h = img.height * scaleFit;
     const x = (width - w) / 2 + offsetX;
-    const y = (height - cardH) / 2 - 20;
+    const y = (height - h) / 2;
 
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 40;
     ctx.shadowOffsetY = 20;
     ctx.save();
@@ -174,11 +110,11 @@ export async function generateShorts(
     const y = (topH - h) / 2;
     ctx.drawImage(img, x, y, w, h);
 
-    const grad = ctx.createLinearGradient(0, topH - 120, 0, topH);
+    const grad = ctx.createLinearGradient(0, topH - 150, 0, topH);
     grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.95)');
     ctx.fillStyle = grad;
-    ctx.fillRect(0, topH - 120, width, 120);
+    ctx.fillRect(0, topH - 150, width, 150);
     ctx.restore();
   }
 
@@ -195,28 +131,28 @@ export async function generateShorts(
     ctx.restore();
   }
 
-  function drawSubtitle(text: string, progress: number) {
+  function drawSubtitle(text: string, slideProgress: number) {
     if (!text) return;
     const topH = height * TOP_RATIO;
     const botH = height * BOTTOM_RATIO;
     const centerY = topH + botH * 0.82;
 
     ctx.save();
-    ctx.font = '700 48px Pretendard, system-ui, sans-serif';
+    ctx.font = '700 52px Pretendard, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const alpha = Math.min(1, Math.sin(Math.min(progress, 1) * Math.PI) * 1.5);
+    const alpha = Math.min(1, Math.sin(Math.min(slideProgress, 1) * Math.PI) * 1.5);
     ctx.globalAlpha = alpha;
 
     const metrics = ctx.measureText(text);
-    const padX = 32;
-    const padY = 18;
+    const padX = 36;
+    const padY = 22;
     const boxW = Math.min(metrics.width + padX * 2, width - 80);
-    const boxH = 48 + padY * 2;
+    const boxH = 52 + padY * 2;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.beginPath();
-    ctx.roundRect((width - boxW) / 2, centerY - boxH / 2, boxW, boxH, 14);
+    ctx.roundRect((width - boxW) / 2, centerY - boxH / 2, boxW, boxH, 16);
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
@@ -224,25 +160,8 @@ export async function generateShorts(
     ctx.restore();
   }
 
-  function getSlideIdx(elapsed: number): number {
-    let acc = 0;
-    for (let i = 0; i < slideDurations.length; i++) {
-      acc += slideDurations[i];
-      if (elapsed < acc) return i;
-    }
-    return slideDurations.length - 1;
-  }
-
-  function getSlideElapsed(elapsed: number, idx: number): number {
-    let acc = 0;
-    for (let i = 0; i < idx; i++) acc += slideDurations[i];
-    return elapsed - acc;
-  }
-
-  // ── 렌더 루프
   onStatus?.('영상 녹화 중...');
   recorder.start();
-  const startWallTime = performance.now();
 
   await new Promise<void>((resolve) => {
     const tick = () => {
@@ -252,21 +171,19 @@ export async function generateShorts(
         return;
       }
 
-      const slideIdx = getSlideIdx(elapsed);
-      const slideElapsed = getSlideElapsed(elapsed, slideIdx);
-      const slideDur = slideDurations[slideIdx];
-      const slideProgress = slideElapsed / slideDur;
+      const slideIdx = Math.min(Math.floor(elapsed / slideDurationMs), images.length - 1);
+      const slideElapsed = elapsed - slideIdx * slideDurationMs;
+      const slideProgress = slideElapsed / slideDurationMs;
       const isTransition =
-        slideElapsed > slideDur - transitionMs && slideIdx < images.length - 1;
+        slideElapsed > slideDurationMs - transitionMs && slideIdx < images.length - 1;
       const nextIdx = Math.min(slideIdx + 1, images.length - 1);
 
       if (layout === 'split-news') {
-        // 배경
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, width, height);
 
         if (isTransition) {
-          const t = (slideElapsed - (slideDur - transitionMs)) / transitionMs;
+          const t = (slideElapsed - (slideDurationMs - transitionMs)) / transitionMs;
           drawTopCard(images[slideIdx], 1 - t);
           drawTopCard(images[nextIdx], t);
           drawBottomArea(1);
@@ -279,7 +196,6 @@ export async function generateShorts(
           drawSubtitle(subtitleTexts[slideIdx], slideProgress);
         }
       } else {
-        // full-screen
         const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
         bgGrad.addColorStop(0, '#0f172a');
         bgGrad.addColorStop(1, '#1e293b');
@@ -287,7 +203,7 @@ export async function generateShorts(
         ctx.fillRect(0, 0, width, height);
 
         if (isTransition) {
-          const t = (slideElapsed - (slideDur - transitionMs)) / transitionMs;
+          const t = (slideElapsed - (slideDurationMs - transitionMs)) / transitionMs;
           if (transition === 'fade') {
             drawFullScreenCard(images[slideIdx], 1 - t);
             drawFullScreenCard(images[nextIdx], t);
@@ -304,12 +220,11 @@ export async function generateShorts(
         }
       }
 
-      // 진행 바
       if (showProgressBar) {
         const progress = elapsed / totalMs;
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
         ctx.fillRect(0, 0, width, 6);
-        ctx.fillStyle = '#3b82f6';
+        ctx.fillStyle = '#8b5cf6';
         ctx.fillRect(0, 0, width * progress, 6);
 
         const dotY = 34;
@@ -318,7 +233,7 @@ export async function generateShorts(
         for (let i = 0; i < images.length; i++) {
           ctx.beginPath();
           ctx.arc(startX + i * dotSpacing, dotY, i === slideIdx ? 5 : 3, 0, Math.PI * 2);
-          ctx.fillStyle = i <= slideIdx ? '#3b82f6' : 'rgba(255,255,255,0.3)';
+          ctx.fillStyle = i <= slideIdx ? '#8b5cf6' : 'rgba(255,255,255,0.3)';
           ctx.fill();
         }
       }
@@ -331,10 +246,6 @@ export async function generateShorts(
 
   recorder.stop();
   await new Promise<void>((r) => (recorder.onstop = () => r()));
-
-  try {
-    await audioCtx.close();
-  } catch {}
 
   return new Blob(chunks, { type: 'video/webm' });
 }

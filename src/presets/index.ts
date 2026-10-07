@@ -1,7 +1,9 @@
 import type { Preset, Typography, Decoration } from '@/lib/types';
 
-const typo = (fontFamily: string, overrides: Partial<Typography> = {}): Typography => ({
-  fontFamily,
+const FONT = 'Pretendard, system-ui, sans-serif';
+
+const typo = (overrides: Partial<Typography> = {}): Typography => ({
+  fontFamily: FONT,
   headlineWeight: 800,
   headlineSize: 96,
   bodySize: 34,
@@ -25,25 +27,25 @@ export const STYLE_PRESETS: Preset[] = [
     id: 'style-minimal',
     name: '미니멀 모던',
     category: 'style',
-    description: '깔끔한 흰 배경, 파란 포인트',
+    description: '깔끔한 흰 배경, 보라 포인트',
     builtin: true,
     theme: {
       id: 'theme-minimal',
       name: '미니멀',
       background: '#ffffff',
-      surface: '#f8fafc',
+      surface: '#faf5ff',
       text: '#0f172a',
-      accent: '#2563eb',
-      accentSoft: '#dbeafe',
+      accent: '#7c3aed',
+      accentSoft: '#ede9fe',
     },
-    typography: typo('Pretendard, system-ui, sans-serif'),
+    typography: typo(),
     decoration: deco({ badgeStyle: 'pill', cornerRadius: 24 }),
   },
   {
     id: 'style-magazine',
     name: '매거진',
     category: 'style',
-    description: '세리프 폰트, 편집숍 느낌',
+    description: '우아한 편집 디자인',
     builtin: true,
     theme: {
       id: 'theme-magazine',
@@ -54,9 +56,9 @@ export const STYLE_PRESETS: Preset[] = [
       accent: '#9a3412',
       accentSoft: '#fed7aa',
     },
-    typography: typo('"Noto Serif KR", serif', {
+    typography: typo({
       headlineWeight: 700,
-      headlineSize: 104,
+      headlineSize: 100,
       lineHeight: 1.15,
     }),
     decoration: deco({
@@ -70,7 +72,7 @@ export const STYLE_PRESETS: Preset[] = [
     id: 'style-dark-neon',
     name: '다크 네온',
     category: 'style',
-    description: '어두운 배경, 네온 시안',
+    description: '어두운 배경, 보라 네온',
     builtin: true,
     theme: {
       id: 'theme-dark-neon',
@@ -78,10 +80,10 @@ export const STYLE_PRESETS: Preset[] = [
       background: '#0a0a0f',
       surface: '#14141d',
       text: '#f8fafc',
-      accent: '#22d3ee',
-      accentSoft: '#164e63',
+      accent: '#a78bfa',
+      accentSoft: '#4c1d95',
     },
-    typography: typo('Pretendard, system-ui, sans-serif', {
+    typography: typo({
       headlineWeight: 900,
       headlineLetterSpacing: '-0.04em',
     }),
@@ -108,7 +110,7 @@ export const STYLE_PRESETS: Preset[] = [
       accent: '#ec4899',
       accentSoft: '#fce7f3',
     },
-    typography: typo('"Gowun Dodum", sans-serif', { headlineWeight: 700, headlineSize: 88 }),
+    typography: typo({ headlineWeight: 700, headlineSize: 88 }),
     decoration: deco({
       badgeStyle: 'pill',
       cornerRadius: 32,
@@ -130,9 +132,9 @@ export const STYLE_PRESETS: Preset[] = [
       accent: '#dc2626',
       accentSoft: '#fecaca',
     },
-    typography: typo('"Black Han Sans", sans-serif', {
-      headlineWeight: 400,
-      headlineSize: 112,
+    typography: typo({
+      headlineWeight: 900,
+      headlineSize: 108,
       lineHeight: 1.05,
     }),
     decoration: deco({
@@ -158,7 +160,7 @@ export const STYLE_PRESETS: Preset[] = [
       accent: '#059669',
       accentSoft: '#d1fae5',
     },
-    typography: typo('"Noto Serif KR", serif', { headlineWeight: 600, headlineSize: 92 }),
+    typography: typo({ headlineWeight: 700, headlineSize: 92 }),
     decoration: deco({
       badgeStyle: 'underline',
       cornerRadius: 0,
@@ -183,7 +185,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
       accent: '#1d4ed8',
       accentSoft: '#dbeafe',
     },
-    typography: typo('Pretendard, system-ui, sans-serif'),
+    typography: typo(),
     decoration: deco({ badgeStyle: 'pill', cornerRadius: 20 }),
   },
   {
@@ -201,7 +203,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
       accent: '#10b981',
       accentSoft: '#d1fae5',
     },
-    typography: typo('Pretendard, system-ui, sans-serif', { headlineSize: 100 }),
+    typography: typo({ headlineSize: 100 }),
     decoration: deco({ badgeStyle: 'pill', cornerRadius: 28 }),
   },
   {
@@ -219,8 +221,13 @@ export const INDUSTRY_PRESETS: Preset[] = [
       accent: '#f59e0b',
       accentSoft: '#78350f',
     },
-    typography: typo('Pretendard, system-ui, sans-serif', { headlineLetterSpacing: '-0.04em' }),
-    decoration: deco({ badgeStyle: 'square', cornerRadius: 12, accentBar: 'top', shadow: true }),
+    typography: typo({ headlineLetterSpacing: '-0.04em' }),
+    decoration: deco({
+      badgeStyle: 'square',
+      cornerRadius: 12,
+      accentBar: 'top',
+      shadow: true,
+    }),
   },
   {
     id: 'ind-beauty',
@@ -237,8 +244,12 @@ export const INDUSTRY_PRESETS: Preset[] = [
       accent: '#f43f5e',
       accentSoft: '#ffe4e6',
     },
-    typography: typo('"Gowun Dodum", sans-serif', { headlineWeight: 700, headlineSize: 90 }),
-    decoration: deco({ badgeStyle: 'pill', cornerRadius: 36, backgroundPattern: 'dots' }),
+    typography: typo({ headlineWeight: 700, headlineSize: 90 }),
+    decoration: deco({
+      badgeStyle: 'pill',
+      cornerRadius: 36,
+      backgroundPattern: 'dots',
+    }),
   },
   {
     id: 'ind-tech',
@@ -255,7 +266,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
       accent: '#06b6d4',
       accentSoft: '#164e63',
     },
-    typography: typo('Pretendard, system-ui, sans-serif', { headlineLetterSpacing: '-0.04em' }),
+    typography: typo({ headlineLetterSpacing: '-0.04em' }),
     decoration: deco({
       badgeStyle: 'square',
       cornerRadius: 10,
@@ -279,12 +290,16 @@ export const INDUSTRY_PRESETS: Preset[] = [
       accent: '#ea580c',
       accentSoft: '#fed7aa',
     },
-    typography: typo('"Jua", sans-serif', {
-      headlineWeight: 400,
+    typography: typo({
+      headlineWeight: 800,
       headlineSize: 100,
       headlineLetterSpacing: '-0.01em',
     }),
-    decoration: deco({ badgeStyle: 'pill', cornerRadius: 30, backgroundPattern: 'noise' }),
+    decoration: deco({
+      badgeStyle: 'pill',
+      cornerRadius: 30,
+      backgroundPattern: 'noise',
+    }),
   },
 ];
 

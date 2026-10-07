@@ -1,9 +1,9 @@
 import type { Preset, Settings, Slide } from './types';
 import { EMPTY_SETTINGS } from './types';
 
-const SETTINGS_KEY = 'cardnews.settings.v1';
-const SLIDES_KEY = 'cardnews.slides.v1';
-const PRESETS_KEY = 'cardnews.customPresets.v1';
+const SETTINGS_KEY = 'cardnews.settings.v2';
+const SLIDES_KEY = 'cardnews.slides.v2';
+const PRESETS_KEY = 'cardnews.customPresets.v2';
 
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return EMPTY_SETTINGS;

@@ -1,7 +1,12 @@
 'use client';
 import { useState } from 'react';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input, Textarea } from '@/components/ui/Input';
+import { Tabs } from '@/components/ui/Tabs';
 import { generateCardNews, expandKeyword, fetchBlogContent } from '@/lib/gemini';
 import type { Settings, Slide } from '@/lib/types';
+import { Sparkles, AlertCircle, Link2, Search, PencilRuler } from 'lucide-react';
 
 export function InputPanel({
   settings,
@@ -18,7 +23,7 @@ export function InputPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const ready = settings.geminiApiKey;
+  const ready = !!settings.geminiApiKey;
 
   async function handleGenerate() {
     if (!ready) {
@@ -44,78 +49,90 @@ export function InputPanel({
       const slides = await generateCardNews(settings.geminiApiKey, source, { slideCount });
       onSlides(slides);
     } catch (e: any) {
-      setError(e.message || '오류 발생');
+      setError(e.message || '오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="border rounded-xl p-4 bg-white space-y-4">
-      <h3 className="font-semibold">📝 카드뉴스 소스</h3>
+    <Card>
+      <CardHeader title="카드뉴스 소스" subtitle="AI가 자동으로 슬라이드로 변환" />
 
-      <div className="flex gap-2">
-        {(['keyword', 'blog', 'manual'] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-              mode === m ? 'bg-brand-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            {m === 'keyword' ? '키워드' : m === 'blog' ? '블로그 URL' : '직접 입력'}
-          </button>
-        ))}
+      <div className="mb-4">
+        <Tabs
+          tabs={[
+            { id: 'keyword', label: '키워드', icon: <Search size={13} /> },
+            { id: 'blog', label: '블로그', icon: <Link2 size={13} /> },
+            { id: 'manual', label: '직접 입력', icon: <PencilRuler size={13} /> },
+          ]}
+          active={mode}
+          onChange={(v) => setMode(v as any)}
+        />
       </div>
 
-      {mode === 'keyword' && (
-        <input
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          placeholder="예: 2026 청년 지원금"
-          className="w-full border rounded-lg px-3 py-2"
-        />
-      )}
-      {mode === 'blog' && (
-        <input
-          value={blogUrl}
-          onChange={(e) => setBlogUrl(e.target.value)}
-          placeholder="https://blog.naver.com/..."
-          className="w-full border rounded-lg px-3 py-2"
-        />
-      )}
-      {mode === 'manual' && (
-        <textarea
-          value={manual}
-          onChange={(e) => setManual(e.target.value)}
-          rows={6}
-          placeholder="카드뉴스로 만들 텍스트를 붙여넣으세요."
-          className="w-full border rounded-lg px-3 py-2"
-        />
-      )}
+      <div className="space-y-3">
+        {mode === 'keyword' && (
+          <Input
+            placeholder="예: 2026 청년 지원금"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+          />
+        )}
+        {mode === 'blog' && (
+          <Input
+            placeholder="https://blog.naver.com/..."
+            value={blogUrl}
+            onChange={(e) => setBlogUrl(e.target.value)}
+          />
+        )}
+        {mode === 'manual' && (
+          <Textarea
+            placeholder="카드뉴스로 만들 텍스트를 붙여넣으세요"
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            rows={6}
+          />
+        )}
 
-      <div className="flex items-center gap-3">
-        <label className="text-sm">슬라이드</label>
-        <input
-          type="number"
-          min={3}
-          max={10}
-          value={slideCount}
-          onChange={(e) => setSlideCount(Number(e.target.value))}
-          className="w-20 border rounded-lg px-2 py-1"
-        />
-        <button
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-ink-secondary">슬라이드</label>
+          <input
+            type="number"
+            min={3}
+            max={10}
+            value={slideCount}
+            onChange={(e) => setSlideCount(Number(e.target.value))}
+            className="w-16 rounded-lg border border-surface-border px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+
+        <Button
           onClick={handleGenerate}
-          disabled={loading}
-          className="ml-auto bg-brand-600 text-white px-5 py-2 rounded-lg font-medium disabled:opacity-50"
+          disabled={loading || !ready}
+          loading={loading}
+          className="w-full"
+          size="lg"
+          icon={!loading && <Sparkles size={16} />}
         >
-          {loading ? '생성 중...' : '✨ 카드뉴스 생성'}
-        </button>
-      </div>
+          {loading ? 'AI가 생성 중...' : '카드뉴스 생성'}
+        </Button>
 
-      {error && (
-        <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>
-      )}
-    </div>
+        {!ready && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-orange-50 border border-orange-200 text-xs text-orange-700">
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <span>설정에서 Gemini API 키를 먼저 입력하세요</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+            <AlertCircle size={14} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
