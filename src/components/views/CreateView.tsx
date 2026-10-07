@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { Tabs } from '@/components/ui/Tabs';
 import { Modal } from '@/components/ui/Modal';
 import { InputPanel } from '@/components/InputPanel';
 import { PresetPicker } from '@/components/PresetPicker';
@@ -11,8 +12,9 @@ import { HorizontalSlideStrip } from '@/components/HorizontalSlideStrip';
 import { DraggableCardPreview } from '@/components/DraggableCardPreview';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { ProjectList } from '@/components/ProjectList';
+import { SlideStyleEditor } from '@/components/SlideStyleEditor';
 import { generateImage } from '@/lib/imagegen';
-import type { Preset, Settings, Slide, CardNewsProject, BrandInfo } from '@/lib/types';
+import type { Preset, Settings, Slide, CardNewsProject } from '@/lib/types';
 import {
   Sparkles,
   Image as ImageIcon,
@@ -27,6 +29,7 @@ import {
   Save,
   FolderOpen,
   Plus,
+  Type,
 } from 'lucide-react';
 
 export function CreateView({
@@ -51,6 +54,7 @@ export function CreateView({
   onRenameProject,
   onCreateNew,
   onSaveProject,
+  onBatchLockChange,
 }: {
   settings: Settings;
   slides: Slide[];
@@ -73,6 +77,7 @@ export function CreateView({
   onRenameProject: (id: string, name: string) => void;
   onCreateNew: () => void;
   onSaveProject: () => void;
+  onBatchLockChange?: (locked: boolean) => void;
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
@@ -83,6 +88,9 @@ export function CreateView({
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [projectListOpen, setProjectListOpen] = useState(false);
   const [colorId, setColorId] = useState(presetColorId || preset.colorVariants[0]?.id);
+  const [rightTab, setRightTab] = useState<'content' | 'style'>('content');
+
+  const autoGenRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (presetColorId && presetColorId !== colorId) setColorId(presetColorId);
@@ -93,6 +101,21 @@ export function CreateView({
       setSelectedIdx(slides.length - 1);
     }
   }, [slides.length, selectedIdx]);
+
+  // 첫 카드 자동 이미지
+  useEffect(() => {
+    if (slides.length === 0) return;
+    const first = slides[0];
+    if (!first.imageUrl && first.imagePrompt && !autoGenRef.current.has(first.id)) {
+      if (settings.cfAccountId && settings.cfApiToken) {
+        autoGenRef.current.add(first.id);
+        setTimeout(() => {
+          genImgInternal(0);
+        }, 800);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides.length, settings.cfAccountId, settings.cfApiToken]);
 
   const selected = slides[selectedIdx];
   const isLast = selectedIdx === slides.length - 1;
@@ -118,16 +141,11 @@ export function CreateView({
     setSelectedIdx(j);
   };
 
-  async function genImg(i: number) {
+  async function genImgInternal(i: number) {
     const s = slides[i];
-    if (!s.imagePrompt.trim()) {
-      alert('이미지 프롬프트가 비어 있습니다.');
-      return;
-    }
-    if (!settings.cfAccountId || !settings.cfApiToken) {
-      alert('설정에서 Cloudflare 정보를 입력하세요.');
-      return;
-    }
+    if (!s.imagePrompt.trim()) return;
+    if (!settings.cfAccountId || !settings.cfApiToken) return;
+
     setGeneratingIdx(i);
     try {
       const url = await generateImage(
@@ -138,10 +156,22 @@ export function CreateView({
       );
       update(i, { imageUrl: url });
     } catch (e: any) {
-      alert(`이미지 생성 실패: ${e.message}`);
+      console.error(`슬라이드 ${i + 1} 이미지 실패:`, e);
     } finally {
       setGeneratingIdx(null);
     }
+  }
+
+  async function genImg(i: number) {
+    if (!slides[i].imagePrompt.trim()) {
+      alert('이미지 프롬프트가 비어 있습니다.');
+      return;
+    }
+    if (!settings.cfAccountId || !settings.cfApiToken) {
+      alert('설정에서 Cloudflare 정보를 입력하세요.');
+      return;
+    }
+    await genImgInternal(i);
   }
 
   async function genAllImages() {
@@ -154,10 +184,14 @@ export function CreateView({
       alert('모든 슬라이드에 이미지가 이미 있습니다.');
       return;
     }
-    if (!confirm(`이미지가 없는 ${targets.length}개 슬라이드의 이미지를 순차 생성할까요?`)) return;
+    if (!confirm(`이미지가 없는 ${targets.length}개 슬라이드의 이미지를 순차 생성할까요?`))
+      return;
 
+    onBatchLockChange?.(true);
     setBatchLoading(true);
     setBatchProgress({ current: 0, total: targets.length });
+
+    const workingSlides = [...slides];
 
     for (let k = 0; k < targets.length; k++) {
       const { s, i } = targets[k];
@@ -170,19 +204,23 @@ export function CreateView({
           s.imagePrompt,
           { workerUrl: settings.workerUrl }
         );
-        update(i, { imageUrl: url });
+        workingSlides[i] = { ...workingSlides[i], imageUrl: url };
+        onSlidesChange([...workingSlides]);
         await new Promise((r) => setTimeout(r, 1200));
       } catch (e) {
         console.error(`슬라이드 ${i + 1} 실패:`, e);
       }
     }
+
     setBatchLoading(false);
     setBatchProgress({ current: 0, total: 0 });
+    onBatchLockChange?.(false);
+
+    setTimeout(() => {
+      onSaveProject?.();
+    }, 500);
   }
 
-  // ─────────────────────────────────────────────
-  // 빈 상태
-  // ─────────────────────────────────────────────
   if (slides.length === 0) {
     return (
       <>
@@ -228,6 +266,7 @@ export function CreateView({
           <InputPanel
             settings={settings}
             onSlides={(s) => {
+              autoGenRef.current.clear();
               onSlidesChange(s);
               setSelectedIdx(0);
               setSourceModalOpen(false);
@@ -253,15 +292,11 @@ export function CreateView({
     );
   }
 
-  // ─────────────────────────────────────────────
-  // 편집 화면
-  // ─────────────────────────────────────────────
   return (
     <>
       <div className="flex flex-col gap-4">
         {/* 상단 툴바 */}
         <Card padding={false} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
-          {/* 프로젝트 이름 */}
           <div className="flex items-center gap-2 min-w-0">
             <Badge variant="primary">
               {currentProject ? currentProject.name.slice(0, 15) : '새 카드뉴스'}
@@ -271,7 +306,6 @@ export function CreateView({
             </span>
           </div>
 
-          {/* 저장/목록 버튼 */}
           <div className="flex gap-1">
             <Button
               size="sm"
@@ -298,7 +332,6 @@ export function CreateView({
             />
           </div>
 
-          {/* 색상 도트 */}
           <div className="flex items-center gap-1.5 ml-2 pl-3 border-l border-surface-border">
             <span className="text-xs text-ink-muted mr-1 hidden lg:inline">색상:</span>
             {preset.colorVariants.map((c) => (
@@ -367,7 +400,7 @@ export function CreateView({
           />
         </Card>
 
-        {/* 2컬럼: 미리보기 | 편집 */}
+        {/* 2컬럼 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7">
             {selected && (
@@ -417,106 +450,132 @@ export function CreateView({
               />
 
               {selected && (
-                <div className="space-y-3 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
-                  <Input
-                    label="헤드라인"
-                    value={selected.headline}
-                    onChange={(e) => update(selectedIdx, { headline: e.target.value })}
-                    placeholder="15자 이내"
+                <div className="space-y-3">
+                  <Tabs
+                    tabs={[
+                      { id: 'content', label: '내용', icon: <PencilRuler size={12} /> },
+                      { id: 'style', label: '스타일', icon: <Type size={12} /> },
+                    ]}
+                    active={rightTab}
+                    onChange={(v) => setRightTab(v as any)}
                   />
-                  <Textarea
-                    label="본문"
-                    value={selected.body}
-                    onChange={(e) => update(selectedIdx, { body: e.target.value })}
-                    placeholder="40자 이내"
-                    rows={3}
-                  />
-                  {selected.type === 'data' && (
-                    <Input
-                      label="강조 숫자"
-                      value={selected.highlight}
-                      onChange={(e) => update(selectedIdx, { highlight: e.target.value })}
-                      placeholder="예: 300만원"
-                    />
-                  )}
 
-                  <div className="border-t pt-3">
-                    <div className="text-xs font-semibold text-ink-secondary mb-2">
-                      🖼 이미지
-                    </div>
-                    <Textarea
-                      label="프롬프트 (영어)"
-                      value={selected.imagePrompt}
-                      onChange={(e) => update(selectedIdx, { imagePrompt: e.target.value })}
-                      placeholder="A clean modern office..."
-                      rows={3}
-                      className="font-mono text-xs"
-                    />
-
-                    <div className="flex items-center gap-2 mt-3">
-                      <Select
-                        value={selected.imageLayout}
-                        onChange={(e) =>
-                          update(selectedIdx, { imageLayout: e.target.value as any })
-                        }
-                        className="!w-auto"
-                      >
-                        <option value="none">이미지 없음</option>
-                        <option value="full-bleed">전체 배경</option>
-                        <option value="top-image">상단</option>
-                        <option value="split">좌우 분할</option>
-                      </Select>
-
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<ImageIcon size={14} />}
-                        loading={generatingIdx === selectedIdx}
-                        onClick={() => genImg(selectedIdx)}
-                        disabled={generatingIdx !== null || batchLoading}
-                        className="ml-auto"
-                      >
-                        {generatingIdx === selectedIdx ? '생성 중...' : '이미지 생성'}
-                      </Button>
-                    </div>
-
-                    {selected.imageUrl && (
-                      <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-primary-50 border border-primary-200">
-                        <img
-                          src={selected.imageUrl}
-                          alt=""
-                          className="w-12 h-12 object-cover rounded-lg"
+                  <div className="max-h-[calc(100vh-380px)] overflow-y-auto pr-1">
+                    {rightTab === 'content' && (
+                      <div className="space-y-3">
+                        <Input
+                          label="헤드라인"
+                          value={selected.headline}
+                          onChange={(e) =>
+                            update(selectedIdx, { headline: e.target.value })
+                          }
+                          placeholder="15자 이내"
                         />
-                        <div className="text-xs text-primary-700 flex-1">이미지 준비됨</div>
-                        <button
-                          onClick={() => update(selectedIdx, { imageUrl: '' })}
-                          className="p-1 rounded text-primary-700 hover:bg-primary-100"
-                        >
-                          <X size={14} />
-                        </button>
+                        <Textarea
+                          label="본문"
+                          value={selected.body}
+                          onChange={(e) =>
+                            update(selectedIdx, { body: e.target.value })
+                          }
+                          placeholder="40자 이내"
+                          rows={3}
+                        />
+                        {selected.type === 'data' && (
+                          <Input
+                            label="강조 숫자"
+                            value={selected.highlight}
+                            onChange={(e) =>
+                              update(selectedIdx, { highlight: e.target.value })
+                            }
+                            placeholder="예: 300만원"
+                          />
+                        )}
+
+                        <div className="border-t pt-3">
+                          <div className="text-xs font-semibold text-ink-secondary mb-2">
+                            🖼 이미지
+                          </div>
+                          <Textarea
+                            label="프롬프트 (영어)"
+                            value={selected.imagePrompt}
+                            onChange={(e) =>
+                              update(selectedIdx, { imagePrompt: e.target.value })
+                            }
+                            placeholder="A clean modern office..."
+                            rows={3}
+                            className="font-mono text-xs"
+                          />
+
+                          <div className="flex items-center gap-2 mt-3">
+                            <Select
+                              value={selected.imageLayout}
+                              onChange={(e) =>
+                                update(selectedIdx, {
+                                  imageLayout: e.target.value as any,
+                                })
+                              }
+                              className="!w-auto"
+                            >
+                              <option value="none">이미지 없음</option>
+                              <option value="full-bleed">전체 배경</option>
+                              <option value="top-image">상단</option>
+                              <option value="split">좌우 분할</option>
+                            </Select>
+
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              icon={<ImageIcon size={14} />}
+                              loading={generatingIdx === selectedIdx}
+                              onClick={() => genImg(selectedIdx)}
+                              disabled={generatingIdx !== null || batchLoading}
+                              className="ml-auto"
+                            >
+                              {generatingIdx === selectedIdx
+                                ? '생성 중...'
+                                : '이미지 생성'}
+                            </Button>
+                          </div>
+
+                          {selected.imageUrl && (
+                            <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-primary-50 border border-primary-200">
+                              <img
+                                src={selected.imageUrl}
+                                alt=""
+                                className="w-12 h-12 object-cover rounded-lg"
+                              />
+                              <div className="text-xs text-primary-700 flex-1">
+                                이미지 준비됨
+                              </div>
+                              <button
+                                onClick={() =>
+                                  update(selectedIdx, { imageUrl: '' })
+                                }
+                                className="p-1 rounded text-primary-700 hover:bg-primary-100"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="border-t pt-3">
+                          <div className="flex items-center gap-2 text-xs text-ink-secondary mb-2">
+                            <MapPin size={12} />
+                            <span>미리보기에서 드래그로 위치 조정</span>
+                          </div>
+                        </div>
                       </div>
                     )}
-                  </div>
 
-                  <div className="border-t pt-3">
-                    <div className="flex items-center gap-2 text-xs text-ink-secondary mb-2">
-                      <MapPin size={12} />
-                      <span>미리보기에서 요소를 드래그해서 위치를 조정하세요</span>
-                    </div>
+                    {rightTab === 'style' && (
+                      <SlideStyleEditor
+                        slide={selected}
+                        preset={preset}
+                        onChange={(patch) => update(selectedIdx, patch)}
+                      />
+                    )}
                   </div>
-
-                  {isLast && (
-                    <div className="border-t pt-3">
-                      <div className="text-xs font-semibold text-ink-secondary mb-2">
-                        🏷 마지막 카드 안내
-                      </div>
-                      <div className="text-xs text-ink-muted bg-primary-50 rounded-lg p-3">
-                        마지막 슬라이드는 화살표 없이 브랜드 정보가 표시됩니다.
-                        <br />
-                        브랜드 정보는 <strong>설정</strong>에서 입력하세요.
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </Card>
@@ -524,7 +583,7 @@ export function CreateView({
         </div>
       </div>
 
-      {/* 프리셋 모달 */}
+      {/* 모달들 */}
       <Modal
         open={presetModalOpen}
         onClose={() => setPresetModalOpen(false)}
@@ -553,7 +612,6 @@ export function CreateView({
         />
       </Modal>
 
-      {/* 소스 재입력 모달 */}
       <Modal
         open={sourceModalOpen}
         onClose={() => setSourceModalOpen(false)}
@@ -563,6 +621,7 @@ export function CreateView({
         <InputPanel
           settings={settings}
           onSlides={(s) => {
+            autoGenRef.current.clear();
             onSlidesChange(s);
             setSelectedIdx(0);
             setSourceModalOpen(false);
@@ -570,7 +629,6 @@ export function CreateView({
         />
       </Modal>
 
-      {/* 폰 목업 모달 */}
       <Modal
         open={phoneModalOpen}
         onClose={() => setPhoneModalOpen(false)}
@@ -588,7 +646,6 @@ export function CreateView({
         )}
       </Modal>
 
-      {/* 프로젝트 목록 */}
       <ProjectList
         open={projectListOpen}
         onClose={() => setProjectListOpen(false)}

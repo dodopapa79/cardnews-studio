@@ -43,11 +43,7 @@ const baseDeco: Decoration = {
 
 const basePadding: Padding = { top: 100, right: 100, bottom: 120, left: 100 };
 
-// ─────────────────────────────────────────────
-// 스타일 프리셋 10종
-// ─────────────────────────────────────────────
 export const STYLE_PRESETS: Preset[] = [
-  // 1. 다크 볼드
   {
     id: 'preset-dark-bold',
     name: '다크 볼드',
@@ -60,8 +56,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 2. 다크 블루
   {
     id: 'preset-dark-blue',
     name: '다크 블루',
@@ -74,8 +68,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 3. 다크 레드
   {
     id: 'preset-dark-red',
     name: '다크 레드',
@@ -88,8 +80,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 4. 다크 그린
   {
     id: 'preset-dark-green',
     name: '다크 그린',
@@ -102,8 +92,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 5. 다크 퍼플
   {
     id: 'preset-dark-purple',
     name: '다크 퍼플',
@@ -116,8 +104,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 6. 메시 다크
   {
     id: 'preset-mesh-dark',
     name: '메시 다크',
@@ -136,8 +122,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 7. 다크 미니멀
   {
     id: 'preset-dark-minimal',
     name: '다크 미니멀',
@@ -145,7 +129,12 @@ export const STYLE_PRESETS: Preset[] = [
     description: '차콜 + 화이트, 세련된 최소주의',
     layout: 'dark-minimal',
     colorVariants: DARK_MINIMAL_COLORS,
-    typography: { ...baseTypo, headlineWeight: 700, headlineSize: 88, headlineLetterSpacing: '-0.02em' },
+    typography: {
+      ...baseTypo,
+      headlineWeight: 700,
+      headlineSize: 88,
+      headlineLetterSpacing: '-0.02em',
+    },
     decoration: {
       ...baseDeco,
       badgeStyle: 'underline',
@@ -155,8 +144,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: { top: 120, right: 110, bottom: 130, left: 110 },
     builtin: true,
   },
-
-  // 8. 라이트 미니멀
   {
     id: 'preset-light-minimal',
     name: '라이트 미니멀',
@@ -174,8 +161,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 9. 라이트 그레이
   {
     id: 'preset-light-gray',
     name: '라이트 그레이',
@@ -188,8 +173,6 @@ export const STYLE_PRESETS: Preset[] = [
     padding: basePadding,
     builtin: true,
   },
-
-  // 10. 라이트 크림
   {
     id: 'preset-light-cream',
     name: '라이트 크림',
@@ -198,18 +181,20 @@ export const STYLE_PRESETS: Preset[] = [
     layout: 'light-cream',
     colorVariants: LIGHT_CREAM_COLORS,
     typography: { ...baseTypo, headlineWeight: 800, headlineSize: 92 },
-    decoration: { ...baseDeco, badgeStyle: 'pill', cornerRadius: 24, backgroundPattern: 'noise' },
+    decoration: {
+      ...baseDeco,
+      badgeStyle: 'pill',
+      cornerRadius: 24,
+      backgroundPattern: 'noise',
+    },
     padding: basePadding,
     builtin: true,
   },
 ];
 
-// ─────────────────────────────────────────────
-// 업종 프리셋 6종
-// ─────────────────────────────────────────────
 export const INDUSTRY_PRESETS: Preset[] = [
   {
-    ...STYLE_PRESETS[7], // 라이트 미니멀
+    ...STYLE_PRESETS[7],
     id: 'ind-gov',
     name: '정부지원금',
     category: 'industry',
@@ -225,7 +210,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
     colorVariants: YOUTH_COLORS,
   },
   {
-    ...STYLE_PRESETS[0], // 다크 볼드
+    ...STYLE_PRESETS[0],
     id: 'ind-finance',
     name: '재테크',
     category: 'industry',
@@ -233,7 +218,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
     colorVariants: FINANCE_COLORS,
   },
   {
-    ...STYLE_PRESETS[4], // 다크 퍼플
+    ...STYLE_PRESETS[4],
     id: 'ind-beauty',
     name: '뷰티',
     category: 'industry',
@@ -241,7 +226,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
     colorVariants: BEAUTY_COLORS,
   },
   {
-    ...STYLE_PRESETS[1], // 다크 블루
+    ...STYLE_PRESETS[1],
     id: 'ind-tech',
     name: 'IT/테크',
     category: 'industry',
@@ -249,7 +234,7 @@ export const INDUSTRY_PRESETS: Preset[] = [
     colorVariants: TECH_COLORS,
   },
   {
-    ...STYLE_PRESETS[5], // 메시 다크
+    ...STYLE_PRESETS[5],
     id: 'ind-food',
     name: '맛집',
     category: 'industry',

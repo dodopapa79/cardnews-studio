@@ -51,7 +51,10 @@ export default function Page() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // 자동 저장 잠금 ref
   const skipAutoSaveRef = useRef(false);
+  const batchLockRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -104,7 +107,7 @@ export default function Page() {
     } finally {
       setTimeout(() => {
         skipAutoSaveRef.current = false;
-      }, 500);
+      }, 800);
     }
   }
 
@@ -265,22 +268,27 @@ export default function Page() {
     setView('create');
     setTimeout(() => {
       skipAutoSaveRef.current = false;
-    }, 500);
+    }, 800);
   }
 
+  // ─────────────────────────────────────────
+  // 자동 저장 (배치 잠금 + 스킵 플래그 적용)
+  // ─────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
     if (skipAutoSaveRef.current) return;
+    if (batchLockRef.current) return; // ← 일괄 생성 중이면 스킵
     if (!currentProjectId) return;
     if (slides.length === 0) return;
 
     const timer = setTimeout(async () => {
+      if (skipAutoSaveRef.current || batchLockRef.current) return;
       try {
         await handleSaveProject();
       } catch (e) {
         console.error('자동 저장 실패:', e);
       }
-    }, 2000);
+    }, 2500);
     return () => clearTimeout(timer);
   }, [slides, presetColorId, mounted, currentProjectId]);
 
@@ -330,6 +338,9 @@ export default function Page() {
           onRenameProject={handleRenameProject}
           onCreateNew={handleCreateNew}
           onSaveProject={handleSaveProject}
+          onBatchLockChange={(locked) => {
+            batchLockRef.current = locked;
+          }}
         />
       )}
       {view === 'presets' && (

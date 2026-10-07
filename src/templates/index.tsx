@@ -5,6 +5,7 @@ import type {
   ColorVariant,
   ElementPosition,
   BrandInfo,
+  SlideTextOverride,
 } from '@/lib/types';
 
 // ─────────────────────────────────────────────
@@ -82,7 +83,29 @@ function BackgroundLayer({
 }
 
 // ─────────────────────────────────────────────
-// 드래그 가능 wrapper (레이아웃 안에서 상대적 offset만 적용)
+// 자동 축소: 텍스트 길이 기반 크기 계산
+// ─────────────────────────────────────────────
+function calcAutoSize(
+  text: string,
+  baseSize: number,
+  maxWidthPx: number,
+  charWidthFactor = 1.05
+): number {
+  if (!text) return baseSize;
+  // 각 줄 최대 글자 수 추정 (한글 기준)
+  // maxWidth / (baseSize * charWidthFactor)
+  const maxChars = Math.floor(maxWidthPx / (baseSize * charWidthFactor));
+  if (maxChars < 1) return baseSize * 0.5;
+
+  // 단어 단위로 줄바꿈 시 몇 줄이 되는지 추정
+  const lines = Math.ceil(text.length / Math.max(1, maxChars));
+  // 3줄까지는 OK, 넘으면 축소
+  if (lines <= 3) return baseSize;
+  return Math.max(baseSize * 0.6, baseSize * (3 / lines));
+}
+
+// ─────────────────────────────────────────────
+// 드래그 wrapper
 // ─────────────────────────────────────────────
 function DraggableBox({
   elementKey,
@@ -105,9 +128,7 @@ function DraggableBox({
   style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  if (!editable) {
-    return <div style={style}>{children}</div>;
-  }
+  if (!editable) return <div style={style}>{children}</div>;
 
   const isSelected = selectedElement === elementKey;
   const offsetX = position?.x ?? 0;
@@ -116,13 +137,11 @@ function DraggableBox({
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-
     const startX = e.clientX;
     const startY = e.clientY;
     const container = e.currentTarget.closest('[data-card-container]') as HTMLElement;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-
     const startOffset = { x: offsetX, y: offsetY };
 
     const onMove = (ev: MouseEvent) => {
@@ -133,12 +152,10 @@ function DraggableBox({
         y: Math.max(-0.5, Math.min(0.5, startOffset.y + dy)),
       });
     };
-
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
@@ -172,76 +189,56 @@ function DraggableBox({
 }
 
 // ─────────────────────────────────────────────
-// 공통 Props
+// 푸터
 // ─────────────────────────────────────────────
-interface CardSlideProps {
-  slide: Slide;
-  preset: Preset;
-  colorId?: string;
-  brand?: BrandInfo;
-  editable?: boolean;
-  onElementClick?: (el: any) => void;
-  selectedElement?: string | null;
-  onElementDrag?: (el: string, pos: ElementPosition) => void;
-  width?: number;
-  height?: number;
-  isLast?: boolean;
-}
-
-// ─────────────────────────────────────────────
-// 공통 컴포넌트들
-// ─────────────────────────────────────────────
-
-/** 모든 카드에 들어가는 푸터 (사이트명 + 스와이프) */
 function CardFooter({
   brand,
-  color,
   isLast,
   accent,
   textMuted,
 }: {
   brand?: BrandInfo;
-  color: ColorVariant;
   isLast: boolean;
   accent: string;
   textMuted: string;
 }) {
-  if (!brand?.website && !brand?.brandName && !brand?.handle) {
-    if (isLast) return null;
-    return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          gap: 12,
-          fontSize: 18,
-          fontWeight: 700,
-          color: textMuted,
-          letterSpacing: '0.1em',
-        }}
-      >
-        SWIPE
-        <span style={{ color: accent, fontSize: 20 }}>→</span>
-      </div>
-    );
-  }
-
   if (isLast) {
+    const hasBrand = brand?.brandName || brand?.website || brand?.handle;
+    if (!hasBrand) {
+      return (
+        <div style={{ textAlign: 'center', color: textMuted, fontSize: 24 }}>
+          @your_handle
+        </div>
+      );
+    }
     return (
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 6,
-          alignItems: 'flex-start',
+          alignItems: 'center',
+          gap: 24,
+          textAlign: 'center',
         }}
       >
-        {brand.brandName && (
+        {brand?.logoUrl && (
+          <img
+            src={brand.logoUrl}
+            alt=""
+            crossOrigin="anonymous"
+            style={{
+              width: 140,
+              height: 140,
+              objectFit: 'contain',
+              opacity: 0.95,
+            }}
+          />
+        )}
+        {brand?.brandName && (
           <div
             style={{
-              fontSize: 22,
-              fontWeight: 800,
+              fontSize: 44,
+              fontWeight: 900,
               color: accent,
               letterSpacing: '0.05em',
             }}
@@ -249,13 +246,27 @@ function CardFooter({
             {brand.brandName}
           </div>
         )}
-        {brand.website && (
-          <div style={{ fontSize: 18, color: textMuted, fontWeight: 500 }}>
+        {brand?.website && (
+          <div
+            style={{
+              fontSize: 30,
+              color: textMuted,
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+            }}
+          >
             {brand.website}
           </div>
         )}
-        {brand.handle && (
-          <div style={{ fontSize: 16, color: textMuted, opacity: 0.7 }}>
+        {brand?.handle && (
+          <div
+            style={{
+              fontSize: 26,
+              color: textMuted,
+              opacity: 0.75,
+              fontWeight: 500,
+            }}
+          >
             {brand.handle}
           </div>
         )}
@@ -274,7 +285,7 @@ function CardFooter({
       }}
     >
       <div style={{ fontWeight: 500, opacity: 0.85 }}>
-        {brand.website || brand.brandName}
+        {brand?.website || brand?.brandName || ''}
       </div>
       <div
         style={{
@@ -292,7 +303,9 @@ function CardFooter({
   );
 }
 
-/** 뱃지 */
+// ─────────────────────────────────────────────
+// 뱃지
+// ─────────────────────────────────────────────
 function Badge({
   slide,
   color,
@@ -350,7 +363,6 @@ function Badge({
     );
   }
 
-  // 다크 계열
   return (
     <div
       style={{
@@ -371,8 +383,22 @@ function Badge({
 }
 
 // ─────────────────────────────────────────────
-// 메인 컴포넌트
+// 메인
 // ─────────────────────────────────────────────
+interface CardSlideProps {
+  slide: Slide;
+  preset: Preset;
+  colorId?: string;
+  brand?: BrandInfo;
+  editable?: boolean;
+  onElementClick?: (el: any) => void;
+  selectedElement?: string | null;
+  onElementDrag?: (el: string, pos: ElementPosition) => void;
+  width?: number;
+  height?: number;
+  isLast?: boolean;
+}
+
 export function CardSlide({
   slide,
   preset,
@@ -386,8 +412,21 @@ export function CardSlide({
   height = 1350,
   isLast = false,
 }: CardSlideProps) {
-  const color =
+  const baseColor =
     preset.colorVariants.find((c) => c.id === colorId) || preset.colorVariants[0];
+  const ov: SlideTextOverride = slide.textOverride || {};
+
+  // 색상 오버라이드 반영
+  const color: ColorVariant = {
+    ...baseColor,
+    background: ov.backgroundOverride || baseColor.background,
+    backgroundEnd: ov.backgroundEndOverride || baseColor.backgroundEnd,
+    accent: ov.accentOverride || baseColor.accent,
+    accentSoft: ov.accentSoftOverride || baseColor.accentSoft,
+    text: ov.textOverride || baseColor.text,
+    textMuted: ov.textMutedOverride || baseColor.textMuted,
+  };
+
   const { typography, decoration, padding, layout } = preset;
   const { positions } = slide;
   const presetPositions = preset.positions;
@@ -418,25 +457,34 @@ export function CardSlide({
     accent: color.accent,
   };
 
-  // 이미지 위 흰 텍스트 강제 여부
-  const onImageOverlay = hasFullBleed && layout !== 'photo-mood';
-  const textColor = onImageOverlay ? '#ffffff' : color.text;
-  const textMutedColor = onImageOverlay ? '#ffffffcc' : color.textMuted;
+  const onImageOverlay = hasFullBleed;
+  const textColor = ov.headlineColor || (onImageOverlay ? '#ffffff' : color.text);
+  const bodyTextColor = ov.bodyColor || (onImageOverlay ? '#ffffffcc' : color.textMuted);
+  const highlightColor = ov.highlightColor || (onImageOverlay ? '#ffffff' : color.accent);
 
-  // ─────────────────────────────────────
-  // 공통 컨텐츠 (헤드라인, 본문, highlight)
-  // ─────────────────────────────────────
+  // 자동 축소
+  const maxTextWidth = width - padding.left - padding.right;
+  const baseHeadlineSize = ov.headlineSize ?? typography.headlineSize;
+  const baseBodySize = ov.bodySize ?? typography.bodySize;
+
+  const headlineSize =
+    ov.autoShrink !== false
+      ? calcAutoSize(slide.headline, baseHeadlineSize, maxTextWidth, 1.05)
+      : baseHeadlineSize;
+
+  const bodySize =
+    ov.autoShrink !== false
+      ? calcAutoSize(slide.body, baseBodySize, maxTextWidth, 0.55)
+      : baseBodySize;
+
+  const headlineWeight = ov.headlineWeight ?? typography.headlineWeight;
+
   const headlineEl = (
-    <DraggableBox
-      elementKey="headline"
-      position={headlinePos}
-      {...commonDragProps}
-    >
+    <DraggableBox elementKey="headline" position={headlinePos} {...commonDragProps}>
       <h1
         style={{
-          fontSize:
-            slide.type === 'cover' ? typography.headlineSize : typography.headlineSize * 0.82,
-          fontWeight: typography.headlineWeight,
+          fontSize: slide.type === 'cover' ? headlineSize : headlineSize * 0.82,
+          fontWeight: headlineWeight,
           lineHeight: typography.lineHeight,
           letterSpacing: typography.headlineLetterSpacing,
           color: textColor,
@@ -454,9 +502,9 @@ export function CardSlide({
     <DraggableBox elementKey="body" position={bodyPos} {...commonDragProps}>
       <p
         style={{
-          fontSize: typography.bodySize,
+          fontSize: bodySize,
           lineHeight: 1.55,
-          color: textMutedColor,
+          color: bodyTextColor,
           margin: 0,
           wordBreak: 'keep-all',
           overflowWrap: 'anywhere',
@@ -472,10 +520,10 @@ export function CardSlide({
       <DraggableBox elementKey="highlight" position={highlightPos} {...commonDragProps}>
         <div
           style={{
-            fontSize: Math.min(220, typography.headlineSize * 2),
+            fontSize: Math.min(220, headlineSize * 2),
             fontWeight: 900,
             lineHeight: 0.95,
-            color: onImageOverlay ? '#ffffff' : color.accent,
+            color: highlightColor,
             letterSpacing: '-0.04em',
             wordBreak: 'keep-all',
           }}
@@ -491,9 +539,6 @@ export function CardSlide({
     </DraggableBox>
   );
 
-  // ─────────────────────────────────────
-  // 레이아웃 렌더 — flex column, 절대 화면 밖으로 안 나감
-  // ─────────────────────────────────────
   const content = (
     <div
       style={{
@@ -506,35 +551,43 @@ export function CardSlide({
         boxSizing: 'border-box',
       }}
     >
-      {/* 상단 */}
-      <div style={{ marginBottom: 24 }}>
-        {badgeEl}
-      </div>
+      {!isLast && <div style={{ marginBottom: 24 }}>{badgeEl}</div>}
 
-      {/* 중앙 (여기서 flex: 1로 공간 차지) */}
       <div
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: layout.includes('minimal') ? 'flex-start' : 'center',
+          justifyContent: isLast
+            ? 'center'
+            : layout.includes('minimal')
+            ? 'flex-start'
+            : 'center',
+          alignItems: isLast ? 'center' : 'stretch',
           gap: 28,
           minHeight: 0,
         }}
       >
-        {highlightEl}
-        {headlineEl}
-        {bodyEl}
+        {!isLast ? (
+          <>
+            {highlightEl}
+            {headlineEl}
+            {bodyEl}
+          </>
+        ) : (
+          <>
+            {headlineEl}
+            {bodyEl}
+          </>
+        )}
       </div>
 
-      {/* 하단 푸터 */}
-      <div style={{ marginTop: 24, minHeight: 60 }}>
+      <div style={{ marginTop: 24, minHeight: isLast ? 200 : 60 }}>
         <CardFooter
           brand={brand}
-          color={color}
           isLast={isLast}
           accent={color.accent}
-          textMuted={textMutedColor}
+          textMuted={onImageOverlay ? '#ffffffcc' : color.textMuted}
         />
       </div>
     </div>
@@ -554,10 +607,8 @@ export function CardSlide({
         overflow: 'hidden',
       }}
     >
-      {/* 배경 */}
       <BackgroundLayer color={color} pattern={decoration.backgroundPattern} />
 
-      {/* 이미지 */}
       {hasFullBleed && (
         <>
           <img
@@ -575,28 +626,11 @@ export function CardSlide({
               zIndex: 0,
             }}
           />
-          {/* 상단 그라데이션 (이미지가 상단에서 부드럽게) */}
           <div
             style={{
               position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '60%',
-              background: `linear-gradient(180deg, ${color.background} 0%, ${color.background}dd 30%, ${color.background}66 70%, ${color.background}00 100%)`,
-              zIndex: 1,
-              pointerEvents: 'none',
-            }}
-          />
-          {/* 하단 그라데이션 */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '70%',
-              background: `linear-gradient(0deg, ${color.background} 0%, ${color.background}f0 40%, ${color.background}99 70%, ${color.background}00 100%)`,
+              inset: 0,
+              background: `linear-gradient(180deg, ${color.background}cc 0%, ${color.background}66 30%, ${color.background}cc 75%, ${color.background} 100%)`,
               zIndex: 1,
               pointerEvents: 'none',
             }}
@@ -630,15 +664,14 @@ export function CardSlide({
               }}
             />
           </div>
-          {/* 상단 이미지 하단 그라데이션 (배경으로 부드럽게 이어짐) */}
           <div
             style={{
               position: 'absolute',
-              top: height * 0.4,
+              top: height * 0.35,
               left: 0,
               right: 0,
               height: height * 0.25,
-              background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background} 100%)`,
+              background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background}cc 60%, ${color.background} 100%)`,
               zIndex: 1,
               pointerEvents: 'none',
             }}
@@ -670,7 +703,6 @@ export function CardSlide({
               filter: imageFilter,
             }}
           />
-          {/* 좌측으로 부드럽게 이어짐 */}
           <div
             style={{
               position: 'absolute',
@@ -684,10 +716,8 @@ export function CardSlide({
         </div>
       )}
 
-      {/* 콘텐츠 */}
       {content}
 
-      {/* 그림자 */}
       {decoration.shadow && (
         <div
           style={{

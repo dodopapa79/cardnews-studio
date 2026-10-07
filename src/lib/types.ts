@@ -32,14 +32,30 @@ export interface SlidePositions {
   imageFocal?: { x: number; y: number };
 }
 
-/** 슬라이드별 텍스트 오버라이드 (프리셋 위에 덮어쓰기) */
+/**
+ * 슬라이드별 텍스트/색상 오버라이드
+ * - 프리셋 위에 개별 조정 가능
+ */
 export interface SlideTextOverride {
+  // 텍스트 크기
   headlineSize?: number;
-  headlineColor?: string;
-  headlineWeight?: number;
   bodySize?: number;
+  headlineWeight?: number;
+
+  // 텍스트 색상
+  headlineColor?: string;
   bodyColor?: string;
   highlightColor?: string;
+
+  // 배경/강조 색상 오버라이드
+  backgroundOverride?: string;
+  backgroundEndOverride?: string;
+  accentOverride?: string;
+  accentSoftOverride?: string;
+  textOverride?: string;
+  textMutedOverride?: string;
+
+  // 자동 축소
   autoShrink?: boolean;
 }
 
