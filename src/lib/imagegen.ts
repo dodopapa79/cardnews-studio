@@ -4,10 +4,6 @@ export type CFModel =
 
 interface GenOptions {
   model?: CFModel;
-  width?: number;
-  height?: number;
-  steps?: number;
-  seed?: number;
   workerUrl: string;
 }
 
@@ -19,20 +15,11 @@ export async function generateImage(
 ): Promise<string> {
   const {
     model = '@cf/black-forest-labs/flux-1-schnell',
-    width = 1080,
-    height = 1350,
-    steps = 8,
-    seed,
     workerUrl,
   } = options;
 
-  const body: Record<string, unknown> = {
-    prompt,
-    width,
-    height,
-    num_steps: steps,
-  };
-  if (seed !== undefined) body.seed = seed;
+  // Cloudflare flux-1-schnell은 prompt만 받음
+  const body = { prompt };
 
   const res = await fetch(workerUrl, {
     method: 'POST',
@@ -47,7 +34,7 @@ export async function generateImage(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`이미지 생성 실패 (${res.status}): ${err.slice(0, 200)}`);
+    throw new Error(`이미지 생성 실패 (${res.status}): ${err.slice(0, 300)}`);
   }
 
   const contentType = res.headers.get('content-type') || '';

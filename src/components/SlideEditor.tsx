@@ -52,9 +52,6 @@ export function SlideEditor({
     setGeneratingIdx(i);
     try {
       const url = await generateImage(settings.cfAccountId, settings.cfApiToken, s.imagePrompt, {
-        width: 1080,
-        height: 1350,
-        steps: 8,
         workerUrl: settings.workerUrl,
       });
       update(i, { imageUrl: url });
