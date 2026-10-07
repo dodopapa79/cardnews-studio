@@ -5,10 +5,12 @@ const BASE =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
 
 // 시도 2 (3.6이 계속 몰릴 때)
-const BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
+const BASE = 
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
 
 // 시도 3 (Lite 모델, 더 안정적, 살짝 성능 낮음)
-'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
+const BASE = 
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
 
 interface GenerateOptions {
