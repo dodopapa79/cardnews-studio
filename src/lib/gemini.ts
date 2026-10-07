@@ -1,7 +1,7 @@
 import type { Slide, SlideType, ImageLayout } from './types';
 
 const BASE =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
 
 interface GenerateOptions {
   slideCount?: number;
