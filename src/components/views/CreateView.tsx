@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputPanel } from '@/components/InputPanel';
 import { PresetPicker } from '@/components/PresetPicker';
-import { CardSlide } from '@/templates';
+import { HorizontalSlideStrip } from '@/components/HorizontalSlideStrip';
+import { DraggableCardPreview } from '@/components/DraggableCardPreview';
+import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { generateImage } from '@/lib/imagegen';
-import type { Preset, Settings, Slide } from '@/lib/types';
+import type { Preset, Settings, Slide, ElementPosition } from '@/lib/types';
 import {
   Sparkles,
   Image as ImageIcon,
@@ -19,9 +21,8 @@ import {
   X,
   Palette,
   PencilRuler,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
+  MapPin,
 } from 'lucide-react';
 
 export function CreateView({
@@ -51,6 +52,7 @@ export function CreateView({
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [presetModalOpen, setPresetModalOpen] = useState(false);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
 
   useEffect(() => {
     if (selectedIdx >= slides.length && slides.length > 0) {
@@ -180,257 +182,196 @@ export function CreateView({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* 상단 툴바 */}
-      <Card padding={false} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
-        <Badge variant="primary">{slides.length}장</Badge>
-        <div className="text-sm text-ink-secondary">
-          이미지 {slides.filter((s) => s.imageUrl).length}장 생성됨
-        </div>
+    <>
+      <div className="flex flex-col gap-4">
+        {/* 상단 툴바 */}
+        <Card padding={false} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
+          <Badge variant="primary">{slides.length}장</Badge>
+          <div className="text-sm text-ink-secondary">
+            이미지 {slides.filter((s) => s.imageUrl).length}장 생성됨
+          </div>
 
-        <div className="ml-auto flex gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<Palette size={14} />}
-            onClick={() => setPresetModalOpen(true)}
-          >
-            {preset.name}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={<PencilRuler size={14} />}
-            onClick={() => setSourceModalOpen(true)}
-          >
-            소스 재입력
-          </Button>
-          <Button
-            size="sm"
-            icon={batchLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            onClick={genAllImages}
-            disabled={batchLoading}
-          >
-            {batchLoading
-              ? `생성 중 ${batchProgress.current}/${batchProgress.total}`
-              : '모든 이미지 생성'}
-          </Button>
-        </div>
-      </Card>
-
-      {/* 3컬럼 레이아웃 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* 좌측: 슬라이드 목록 (2열 그리드) */}
-        <div className="lg:col-span-3">
-          <Card padding={false} className="p-2">
-            <div className="px-2 py-1.5 text-xs font-semibold text-ink-secondary flex items-center justify-between">
-              <span>슬라이드</span>
-              <span className="text-primary-600">{slides.length}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 max-h-[calc(100vh-240px)] overflow-y-auto pr-0.5">
-              {slides.map((s, i) => (
-                <SlideThumb
-                  key={s.id}
-                  slide={s}
-                  preset={preset}
-                  index={i}
-                  selected={selectedIdx === i}
-                  hasImage={!!s.imageUrl}
-                  onClick={() => setSelectedIdx(i)}
-                />
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* 중앙: 실시간 미리보기 */}
-        <div className="lg:col-span-5">
-          <Card padding={false} className="p-3 sticky top-20">
-            <div className="flex items-center justify-between mb-2 px-1">
-              <div className="text-sm font-semibold">미리보기 #{selectedIdx + 1}</div>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setSelectedIdx(Math.max(0, selectedIdx - 1))}
-                  disabled={selectedIdx === 0}
-                  className="p-1.5 rounded-lg hover:bg-surface-hover disabled:opacity-30"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  onClick={() => setSelectedIdx(Math.min(slides.length - 1, selectedIdx + 1))}
-                  disabled={selectedIdx === slides.length - 1}
-                  className="p-1.5 rounded-lg hover:bg-surface-hover disabled:opacity-30"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* 카드 미리보기 (세로 중앙 정렬) */}
-            <div className="flex items-center justify-center bg-gray-100 rounded-xl p-4">
-              <div
-                className="rounded-xl overflow-hidden border shadow-card bg-white"
-                style={{ width: '100%', maxWidth: 380, aspectRatio: '1080 / 1350' }}
-              >
-                <div
-                  style={{
-                    width: 1080,
-                    height: 1350,
-                    transform: 'scale(0.352)',
-                    transformOrigin: 'top left',
-                  }}
-                >
-                  <div style={{ position: 'relative' }}>
-                    {slides.map((s, i) => (
-                      <div
-                        key={s.id}
-                        ref={(el) => (cardRefs.current[i] = el)}
-                        style={{
-                          position: i === selectedIdx ? 'relative' : 'absolute',
-                          top: 0,
-                          left: 0,
-                          visibility: i === selectedIdx ? 'visible' : 'hidden',
-                        }}
-                      >
-                        <CardSlide slide={s} preset={preset} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 슬라이드 인디케이터 */}
-            <div className="flex justify-center gap-1.5 mt-3 flex-wrap">
-              {slides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelectedIdx(i)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === selectedIdx
-                      ? 'w-6 bg-primary-600'
-                      : 'w-1.5 bg-gray-300 hover:bg-gray-400'
-                  }`}
-                />
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* 우측: 편집 폼 */}
-        <div className="lg:col-span-4">
-          <Card className="sticky top-20">
-            <CardHeader
-              title={`슬라이드 #${selectedIdx + 1}`}
-              subtitle={selected?.type.toUpperCase()}
-              action={
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => move(selectedIdx, -1)}
-                    disabled={selectedIdx === 0}
-                    className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"
-                  >
-                    <ArrowUp size={14} />
-                  </button>
-                  <button
-                    onClick={() => move(selectedIdx, 1)}
-                    disabled={selectedIdx === slides.length - 1}
-                    className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"
-                  >
-                    <ArrowDown size={14} />
-                  </button>
-                  <button
-                    onClick={() => removeSlide(selectedIdx)}
-                    className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+          <div className="ml-auto flex gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Palette size={14} />}
+              onClick={() => setPresetModalOpen(true)}
+            >
+              {preset.name}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<PencilRuler size={14} />}
+              onClick={() => setSourceModalOpen(true)}
+            >
+              소스 재입력
+            </Button>
+            <Button
+              size="sm"
+              icon={
+                batchLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />
               }
-            />
+              onClick={genAllImages}
+              disabled={batchLoading}
+            >
+              {batchLoading
+                ? `생성 중 ${batchProgress.current}/${batchProgress.total}`
+                : '모든 이미지 생성'}
+            </Button>
+          </div>
+        </Card>
 
+        {/* 상단 가로 슬라이드 스트립 */}
+        <Card padding={false} className="py-3">
+          <HorizontalSlideStrip
+            slides={slides}
+            preset={preset}
+            selectedIdx={selectedIdx}
+            onSelect={setSelectedIdx}
+          />
+        </Card>
+
+        {/* 2컬럼: 미리보기 | 편집 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* 좌: 드래그 미리보기 */}
+          <div className="lg:col-span-7">
             {selected && (
-              <div className="space-y-3 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
-                <Input
-                  label="헤드라인"
-                  value={selected.headline}
-                  onChange={(e) => update(selectedIdx, { headline: e.target.value })}
-                  placeholder="15자 이내"
-                />
-                <Textarea
-                  label="본문"
-                  value={selected.body}
-                  onChange={(e) => update(selectedIdx, { body: e.target.value })}
-                  placeholder="40자 이내"
-                  rows={3}
-                />
-                {selected.type === 'data' && (
-                  <Input
-                    label="강조 숫자"
-                    value={selected.highlight}
-                    onChange={(e) => update(selectedIdx, { highlight: e.target.value })}
-                    placeholder="예: 300만원"
-                  />
-                )}
-
-                <div className="border-t pt-3">
-                  <div className="text-xs font-semibold text-ink-secondary mb-2">
-                    🖼 이미지
-                  </div>
-                  <Textarea
-                    label="프롬프트 (영어)"
-                    value={selected.imagePrompt}
-                    onChange={(e) => update(selectedIdx, { imagePrompt: e.target.value })}
-                    placeholder="A clean modern office..."
-                    rows={3}
-                    className="font-mono text-xs"
-                  />
-
-                  <div className="flex items-center gap-2 mt-3">
-                    <Select
-                      value={selected.imageLayout}
-                      onChange={(e) => update(selectedIdx, { imageLayout: e.target.value as any })}
-                      className="!w-auto"
-                    >
-                      <option value="none">이미지 없음</option>
-                      <option value="full-bleed">전체 배경</option>
-                      <option value="top-image">상단</option>
-                      <option value="split">좌우 분할</option>
-                    </Select>
-
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={<ImageIcon size={14} />}
-                      loading={generatingIdx === selectedIdx}
-                      onClick={() => genImg(selectedIdx)}
-                      disabled={generatingIdx !== null || batchLoading}
-                      className="ml-auto"
-                    >
-                      {generatingIdx === selectedIdx ? '생성 중...' : '이미지 생성'}
-                    </Button>
-                  </div>
-
-                  {selected.imageUrl && (
-                    <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-green-50 border border-green-200">
-                      <img
-                        src={selected.imageUrl}
-                        alt=""
-                        className="w-12 h-12 object-cover rounded-lg"
-                      />
-                      <div className="text-xs text-green-700 flex-1">이미지 준비됨</div>
-                      <button
-                        onClick={() => update(selectedIdx, { imageUrl: '' })}
-                        className="p-1 rounded text-green-700 hover:bg-green-100"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <DraggableCardPreview
+                slide={selected}
+                preset={preset}
+                onSlideChange={(s) => update(selectedIdx, s)}
+                onOpenPhoneMockup={() => setPhoneModalOpen(true)}
+              />
             )}
-          </Card>
+          </div>
+
+          {/* 우: 편집 폼 */}
+          <div className="lg:col-span-5">
+            <Card className="sticky top-20">
+              <CardHeader
+                title={`슬라이드 #${selectedIdx + 1}`}
+                subtitle={selected?.type.toUpperCase()}
+                action={
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => move(selectedIdx, -1)}
+                      disabled={selectedIdx === 0}
+                      className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => move(selectedIdx, 1)}
+                      disabled={selectedIdx === slides.length - 1}
+                      className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                    <button
+                      onClick={() => removeSlide(selectedIdx)}
+                      className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                }
+              />
+
+              {selected && (
+                <div className="space-y-3 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+                  <Input
+                    label="헤드라인"
+                    value={selected.headline}
+                    onChange={(e) => update(selectedIdx, { headline: e.target.value })}
+                    placeholder="15자 이내"
+                  />
+                  <Textarea
+                    label="본문"
+                    value={selected.body}
+                    onChange={(e) => update(selectedIdx, { body: e.target.value })}
+                    placeholder="40자 이내"
+                    rows={3}
+                  />
+                  {selected.type === 'data' && (
+                    <Input
+                      label="강조 숫자"
+                      value={selected.highlight}
+                      onChange={(e) => update(selectedIdx, { highlight: e.target.value })}
+                      placeholder="예: 300만원"
+                    />
+                  )}
+
+                  <div className="border-t pt-3">
+                    <div className="text-xs font-semibold text-ink-secondary mb-2">
+                      🖼 이미지
+                    </div>
+                    <Textarea
+                      label="프롬프트 (영어)"
+                      value={selected.imagePrompt}
+                      onChange={(e) => update(selectedIdx, { imagePrompt: e.target.value })}
+                      placeholder="A clean modern office..."
+                      rows={3}
+                      className="font-mono text-xs"
+                    />
+
+                    <div className="flex items-center gap-2 mt-3">
+                      <Select
+                        value={selected.imageLayout}
+                        onChange={(e) =>
+                          update(selectedIdx, { imageLayout: e.target.value as any })
+                        }
+                        className="!w-auto"
+                      >
+                        <option value="none">이미지 없음</option>
+                        <option value="full-bleed">전체 배경</option>
+                        <option value="top-image">상단</option>
+                        <option value="split">좌우 분할</option>
+                      </Select>
+
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<ImageIcon size={14} />}
+                        loading={generatingIdx === selectedIdx}
+                        onClick={() => genImg(selectedIdx)}
+                        disabled={generatingIdx !== null || batchLoading}
+                        className="ml-auto"
+                      >
+                        {generatingIdx === selectedIdx ? '생성 중...' : '이미지 생성'}
+                      </Button>
+                    </div>
+
+                    {selected.imageUrl && (
+                      <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-green-50 border border-green-200">
+                        <img
+                          src={selected.imageUrl}
+                          alt=""
+                          className="w-12 h-12 object-cover rounded-lg"
+                        />
+                        <div className="text-xs text-green-700 flex-1">이미지 준비됨</div>
+                        <button
+                          onClick={() => update(selectedIdx, { imageUrl: '' })}
+                          className="p-1 rounded text-green-700 hover:bg-green-100"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 위치 조정 안내 */}
+                  <div className="border-t pt-3">
+                    <div className="flex items-center gap-2 text-xs text-ink-secondary mb-2">
+                      <MapPin size={12} />
+                      <span>미리보기에서 요소를 드래그해서 위치를 조정하세요</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
 
@@ -469,59 +410,16 @@ export function CreateView({
           }}
         />
       </Modal>
-    </div>
-  );
-}
 
-function SlideThumb({
-  slide,
-  preset,
-  index,
-  selected,
-  hasImage,
-  onClick,
-}: {
-  slide: Slide;
-  preset: Preset;
-  index: number;
-  selected: boolean;
-  hasImage: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <div
-      className={`relative rounded-lg overflow-hidden cursor-pointer transition-all ${
-        selected
-          ? 'ring-2 ring-primary-500'
-          : 'border border-surface-border hover:border-primary-300'
-      }`}
-      onClick={onClick}
-    >
-      <div className="relative w-full" style={{ aspectRatio: '4 / 5' }}>
-        <div
-          style={{
-            width: 1080,
-            height: 1350,
-            transform: 'scale(0.09)',
-            transformOrigin: 'top left',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-          }}
-        >
-          <CardSlide slide={slide} preset={preset} />
-        </div>
-
-        <div className="absolute top-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1 py-0.5 rounded">
-          #{index + 1}
-        </div>
-
-        {hasImage && (
-          <div className="absolute top-1 right-1 bg-green-500 text-white text-[8px] font-bold px-1 py-0.5 rounded">
-            IMG
-          </div>
-        )}
-      </div>
-    </div>
+      {/* 폰 목업 모달 */}
+      <Modal
+        open={phoneModalOpen}
+        onClose={() => setPhoneModalOpen(false)}
+        title="스마트폰에서 보기"
+        maxWidth="md"
+      >
+        {selected && <PhoneMockup slide={selected} preset={preset} />}
+      </Modal>
+    </>
   );
 }

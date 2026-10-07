@@ -1,0 +1,97 @@
+'use client';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { useRef } from 'react';
+import { CardSlide } from '@/templates';
+import type { Slide, Preset } from '@/lib/types';
+
+export function HorizontalSlideStrip({
+  slides,
+  preset,
+  selectedIdx,
+  onSelect,
+  onAdd,
+}: {
+  slides: Slide[];
+  preset: Preset;
+  selectedIdx: number;
+  onSelect: (i: number) => void;
+  onAdd?: () => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  function scrollBy(dx: number) {
+    scrollRef.current?.scrollBy({ left: dx, behavior: 'smooth' });
+  }
+
+  return (
+    <div className="relative">
+      {/* 좌우 스크롤 버튼 */}
+      <button
+        onClick={() => scrollBy(-320)}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-ink-secondary hover:text-primary-700 hover:bg-white"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      <button
+        onClick={() => scrollBy(320)}
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center text-ink-secondary hover:text-primary-700 hover:bg-white"
+      >
+        <ChevronRight size={18} />
+      </button>
+
+      {/* 스크롤 영역 */}
+      <div
+        ref={scrollRef}
+        className="flex gap-3 overflow-x-auto pb-2 px-10"
+        style={{ scrollbarWidth: 'thin' }}
+      >
+        {slides.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={() => onSelect(i)}
+            className={`shrink-0 relative rounded-lg overflow-hidden transition-all ${
+              selectedIdx === i
+                ? 'ring-2 ring-primary-500 ring-offset-2'
+                : 'border border-surface-border hover:border-primary-300'
+            }`}
+            style={{ width: 112, aspectRatio: '4 / 5' }}
+          >
+            <div
+              style={{
+                width: 1080,
+                height: 1350,
+                transform: `scale(${112 / 1080})`,
+                transformOrigin: 'top left',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+              }}
+            >
+              <CardSlide slide={s} preset={preset} />
+            </div>
+
+            <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+              #{i + 1}
+            </div>
+            {s.imageUrl && (
+              <div className="absolute top-1 right-1 bg-primary-600 text-white text-[8px] font-bold px-1 py-0.5 rounded">
+                IMG
+              </div>
+            )}
+          </button>
+        ))}
+
+        {onAdd && (
+          <button
+            onClick={onAdd}
+            className="shrink-0 rounded-lg border-2 border-dashed border-surface-border hover:border-primary-400 flex flex-col items-center justify-center gap-1 text-ink-muted hover:text-primary-600 transition-colors"
+            style={{ width: 112, aspectRatio: '4 / 5' }}
+          >
+            <Plus size={20} />
+            <span className="text-[10px]">추가</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
