@@ -5,15 +5,20 @@ import type {
   Preset,
   Settings,
   Slide,
+  Block,
 } from './types';
-import { EMPTY_SETTINGS, EMPTY_BRAND, DEFAULT_BACKGROUND, createDefaultText } from './types';
+import { EMPTY_SETTINGS, EMPTY_BRAND, DEFAULT_BACKGROUND } from './types';
+import { makeBlockId } from './blocks';
 
-const SETTINGS_KEY = 'cardnews.settings.v5';
-const PROJECTS_KEY = 'cardnews.projects.v5';
-const PRESETS_KEY = 'cardnews.customPresets.v5';
-const FAVORITES_KEY = 'cardnews.favorites.v5';
-const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v5';
+const SETTINGS_KEY = 'cardnews.settings.v6';
+const PROJECTS_KEY = 'cardnews.projects.v6';
+const PRESETS_KEY = 'cardnews.customPresets.v6';
+const FAVORITES_KEY = 'cardnews.favorites.v6';
+const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v6';
 
+// ─────────────────────────────────────────────
+// 설정
+// ─────────────────────────────────────────────
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return EMPTY_SETTINGS;
   try {
@@ -35,6 +40,9 @@ export function saveSettings(s: Settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
 
+// ─────────────────────────────────────────────
+// 프로젝트
+// ─────────────────────────────────────────────
 export function loadProjects(): CardNewsProject[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -115,6 +123,9 @@ export function saveCurrentProjectId(id: string | null) {
   else localStorage.removeItem(CURRENT_PROJECT_KEY);
 }
 
+// ─────────────────────────────────────────────
+// 커스텀 프리셋
+// ─────────────────────────────────────────────
 export function loadCustomPresets(): Preset[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -130,6 +141,9 @@ export function saveCustomPresets(presets: Preset[]) {
   localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
 }
 
+// ─────────────────────────────────────────────
+// 즐겨찾기
+// ─────────────────────────────────────────────
 export function loadFavorites(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -154,7 +168,7 @@ export function toggleFavorite(presetId: string): string[] {
 // ─────────────────────────────────────────────
 // 이미지 저장 (IndexedDB)
 // ─────────────────────────────────────────────
-const IMAGE_DB_NAME = 'cardnews-studio-v5';
+const IMAGE_DB_NAME = 'cardnews-studio-v6';
 const IMAGE_STORE = 'backgrounds';
 let imageDbPromise: Promise<IDBDatabase> | null = null;
 
@@ -187,17 +201,6 @@ export interface StoredImage {
   createdAt: number;
 }
 
-export async function saveBackgroundImage(image: StoredImage): Promise<void> {
-  const db = await openImageDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IMAGE_STORE, 'readwrite');
-    const store = tx.objectStore(IMAGE_STORE);
-    const req = store.put(image);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
 export async function saveBackgroundImages(images: StoredImage[]): Promise<void> {
   if (images.length === 0) return;
   const db = await openImageDB();
@@ -226,9 +229,7 @@ export async function getBackgroundImagesByProject(
   });
 }
 
-export async function deleteBackgroundImagesByProject(
-  projectId: string
-): Promise<void> {
+export async function deleteBackgroundImagesByProject(projectId: string): Promise<void> {
   const images = await getBackgroundImagesByProject(projectId);
   if (images.length === 0) return;
   const db = await openImageDB();
@@ -330,43 +331,36 @@ export async function deleteProjectWithImages(
 // ─────────────────────────────────────────────
 // 빈 슬라이드 생성
 // ─────────────────────────────────────────────
-export function createBlankSlide(type: Slide['type'] = 'cover'): Slide {
+export function createBlankSlide(
+  type: Slide['type'] = 'cover',
+  preset: Preset
+): Slide {
   const id = `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  const blocks: Block[] = [
+    {
+      id: makeBlockId(),
+      type: 'headline',
+      y: 0.3,
+      content: { text: type === 'cover' ? '제목을 입력하세요' : '슬라이드 제목' },
+      animation: 'slide-up',
+      visible: true,
+    },
+    {
+      id: makeBlockId(),
+      type: 'body',
+      y: 0.5,
+      content: { text: '본문을 입력하세요' },
+      animation: 'fade-in',
+      visible: true,
+    },
+  ];
 
   return {
     id,
     type,
-    background: {
-      ...DEFAULT_BACKGROUND,
-      type: 'color',
-      color: '#ffffff',
-      pattern: 'none',
-    },
-    texts: {
-      label: undefined,
-      headline: createDefaultText(
-        type === 'cover' ? '제목을 입력하세요' : '슬라이드 제목',
-        {
-          fontSize: 88,
-          fontWeight: 900,
-          color: '#0a0a0a',
-          x: 0.08,
-          y: 0.4,
-          maxWidth: 0.84,
-        }
-      ),
-      body: createDefaultText('본문을 입력하세요', {
-        fontSize: 32,
-        fontWeight: 400,
-        color: '#525252',
-        x: 0.08,
-        y: 0.62,
-        lineHeight: 1.55,
-        maxWidth: 0.84,
-      }),
-      highlight: undefined,
-      footer: undefined,
-    },
+    background: { ...DEFAULT_BACKGROUND, ...preset.background } as any,
+    blocks,
     imagePrompt: '',
     imagePromptKo: '',
     isLast: false,

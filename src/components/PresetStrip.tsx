@@ -4,31 +4,43 @@ import { ChevronRight, Sparkles, Check, Star } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { CardRenderer } from '@/templates/CardRenderer';
-import { STYLE_PRESETS } from '@/lib/presets';
+import { STYLE_PRESETS, BG_PRESETS } from '@/lib/presets';
 import { sortPresets } from '@/lib/utils';
-import { createDefaultText, DEFAULT_BACKGROUND } from '@/lib/types';
-import type { Preset, Slide, BrandInfo } from '@/lib/types';
+import { createDefaultText } from '@/lib/types';
+import type { Preset, Slide, BrandInfo, Block } from '@/lib/types';
+import { makeBlockId } from '@/lib/blocks';
 
 // 프리셋 미리보기용 샘플 슬라이드
 function makeSampleSlide(preset: Preset): Slide {
+  const blocks: Block[] = [
+    {
+      id: makeBlockId(),
+      type: 'headline',
+      y: 0.35,
+      content: { text: '미리보기 제목' },
+      animation: 'slide-up',
+      visible: true,
+    },
+    {
+      id: makeBlockId(),
+      type: 'body',
+      y: 0.55,
+      content: { text: '본문 예시입니다' },
+      animation: 'fade-in',
+      visible: true,
+    },
+  ];
+
   return {
     id: 'sample',
     type: 'cover',
     background: {
-      ...DEFAULT_BACKGROUND,
-      ...(preset.defaultBackground || {}),
+      type: 'color',
+      color: '#ffffff',
+      pattern: 'none',
+      ...preset.background,
     } as any,
-    texts: {
-      label: preset.defaultLabelStyle
-        ? createDefaultText('FEATURED', preset.defaultLabelStyle)
-        : undefined,
-      headline: createDefaultText('미리보기', preset.defaultHeadlineStyle || {}),
-      body: preset.defaultBodyStyle
-        ? createDefaultText('본문 예시입니다', preset.defaultBodyStyle)
-        : undefined,
-      highlight: undefined,
-      footer: undefined,
-    },
+    blocks,
     imagePrompt: '',
     imagePromptKo: '',
     isLast: false,
@@ -61,9 +73,9 @@ export function PresetStrip({
 }) {
   const [openAll, setOpenAll] = useState(false);
 
-  // ⚠️ 안전 필터: undefined, id 없는 프리셋 제거
+  // 안전 필터
   const safeCustom = (customPresets || []).filter(
-    (p): p is Preset => !!p && typeof p.id === 'string' && !!p.name
+    (p): p is Preset => !!p && typeof p.id === 'string' && !!p.name && !!p.blockStyles
   );
   const safeBuiltin = (STYLE_PRESETS || []).filter(
     (p): p is Preset => !!p && typeof p.id === 'string'
@@ -71,12 +83,10 @@ export function PresetStrip({
 
   const all = sortPresets([...safeBuiltin, ...safeCustom], favorites || []);
 
-  // 1줄 표시: 선택된 것 + 앞의 5개 (중복 제거)
   const stripItems = (() => {
     const result: Preset[] = [];
     const seen = new Set<string>();
 
-    // 현재 프리셋이 유효하면 추가
     if (current && typeof current.id === 'string') {
       result.push(current);
       seen.add(current.id);
@@ -150,9 +160,6 @@ export function PresetStrip({
   );
 }
 
-// ─────────────────────────────────────────
-// 미니 프리셋 카드
-// ─────────────────────────────────────────
 function MiniPresetCard({
   preset,
   selected,
@@ -173,8 +180,7 @@ function MiniPresetCard({
   let sample: Slide | null = null;
   try {
     sample = makeSampleSlide(preset);
-  } catch (e) {
-    console.error('샘플 슬라이드 생성 실패:', e);
+  } catch {
     return null;
   }
 
@@ -201,12 +207,7 @@ function MiniPresetCard({
             left: 0,
           }}
         >
-          <CardRenderer
-            slide={sample}
-            brand={brand}
-            width={1080}
-            height={1350}
-          />
+          <CardRenderer slide={sample} preset={preset} brand={brand} width={1080} height={1350} />
         </div>
       </button>
 
@@ -220,7 +221,6 @@ function MiniPresetCard({
             ? 'bg-amber-500 text-white opacity-100'
             : 'bg-white text-ink-secondary opacity-0 group-hover:opacity-100'
         }`}
-        title={favorite ? '즐겨찾기 해제' : '즐겨찾기'}
       >
         <Star size={10} fill={favorite ? 'currentColor' : 'none'} />
       </button>
@@ -238,9 +238,6 @@ function MiniPresetCard({
   );
 }
 
-// ─────────────────────────────────────────
-// 전체보기 갤러리
-// ─────────────────────────────────────────
 function PresetGallery({
   current,
   customPresets,
@@ -267,18 +264,10 @@ function PresetGallery({
   const [importModal, setImportModal] = useState(false);
   const [newName, setNewName] = useState('');
 
-  const safeBuiltin = STYLE_PRESETS.filter(
-    (p): p is Preset => !!p && typeof p.id === 'string'
-  );
-  const safeCustom = customPresets.filter(
-    (p): p is Preset => !!p && typeof p.id === 'string' && !!p.name
-  );
-
-  const list = tab === 'builtin' ? safeBuiltin : sortPresets(safeCustom, favorites);
+  const list = tab === 'builtin' ? STYLE_PRESETS : sortPresets(customPresets, favorites);
 
   return (
     <div className="space-y-4">
-      {/* 탭 */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
           <button
@@ -289,7 +278,7 @@ function PresetGallery({
                 : 'text-ink-secondary'
             }`}
           >
-            기본 ({safeBuiltin.length})
+            기본 ({STYLE_PRESETS.length})
           </button>
           <button
             onClick={() => setTab('custom')}
@@ -299,17 +288,13 @@ function PresetGallery({
                 : 'text-ink-secondary'
             }`}
           >
-            커스텀 ({safeCustom.length})
+            커스텀 ({customPresets.length})
           </button>
         </div>
 
         <div className="flex-1" />
 
-        <Button
-          size="sm"
-          icon={<Sparkles size={13} />}
-          onClick={() => setImportModal(true)}
-        >
+        <Button size="sm" icon={<Sparkles size={13} />} onClick={() => setImportModal(true)}>
           AI 프리셋 가져오기
         </Button>
         <Button
@@ -324,17 +309,10 @@ function PresetGallery({
         </Button>
       </div>
 
-      {/* 그리드 */}
       {list.length === 0 && tab === 'custom' ? (
         <div className="text-center py-12 border-2 border-dashed border-surface-border rounded-lg">
-          <div className="text-sm text-ink-muted mb-3">
-            커스텀 프리셋이 없습니다
-          </div>
-          <Button
-            size="sm"
-            onClick={() => setImportModal(true)}
-            icon={<Sparkles size={12} />}
-          >
+          <div className="text-sm text-ink-muted mb-3">커스텀 프리셋이 없습니다</div>
+          <Button size="sm" onClick={() => setImportModal(true)} icon={<Sparkles size={12} />}>
             첫 프리셋 가져오기
           </Button>
         </div>
@@ -371,12 +349,7 @@ function PresetGallery({
                       transformOrigin: 'top left',
                     }}
                   >
-                    <CardRenderer
-                      slide={sample}
-                      brand={brand}
-                      width={1080}
-                      height={1350}
-                    />
+                    <CardRenderer slide={sample} preset={p} brand={brand} width={1080} height={1350} />
                   </div>
                 </button>
 
@@ -421,7 +394,6 @@ function PresetGallery({
         </div>
       )}
 
-      {/* 저장 모달 */}
       <Modal
         open={saveModal}
         onClose={() => setSaveModal(false)}
@@ -459,7 +431,6 @@ function PresetGallery({
         </div>
       </Modal>
 
-      {/* AI 프리셋 가져오기 */}
       <ImportModalInline
         open={importModal}
         onClose={() => setImportModal(false)}
@@ -472,9 +443,6 @@ function PresetGallery({
   );
 }
 
-// ─────────────────────────────────────────
-// AI 프리셋 가져오기 (인라인)
-// ─────────────────────────────────────────
 function ImportModalInline({
   open,
   onClose,
@@ -534,7 +502,7 @@ function ImportModalInline({
           <div className="space-y-1 leading-relaxed">
             <div>1. 참고할 카드뉴스 이미지를 AI에게 보여줌</div>
             <div>2. AI가 반환한 JSON을 아래에 붙여넣기</div>
-            <div>3. 프리셋 이름 지정 → 파싱 → 저장</div>
+            <div>3. 이름 지정 → 파싱 → 저장</div>
           </div>
         </div>
 
@@ -557,7 +525,7 @@ function ImportModalInline({
           <textarea
             value={jsonText}
             onChange={(e) => setJsonText(e.target.value)}
-            placeholder='{ "name": "...", "defaultBackground": {...}, ... }'
+            placeholder='{ "name": "...", "background": {...}, "blockStyles": {...} }'
             rows={12}
             className="w-full rounded-lg border border-surface-border px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
           />
@@ -582,19 +550,10 @@ function ImportModalInline({
         )}
 
         <div className="flex gap-2">
-          <Button
-            onClick={handleParse}
-            icon={<Sparkles size={15} />}
-            className="flex-1"
-          >
+          <Button onClick={handleParse} icon={<Sparkles size={15} />} className="flex-1">
             파싱
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!parsed}
-            className="flex-1"
-            icon={<Check size={15} />}
-          >
+          <Button onClick={handleSave} disabled={!parsed} className="flex-1" icon={<Check size={15} />}>
             프리셋 저장
           </Button>
         </div>

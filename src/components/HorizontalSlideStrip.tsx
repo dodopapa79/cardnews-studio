@@ -12,16 +12,13 @@ export function HorizontalSlideStrip({
   cardSize = 'instagram',
   selectedIdx,
   onSelect,
-  onAdd,
 }: {
   slides: Slide[];
-  preset?: Preset;
-  colorId?: string;
+  preset: Preset;
   brand?: BrandInfo;
   cardSize?: CardSize;
   selectedIdx: number;
   onSelect: (i: number) => void;
-  onAdd?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dim = CARD_SIZE_DIMENSIONS[cardSize];
@@ -46,10 +43,7 @@ export function HorizontalSlideStrip({
         <ChevronRight size={18} />
       </button>
 
-      <div
-        ref={scrollRef}
-        className="flex gap-3 overflow-x-auto pb-2 px-10 scrollbar-hide"
-      >
+      <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-2 px-10 scrollbar-hide">
         {slides.map((s, i) => (
           <button
             key={s.id}
@@ -75,13 +69,7 @@ export function HorizontalSlideStrip({
                 left: 0,
               }}
             >
-              <CardRenderer
-                slide={s}
-                preset={preset}
-                brand={brand}
-                width={dim.width}
-                height={dim.height}
-              />
+              <CardRenderer slide={s} preset={preset} brand={brand} width={dim.width} height={dim.height} />
             </div>
 
             <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
@@ -94,20 +82,6 @@ export function HorizontalSlideStrip({
             )}
           </button>
         ))}
-
-        {onAdd && (
-          <button
-            onClick={onAdd}
-            className="shrink-0 rounded-lg border-2 border-dashed border-surface-border hover:border-primary-400 flex flex-col items-center justify-center gap-1 text-ink-muted hover:text-primary-600 transition-colors"
-            style={{
-              width: THUMB_W,
-              aspectRatio: `${dim.width} / ${dim.height}`,
-            }}
-          >
-            <Plus size={20} />
-            <span className="text-[10px]">추가</span>
-          </button>
-        )}
       </div>
     </div>
   );

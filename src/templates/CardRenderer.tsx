@@ -1,8 +1,8 @@
 'use client';
 import React, { forwardRef } from 'react';
-import type { Slide, Preset, BrandInfo } from '@/lib/types';
+import type { Slide, Preset, BrandInfo, Block } from '@/lib/types';
 import { BackgroundLayer, hasDarkImageBackdrop } from './BackgroundLayer';
-import { TextLayer } from './TextLayer';
+import { BlockRenderer } from './BlockRenderer';
 
 // ─────────────────────────────────────────────
 // 색상 밝기 판단
@@ -18,14 +18,14 @@ function isDark(hex: string): boolean {
 }
 
 // ─────────────────────────────────────────────
-// 마지막 카드 브랜드 정보
+// 마지막 카드 브랜드
 // ─────────────────────────────────────────────
 function LastCardBrand({
   brand,
-  isDark: dark,
+  dark,
 }: {
   brand?: BrandInfo;
-  isDark: boolean;
+  dark: boolean;
 }) {
   if (!brand?.brandName && !brand?.website && !brand?.logoUrl) return null;
 
@@ -38,11 +38,11 @@ function LastCardBrand({
         position: 'absolute',
         left: 0,
         right: 0,
-        top: '68%',
+        bottom: 60,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 18,
+        gap: 16,
         textAlign: 'center',
         zIndex: 4,
         pointerEvents: 'none',
@@ -54,8 +54,8 @@ function LastCardBrand({
           alt=""
           crossOrigin="anonymous"
           style={{
-            width: 100,
-            height: 100,
+            width: 90,
+            height: 90,
             objectFit: 'contain',
             filter: dark ? 'brightness(0) invert(1)' : 'none',
           }}
@@ -64,7 +64,7 @@ function LastCardBrand({
       {brand?.brandName && (
         <div
           style={{
-            fontSize: 40,
+            fontSize: 36,
             fontWeight: 900,
             color: mainColor,
             letterSpacing: '0.03em',
@@ -77,7 +77,7 @@ function LastCardBrand({
       {brand?.website && (
         <div
           style={{
-            fontSize: 28,
+            fontSize: 26,
             color: mutedColor,
             fontWeight: 500,
             letterSpacing: '0.02em',
@@ -89,7 +89,7 @@ function LastCardBrand({
       {brand?.handle && (
         <div
           style={{
-            fontSize: 24,
+            fontSize: 22,
             color: mutedColor,
             opacity: 0.8,
             fontWeight: 500,
@@ -103,18 +103,55 @@ function LastCardBrand({
 }
 
 // ─────────────────────────────────────────────
+// 자동 세로 배치 계산
+// ─────────────────────────────────────────────
+interface LayoutInfo {
+  blockId: string;
+  top: number;      // 카드 상단 기준 px
+  height: number;   // 블록 높이 px (추정)
+}
+
+function estimateBlockHeight(block: Block, cardWidth: number): number {
+  // 블록 타입별 대략적 높이 계산 (폰트 크기 기반 아님, 블록 자체에서 결정)
+  // 실제 높이는 렌더 후 측정하지만, 초기 배치는 추정치 사용
+  switch (block.type) {
+    case 'headline':
+      return 130;
+    case 'body':
+      return 100;
+    case 'label':
+      return 50;
+    case 'highlight':
+      return 180;
+    case 'list': {
+      const count = block.content.items?.length || 0;
+      return count * 130 + 20;
+    }
+    case 'numbered-card': {
+      const count = block.content.items?.length || 0;
+      return count * 150 + 20;
+    }
+    case 'point-box':
+      return 160;
+    case 'divider':
+      return 20;
+    default:
+      return 80;
+  }
+}
+
+// ─────────────────────────────────────────────
 // CardRenderer
 // ─────────────────────────────────────────────
 export interface CardRendererProps {
   slide: Slide;
-  preset?: Preset;
+  preset: Preset;
   brand?: BrandInfo;
   width: number;
   height: number;
   editable?: boolean;
-  selectedElement?: string | null;
-  onSelectElement?: (key: string) => void;
-  onChangeText?: (key: string, patch: any) => void;
+  selectedBlockId?: string | null;
+  onSelectBlock?: (blockId: string) => void;
   onSelectBackground?: () => void;
 }
 
@@ -127,15 +164,32 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
       width,
       height,
       editable = false,
-      selectedElement,
-      onSelectElement,
-      onChangeText,
+      selectedBlockId,
+      onSelectBlock,
       onSelectBackground,
     },
     ref
   ) {
     const bgIsDark = isDark(slide.background.color);
     const onDarkImage = hasDarkImageBackdrop(slide.background);
+
+    // ─────────────────────────────────
+    // 자동 배치 (y 비율 → 실제 px)
+    // ─────────────────────────────────
+    // 편집 가능한 블록만 표시
+    const visibleBlocks = slide.blocks.filter(
+      (b) => b.visible !== false && hasContent(b)
+    );
+
+    // y 순으로 정렬
+    const sortedBlocks = [...visibleBlocks].sort((a, b) => a.y - b.y);
+
+    // padding
+    const paddingTop = 90;
+    const paddingBottom = slide.isLast ? 260 : 120;
+
+    // 사용 가능한 세로 공간
+    const availableHeight = height - paddingTop - paddingBottom;
 
     return (
       <div
@@ -148,10 +202,10 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
           position: 'relative',
           overflow: 'hidden',
           backgroundColor: slide.background.color,
-          fontFamily: preset?.fontFamily || 'Pretendard, system-ui, sans-serif',
+          fontFamily: preset.fontFamily,
         }}
       >
-        {/* 배경 레이어 */}
+        {/* 배경 */}
         <div
           data-background-container
           style={{
@@ -165,33 +219,63 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
             width={width}
             height={height}
             editable={editable}
-            isSelected={selectedElement === 'background'}
+            isSelected={!selectedBlockId}
             accent="#8b5cf6"
             onClick={onSelectBackground}
           />
         </div>
 
+        {/* 콘텐츠 블록 — 세로 순차 배치 */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: paddingTop,
+            bottom: paddingBottom,
+            paddingLeft: 90,
+            paddingRight: 90,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 28,
+            zIndex: 3,
+          }}
+        >
+          {sortedBlocks.map((block) => (
+            <div key={block.id} style={{ width: '100%' }}>
+              <BlockRenderer
+                block={block}
+                preset={preset}
+                editable={editable}
+                selected={selectedBlockId === block.id}
+                onSelect={() => onSelectBlock?.(block.id)}
+              />
+            </div>
+          ))}
+        </div>
+
         {/* 마지막 카드 브랜드 */}
         {slide.isLast && (
-          <LastCardBrand brand={brand} isDark={bgIsDark || onDarkImage} />
+          <LastCardBrand
+            brand={brand}
+            dark={bgIsDark || onDarkImage}
+          />
         )}
-
-        {/* 텍스트 레이어 */}
-        <TextLayer
-          texts={slide.texts}
-          cardWidth={width}
-          cardHeight={height}
-          editable={editable}
-          selectedElement={selectedElement}
-          accent="#8b5cf6"
-          onDarkBackdrop={onDarkImage}
-          onSelectElement={onSelectElement}
-          onChangeText={onChangeText}
-        />
       </div>
     );
   }
 );
+
+// ─────────────────────────────────────────────
+// 콘텐츠 유무 확인
+// ─────────────────────────────────────────────
+function hasContent(block: Block): boolean {
+  if (block.visible === false) return false;
+  if (block.type === 'divider') return true;
+  if (block.content.text && block.content.text.trim()) return true;
+  if (block.content.items && block.content.items.length > 0) return true;
+  return false;
+}
 
 // ─────────────────────────────────────────────
 // BackgroundOnlyRenderer (영상용)
@@ -220,7 +304,9 @@ export const BackgroundOnlyRenderer = forwardRef<
         width={width}
         height={height}
       />
-      {slide.isLast && <LastCardBrand brand={brand} isDark={bgIsDark} />}
+      {slide.isLast && (
+        <LastCardBrand brand={brand} dark={bgIsDark} />
+      )}
     </div>
   );
 });

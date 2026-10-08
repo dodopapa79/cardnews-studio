@@ -1,7 +1,8 @@
-import type { Slide, SlideType, Preset } from './types';
-import { buildTextsForSlide, buildBackgroundForPreset, STYLE_PRESETS } from './presets';
+import type { Slide, SlideType, Preset, Block, BlockType, BlockItem, TextAnimation } from './types';
+import { STYLE_PRESETS } from './presets';
+import { makeBlockId } from './blocks';
 
-const FALLBACK_PRESET: Preset = STYLE_PRESETS[0];
+const FALLBACK_PRESET = STYLE_PRESETS[0];
 
 const BASE =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
@@ -32,19 +33,91 @@ interface GenerateOptions {
   slideCount?: number;
   tone?: string;
   topic?: string;
-  /** 현재 선택된 프리셋 (색·글자 크기·배경이 생성 단계부터 적용됨) */
   preset?: Preset;
 }
 
-/**
- * 정보형 카드뉴스 스토리텔링 구조 (6장)
- * 1. HOOK — 관심 끌기
- * 2. WHY — 왜 봐야 하는지
- * 3. KEY INFORMATION — 가장 중요한 정보
- * 4. DETAIL — 헷갈리는 부분 정리
- * 5. ACTION — 독자가 실제로 할 일
- * 6. CTA — 마지막 행동 유도
- */
+// ─────────────────────────────────────────────
+// AI 프롬프트 (블록 구조까지 생성)
+// ─────────────────────────────────────────────
+const BLOCK_GUIDE = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 블록 종류 (콘텐츠를 표현하는 최소 단위)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. **label** — 카테고리/태그 (짧은 영문, 5~15자)
+   - 예: "FLU SHOT", "TIP", "INFO", "NOTICE"
+   - 슬라이드당 0~1개
+
+2. **headline** — 큰 제목 (필수, 12자 이내)
+   - 슬라이드당 1개 필수
+
+3. **body** — 본문 설명 (선택, 40자 이내)
+   - headline 아래 부연
+
+4. **highlight** — 큰 숫자/키워드 (선택)
+   - 슬라이드당 0~1개
+   - 예: "75세 이상", "10월 15일", "300만원"
+
+5. **list** — 항목 3~5개 나열 (체크/번호 없음)
+   - items: [{ title, desc? }, ...]
+   - "여러 정보를 나열"할 때
+
+6. **numbered-card** — 01/02/03 카드 박스 (단계별)
+   - items: [{ number, title, desc? }, ...]
+   - "3단계", "5가지 방법"처럼 순서/개수가 있을 때
+
+7. **point-box** — 강조 요약 박스 (파란 박스)
+   - boxLabel: "POINT" | "TIP" | "NOTE"
+   - text: 핵심 요약 (60자 이내)
+   - 슬라이드당 0~1개
+
+8. **divider** — 얇은 구분선
+   - 섹션 구분용
+   - 슬라이드당 0~1개
+`;
+
+const SLIDE_STRUCTURE = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 6장 스토리텔링 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1장 — HOOK (관심 끌기)
+2장 — WHY (왜 봐야 하는지)
+3장 — KEY INFO (핵심 정보, 숫자/표)
+4장 — DETAIL (헷갈리는 부분)
+5장 — ACTION (실제 할 일)
+6장 — CTA (마지막 행동 유도)
+`;
+
+const BLOCK_DECISION = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 블록 선택 기준 (매우 중요)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**콘텐츠 성격에 맞는 블록을 AI가 판단해서 선택하세요.**
+
+- **숫자/통계가 핵심** → highlight + body
+- **3~5개 항목 나열** → list (번호 없이)
+- **단계별 진행 (1단계, 2단계, 3단계)** → numbered-card
+- **핵심 요약이 필요** → point-box
+- **여러 정보 종합** → headline + list + point-box
+- **단순 메시지** → headline + body
+
+**슬라이드당 블록 개수**: 2~5개 (너무 많지 않게)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 위치(y) 자동 배치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 블록의 y 좌표(0~1)를 지정하세요:
+- 0.1 ~ 0.2 → 상단 (label, 작은 요소)
+- 0.25 ~ 0.4 → 중상단 (headline, highlight)
+- 0.45 ~ 0.65 → 중앙 (body, list)
+- 0.7 ~ 0.9 → 하단 (point-box)
+
+**겹치지 않도록 위에서 아래로 순차 배치하세요.**
+`;
+
 export async function generateCardNews(
   apiKey: string,
   source: string,
@@ -54,7 +127,7 @@ export async function generateCardNews(
     slideCount = 6,
     tone = '친근하고 정보성 있게',
     topic = '',
-    preset,
+    preset = FALLBACK_PRESET,
   } = options;
 
   const prompt = `
@@ -68,66 +141,19 @@ ${topic ? `주제: ${topic}` : ''}
 ${source.slice(0, 8000)}
 """
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 카드뉴스 스토리텔링 구조 (반드시 지킬 것)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SLIDE_STRUCTURE}
 
-정보형 카드뉴스는 다음 6단계 구조가 가장 안정적입니다.
-${slideCount === 6 ? '' : `(${slideCount}장으로 조정하여 아래 구조의 핵심을 유지하세요)`}
+${BLOCK_GUIDE}
 
-**1장 — HOOK (관심 끌기)**
-- 강력한 후킹 문구로 시선을 사로잡기
-- 예: "65세 이상이라면 독감 접종 날짜를 확인하세요"
-
-**2장 — WHY (왜 봐야 하는지)**
-- 독자가 이 정보를 왜 알아야 하는지
-- 예: "올해 독감 무료접종은 모든 어르신이 같은 날 시작하지 않습니다"
-
-**3장 — KEY INFORMATION (가장 중요한 정보)**
-- 구체적인 숫자/일정/조건을 표 형태로
-- type은 반드시 "data"
-- 예: "75세 이상 10월 O일부터 / 70~74세 10월 O일부터 / 65~69세 10월 O일부터"
-
-**4장 — DETAIL (헷갈리는 부분)**
-- 독자가 자주 헷갈리는 부분 정리
-- 예: "코로나19 예방접종과 같은 날 맞아도 될까요?"
-
-**5장 — ACTION (독자가 실제로 할 일)**
-- 구체적인 행동 안내
-- 예: "가까운 지정 의료기관을 확인하고 방문 전 접종 가능 여부를 확인하세요"
-
-**6장 — CTA (마지막 행동 유도)**
-- type은 반드시 "cta"
-- 예: "우리 부모님 접종일도 확인해보세요. 자세한 일정과 접종기관은 프로필 링크에서 확인하세요"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 슬라이드별 텍스트 규칙
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-각 슬라이드는 아래 5가지 텍스트를 가집니다:
-
-1. **label** (선택, 5~15자, 영문 또는 짧은 한글)
-   - 예: "FLU SHOT", "TIP", "INFO", "NOTICE", "CHECK"
-   
-2. **headline** (필수, 12자 이내)
-   - 핵심 메시지
-   
-3. **body** (선택, 40자 이내)
-   - 부연 설명
-   
-4. **highlight** (data 타입만, 큰 숫자/키워드)
-   - 예: "75세 이상", "10월 15일", "300만원"
-   
-5. **footer** (선택)
-   - 스와이프 안내용. 대부분 비워두고 6장 CTA에만 넣기
+${BLOCK_DECISION}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 이미지 프롬프트
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-각 슬라이드마다 두 가지:
+각 슬라이드마다:
 1. **imagePrompt** (영어): 이미지 생성 AI용. "no text, no watermark, minimal, clean, high quality" 포함
-2. **imagePromptKo** (한글): 위 프롬프트가 어떤 이미지인지 20~35자 설명
+2. **imagePromptKo** (한글): 20~35자 설명
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 톤
@@ -140,12 +166,21 @@ ${tone}
   "slides": [
     {
       "type": "cover" | "point" | "data" | "quote" | "cta",
-      "label": "string (선택)",
-      "headline": "string (12자 이내)",
-      "body": "string (40자 이내)",
-      "highlight": "string (data 타입만)",
-      "imagePrompt": "string (영어)",
-      "imagePromptKo": "string (한글 20~35자)"
+      "blocks": [
+        {
+          "type": "label" | "headline" | "body" | "highlight" | "list" | "numbered-card" | "point-box" | "divider",
+          "y": 0.1,
+          "content": {
+            "text": "string (label, headline, body, highlight, point-box용)",
+            "boxLabel": "string (point-box 전용)",
+            "items": [
+              { "number": "01", "title": "string", "desc": "string" }
+            ]
+          }
+        }
+      ],
+      "imagePrompt": "string",
+      "imagePromptKo": "string"
     }
   ]
 }
@@ -168,42 +203,83 @@ ${tone}
   if (!text) throw new Error('Gemini 응답이 비어 있습니다.');
 
   const parsed = JSON.parse(text) as { slides: any[] };
-
   const VALID_TYPES: SlideType[] = ['cover', 'point', 'data', 'quote', 'cta'];
+  const VALID_BLOCK_TYPES: BlockType[] = [
+    'headline',
+    'body',
+    'label',
+    'highlight',
+    'list',
+    'numbered-card',
+    'point-box',
+    'divider',
+  ];
 
   return parsed.slides.map((s, i) => {
     const isLast = i === parsed.slides.length - 1;
     const rawType: SlideType = VALID_TYPES.includes(s.type) ? s.type : 'point';
-    // 첫 장은 표지, 마지막 장은 마무리(CTA) 배치를 사용
     const type: SlideType =
       i === 0 && rawType !== 'data' ? 'cover' : isLast ? 'cta' : rawType;
 
-    // 프리셋이 없으면 기본 프리셋(첫 번째)과 같은 모양으로 만들어짐
-    const background = preset
-      ? buildBackgroundForPreset(preset)
-      : buildBackgroundForPreset(FALLBACK_PRESET);
+    // 블록 변환
+    const blocks: Block[] = (s.blocks || [])
+      .filter((b: any) => b && VALID_BLOCK_TYPES.includes(b.type))
+      .map((b: any) => {
+        const blockType: BlockType = b.type;
+        const animMap: Record<BlockType, TextAnimation> = {
+          label: 'fade-in',
+          headline: 'slide-up',
+          body: 'fade-in',
+          highlight: 'zoom-in',
+          list: 'slide-up',
+          'numbered-card': 'slide-up',
+          'point-box': 'fade-in',
+          divider: 'none',
+        };
+        const items: BlockItem[] | undefined =
+          b.content?.items && Array.isArray(b.content.items)
+            ? b.content.items.map((it: any) => ({
+                number: it.number ? String(it.number) : undefined,
+                title: String(it.title || ''),
+                desc: it.desc ? String(it.desc) : undefined,
+              }))
+            : undefined;
 
-    const texts = buildTextsForSlide(
-      type,
-      {
-        label: s.label,
-        headline: s.headline,
-        body: s.body,
-        highlight: s.highlight,
-        footer: undefined,
-      },
-      preset || FALLBACK_PRESET
-    );
+        return {
+          id: makeBlockId(),
+          type: blockType,
+          y: typeof b.y === 'number' ? Math.max(0, Math.min(1, b.y)) : 0.5,
+          content: {
+            text: b.content?.text ? String(b.content.text) : undefined,
+            boxLabel: b.content?.boxLabel ? String(b.content.boxLabel) : undefined,
+            items,
+          },
+          animation: animMap[blockType],
+          visible: true,
+        };
+      });
+
+    // 최소한 headline은 있어야 함
+    if (!blocks.some((b) => b.type === 'headline')) {
+      blocks.unshift({
+        id: makeBlockId(),
+        type: 'headline',
+        y: 0.3,
+        content: { text: s.headline || '제목' },
+        animation: 'slide-up',
+        visible: true,
+      });
+    }
 
     return {
       id: `slide-${Date.now()}-${i}`,
       type,
-      background,
-      texts,
+      background: { ...preset.background } as any,
+      blocks,
       imagePrompt: s.imagePrompt || '',
       imagePromptKo: s.imagePromptKo || '',
       isLast,
-    } as Slide;
+    };
   });
 }
 
@@ -228,23 +304,6 @@ export async function expandKeyword(apiKey: string, keyword: string): Promise<st
   }
   const data = await res.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-}
-
-export async function translatePromptToKo(
-  apiKey: string,
-  enPrompt: string
-): Promise<string> {
-  const prompt = `다음 영어 이미지 프롬프트를 한글로 짧게 설명해줘. 30자 이내로.
-설명문만 출력하고 다른 말은 하지 마.
-
-영어: "${enPrompt}"`;
-
-  const res = await fetchWithRetry(`${BASE}?key=${apiKey}`, {
-    contents: [{ parts: [{ text: prompt }] }],
-  });
-  if (!res.ok) return '';
-  const data = await res.json();
-  return (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
 }
 
 export async function fetchBlogContent(

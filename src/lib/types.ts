@@ -13,24 +13,16 @@ export const CARD_SIZE_DIMENSIONS: Record<CardSize, { width: number; height: num
 // ─────────────────────────────────────────────
 export type BackgroundType = 'color' | 'gradient' | 'pattern' | 'image';
 export type BackgroundPattern = 'none' | 'grid' | 'dots' | 'noise' | 'mesh';
-
-export type ImageLayout =
-  | 'full-bleed'
-  | 'top-image'
-  | 'split'
-  | 'none';
+export type ImageLayout = 'full-bleed' | 'top-image' | 'split' | 'none';
 
 export interface BackgroundConfig {
   type: BackgroundType;
   color: string;
   colorEnd?: string;
   pattern: BackgroundPattern;
-  /** AI 생성 이미지 */
   imageUrl?: string;
   imageId?: string;
-  /** 이미지 배치 방식 */
   imageLayout?: ImageLayout;
-  /** 이미지 필터/효과 */
   imageBrightness?: number;
   imageContrast?: number;
   imageSaturation?: number;
@@ -39,12 +31,9 @@ export interface BackgroundConfig {
   imageOpacity?: number;
   imageFocalX?: number;
   imageFocalY?: number;
-  /** 이미지 위 오버레이 (배경 어둡게/밝게) */
   overlayColor?: string;
   overlayOpacity?: number;
-  /** 하단 검정 그라데이션 */
   bottomFade?: boolean;
-  /** 상단 이미지 하단 그라데이션 */
   topImageFade?: boolean;
 }
 
@@ -58,9 +47,8 @@ export const DEFAULT_BACKGROUND: BackgroundConfig = {
 };
 
 // ─────────────────────────────────────────────
-// 텍스트 요소
+// 텍스트 관련 (블록 내부용)
 // ─────────────────────────────────────────────
-export type TextElementKey = 'label' | 'headline' | 'body' | 'highlight' | 'footer';
 export type TextAlign = 'left' | 'center' | 'right';
 
 export type TextAnimation =
@@ -72,78 +60,169 @@ export type TextAnimation =
   | 'slide-right'
   | 'zoom-in';
 
-export interface TextElementConfig {
-  content: string;
-  /** 위치 (0~1) */
-  x: number;
+export const TEXT_ANIMATIONS: { id: TextAnimation; name: string }[] = [
+  { id: 'none', name: '없음' },
+  { id: 'fade-in', name: '페이드인' },
+  { id: 'slide-up', name: '위로' },
+  { id: 'slide-down', name: '아래로' },
+  { id: 'slide-left', name: '좌측' },
+  { id: 'slide-right', name: '우측' },
+  { id: 'zoom-in', name: '줌인' },
+];
+
+// ─────────────────────────────────────────────
+// 블록 타입 (8종)
+// ─────────────────────────────────────────────
+export type BlockType =
+  | 'headline'
+  | 'body'
+  | 'label'
+  | 'highlight'
+  | 'list'
+  | 'numbered-card'
+  | 'point-box'
+  | 'divider';
+
+/** 리스트/카드 항목 */
+export interface BlockItem {
+  number?: string;
+  title: string;
+  desc?: string;
+}
+
+/** 블록 하나 */
+export interface Block {
+  id: string;
+  type: BlockType;
+  /** 세로 위치 (0~1) — AI가 배치, 사용자가 드래그로 미세 조정 가능 */
   y: number;
-  /** 스타일 */
-  fontSize: number;
-  fontWeight: number;
-  color: string;
-  align: TextAlign;
-  italic: boolean;
-  underline: boolean;
-  lineHeight: number;
-  letterSpacing: number;
-  /** 배경 박스 */
-  background?: string;
-  backgroundOpacity?: number;
-  padding?: number;
-  borderRadius?: number;
-  /** 최대 너비 (0~1) */
-  maxWidth?: number;
-  /** 영상 애니메이션 */
+  /** 콘텐츠 (블록 종류별로 다름) */
+  content: {
+    /** headline, body, label, highlight, point-box의 텍스트 */
+    text?: string;
+    /** point-box의 라벨 */
+    boxLabel?: string;
+    /** list, numbered-card의 항목들 */
+    items?: BlockItem[];
+  };
+  /** 애니메이션 */
   animation?: TextAnimation;
   /** 표시 여부 */
   visible?: boolean;
 }
 
-export const createDefaultText = (
-  content: string,
-  overrides: Partial<TextElementConfig> = {}
-): TextElementConfig => ({
-  content,
-  x: 0.08,
-  y: 0.5,
-  fontSize: 40,
-  fontWeight: 700,
-  color: '#000000',
-  align: 'left',
-  italic: false,
-  underline: false,
-  lineHeight: 1.3,
-  letterSpacing: 0,
-  maxWidth: 0.84,
-  animation: 'fade-in',
-  visible: true,
-  ...overrides,
-});
-
 // ─────────────────────────────────────────────
-// 슬라이드
+// 슬라이드 (콘텐츠 + 배경)
 // ─────────────────────────────────────────────
 export type SlideType = 'cover' | 'point' | 'data' | 'quote' | 'cta';
 
 export interface Slide {
   id: string;
   type: SlideType;
+  /** 배경 (프리셋이 담당) */
   background: BackgroundConfig;
-  texts: {
-    label?: TextElementConfig;
-    headline?: TextElementConfig;
-    body?: TextElementConfig;
-    highlight?: TextElementConfig;
-    footer?: TextElementConfig;
-  };
+  /** 콘텐츠 블록 배열 (AI가 생성) */
+  blocks: Block[];
+  /** 이미지 프롬프트 */
   imagePrompt: string;
   imagePromptKo: string;
   isLast?: boolean;
 }
 
 // ─────────────────────────────────────────────
-// 프리셋
+// 프리셋 — 스타일만 정의 (콘텐츠 X)
 // ─────────────────────────────────────────────
+export interface HeadlineStyle {
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+  align: TextAlign;
+  lineHeight: number;
+  letterSpacing: number;
+}
+
+export interface BodyStyle {
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+  align: TextAlign;
+  lineHeight: number;
+}
+
+export interface LabelStyle {
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+  align: TextAlign;
+  background?: string;
+  backgroundOpacity?: number;
+  padding?: number;
+  borderRadius?: number;
+}
+
+export interface HighlightStyle {
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+}
+
+export interface ListStyle {
+  itemBg: string;
+  itemBgOpacity?: number;
+  itemBorderRadius: number;
+  itemPadding: number;
+  itemGap: number;
+  numberColor: string;
+  numberSize: number;
+  titleSize: number;
+  titleColor: string;
+  descSize: number;
+  descColor: string;
+}
+
+export interface NumberedCardStyle {
+  cardBg: string;
+  cardBgOpacity?: number;
+  cardBorderRadius: number;
+  cardPadding: number;
+  cardGap: number;
+  numberSize: number;
+  numberColor: string;
+  titleSize: number;
+  titleColor: string;
+  descSize: number;
+  descColor: string;
+}
+
+export interface PointBoxStyle {
+  bgColor: string;
+  bgOpacity?: number;
+  borderLeftColor: string;
+  borderLeftWidth: number;
+  labelColor: string;
+  labelSize: number;
+  textColor: string;
+  textSize: number;
+  padding: number;
+  borderRadius: number;
+}
+
+export interface DividerStyle {
+  color: string;
+  thickness: number;
+}
+
+export interface PresetBlockStyles {
+  headline: HeadlineStyle;
+  body: BodyStyle;
+  label: LabelStyle;
+  highlight: HighlightStyle;
+  list: ListStyle;
+  numberedCard: NumberedCardStyle;
+  pointBox: PointBoxStyle;
+  divider: DividerStyle;
+}
+
 export interface Preset {
   id: string;
   name: string;
@@ -151,63 +230,34 @@ export interface Preset {
   description?: string;
   isBlank?: boolean;
   fontFamily: string;
-  defaultBackground?: Partial<BackgroundConfig>;
-  defaultHeadlineStyle?: Partial<TextElementConfig>;
-  defaultBodyStyle?: Partial<TextElementConfig>;
-  defaultLabelStyle?: Partial<TextElementConfig>;
-  defaultHighlightStyle?: Partial<TextElementConfig>;
-  defaultFooterStyle?: Partial<TextElementConfig>;
+  background: Partial<BackgroundConfig>;
+  blockStyles: PresetBlockStyles;
   builtin: boolean;
   version?: number;
 }
 
+// ─────────────────────────────────────────────
+// 프리셋 JSON (AI가 생성 → 사용자가 붙여넣기)
+// ─────────────────────────────────────────────
 export interface PresetImportJSON {
   name: string;
   description?: string;
   fontFamily?: string;
-  defaultBackground?: {
+  background: {
     type?: BackgroundType;
     color?: string;
     colorEnd?: string;
     pattern?: BackgroundPattern;
   };
-  defaultHeadlineStyle?: {
-    fontSize?: number;
-    fontWeight?: number;
-    color?: string;
-    align?: TextAlign;
-    lineHeight?: number;
-    letterSpacing?: number;
-    x?: number;
-    y?: number;
-    maxWidth?: number;
-  };
-  defaultBodyStyle?: {
-    fontSize?: number;
-    color?: string;
-    align?: TextAlign;
-    lineHeight?: number;
-    x?: number;
-    y?: number;
-    maxWidth?: number;
-  };
-  defaultLabelStyle?: {
-    fontSize?: number;
-    color?: string;
-    x?: number;
-    y?: number;
-  };
-  defaultHighlightStyle?: {
-    fontSize?: number;
-    color?: string;
-    x?: number;
-    y?: number;
-  };
-  defaultFooterStyle?: {
-    fontSize?: number;
-    color?: string;
-    x?: number;
-    y?: number;
+  blockStyles: {
+    headline?: Partial<HeadlineStyle>;
+    body?: Partial<BodyStyle>;
+    label?: Partial<LabelStyle>;
+    highlight?: Partial<HighlightStyle>;
+    list?: Partial<ListStyle>;
+    numberedCard?: Partial<NumberedCardStyle>;
+    pointBox?: Partial<PointBoxStyle>;
+    divider?: Partial<DividerStyle>;
   };
 }
 
@@ -243,7 +293,7 @@ export interface CardNewsProject {
 }
 
 // ─────────────────────────────────────────────
-// 영상 스타일
+// 영상
 // ─────────────────────────────────────────────
 export type VideoTransition = 'fade' | 'slide' | 'slide-up' | 'zoom' | 'blur';
 

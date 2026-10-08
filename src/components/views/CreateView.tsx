@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputPanel } from '@/components/InputPanel';
@@ -11,45 +10,21 @@ import { HorizontalSlideStrip } from '@/components/HorizontalSlideStrip';
 import { DraggableCardPreview } from '@/components/DraggableCardPreview';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { ProjectList } from '@/components/ProjectList';
-import { SlideStyleEditor } from '@/components/SlideStyleEditor';
-import { BackgroundEditor } from '@/components/BackgroundEditor';
+import { BlockEditor } from '@/components/BlockEditor';
+import { BlockStyleEditor } from '@/components/BlockStyleEditor';
 import { generateImage } from '@/lib/imagegen';
-import {
-  exportCardsAsZip,
-  renderCardToPng,
-  downloadBlob,
-} from '@/lib/card-renderer';
-import { applyPresetToAllSlides } from '@/lib/presets';
+import { exportCardsAsZip, renderCardToPng, downloadBlob } from '@/lib/card-renderer';
+import { applyPresetBackground } from '@/lib/presets';
+import { createEmptyBlock, makeBlockId } from '@/lib/blocks';
 import { CardRenderer, BackgroundOnlyRenderer } from '@/templates/CardRenderer';
 import type {
-  Preset,
-  Settings,
-  Slide,
-  CardNewsProject,
-  CardSize,
-  TextElementConfig,
-  BackgroundConfig,
+  Preset, Settings, Slide, CardNewsProject, CardSize, Block, BlockType,
 } from '@/lib/types';
-import { CARD_SIZE_DIMENSIONS, createDefaultText } from '@/lib/types';
+import { CARD_SIZE_DIMENSIONS } from '@/lib/types';
 import {
-  Sparkles,
-  Image as ImageIcon,
-  Trash2,
-  ArrowUp,
-  ArrowDown,
-  X,
-  Loader2,
-  Save,
-  FolderOpen,
-  Plus,
-  Download,
-  FilePlus,
-  List,
-  ImageDown,
-  Wand2,
+  Sparkles, Image as ImageIcon, Trash2, ArrowUp, ArrowDown, X, Loader2,
+  Save, FolderOpen, Plus, Download, FilePlus, List, ImageDown, Wand2,
 } from 'lucide-react';
-
-type TextKey = 'label' | 'headline' | 'body' | 'highlight' | 'footer';
 
 export function CreateView({
   settings,
@@ -97,7 +72,8 @@ export function CreateView({
   onBatchLockChange?: (locked: boolean) => void;
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedBackground, setSelectedBackground] = useState(false);
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
@@ -123,18 +99,15 @@ export function CreateView({
   }, [slides.length, selectedIdx]);
 
   useEffect(() => {
-    setSelectedElement(null);
+    setSelectedBlockId(null);
+    setSelectedBackground(false);
   }, [selectedIdx]);
 
   // 첫 카드 자동 이미지
   useEffect(() => {
     if (slides.length === 0) return;
     const first = slides[0];
-    if (
-      !first.background.imageUrl &&
-      first.imagePrompt &&
-      !autoGenRef.current.has(first.id)
-    ) {
+    if (!first.background.imageUrl && first.imagePrompt && !autoGenRef.current.has(first.id)) {
       if (settings.cfAccountId && settings.cfApiToken) {
         autoGenRef.current.add(first.id);
         setTimeout(() => genImgInternal(0), 800);
@@ -143,91 +116,64 @@ export function CreateView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slides.length, settings.cfAccountId, settings.cfApiToken]);
 
-  // ─────────────────────────────────
-  // 슬라이드 업데이트
-  // ─────────────────────────────────
   const updateSlide = (i: number, patch: Partial<Slide>) => {
     onSlidesChange(slides.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   };
 
-  const updateText = (key: TextKey, patch: Partial<TextElementConfig>) => {
+  const updateBlock = (blockId: string, patch: Partial<Block>) => {
     const s = slides[selectedIdx];
-    const texts = { ...s.texts };
-    const current = texts[key];
-    if (!current) return;
-    texts[key] = { ...current, ...patch };
-    updateSlide(selectedIdx, { texts });
+    const nextBlocks = s.blocks.map((b) => (b.id === blockId ? { ...b, ...patch } : b));
+    updateSlide(selectedIdx, { blocks: nextBlocks });
   };
 
-  const updateBackground = (patch: Partial<BackgroundConfig>) => {
+  const deleteBlock = (blockId: string) => {
     const s = slides[selectedIdx];
+    updateSlide(selectedIdx, { blocks: s.blocks.filter((b) => b.id !== blockId) });
+    setSelectedBlockId(null);
+  };
+
+  const moveBlock = (blockId: string, dir: -1 | 1) => {
+    const s = slides[selectedIdx];
+    const idx = s.blocks.findIndex((b) => b.id === blockId);
+    if (idx < 0) return;
+    const j = idx + dir;
+    if (j < 0 || j >= s.blocks.length) return;
+    const next = [...s.blocks];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    updateSlide(selectedIdx, { blocks: next });
+  };
+
+  const replaceBlock = (blockId: string, newType: BlockType) => {
+    const s = slides[selectedIdx];
+    const old = s.blocks.find((b) => b.id === blockId);
+    if (!old) return;
+    const newBlock = createEmptyBlock(newType, old.y);
+    newBlock.id = blockId; // id 유지
     updateSlide(selectedIdx, {
-      background: { ...s.background, ...patch },
+      blocks: s.blocks.map((b) => (b.id === blockId ? newBlock : b)),
     });
   };
 
-  const resetText = (key: TextKey) => {
+  const addBlock = (type: BlockType) => {
     const s = slides[selectedIdx];
-    const texts = { ...s.texts };
-    const presetDefault =
-      key === 'headline'
-        ? preset.defaultHeadlineStyle
-        : key === 'body'
-        ? preset.defaultBodyStyle
-        : key === 'label'
-        ? preset.defaultLabelStyle
-        : key === 'highlight'
-        ? preset.defaultHighlightStyle
-        : preset.defaultFooterStyle;
-
-    if (texts[key]) {
-      texts[key] = { ...texts[key]!, ...(presetDefault || {}) };
-    }
-    updateSlide(selectedIdx, { texts });
+    const maxY = s.blocks.reduce((m, b) => Math.max(m, b.y), 0.3);
+    const newY = Math.min(0.9, maxY + 0.15);
+    const nb = createEmptyBlock(type, newY);
+    updateSlide(selectedIdx, { blocks: [...s.blocks, nb] });
+    setSelectedBlockId(nb.id);
   };
 
-  const toggleVisible = (key: TextKey) => {
-    const s = slides[selectedIdx];
-    const texts = { ...s.texts };
-    if (texts[key]) {
-      texts[key] = { ...texts[key]!, visible: texts[key]!.visible === false };
-    }
-    updateSlide(selectedIdx, { texts });
-  };
-
-  // ─────────────────────────────────
-  // 프리셋 적용 (A안: 값 복사)
-  // ─────────────────────────────────
-  function handleApplyPreset(newPreset: Preset) {
-    onPresetChange(newPreset);
-    if (slides.length > 0) {
-      const updated = applyPresetToAllSlides(slides, newPreset);
-      onSlidesChange(updated);
-    }
-  }
-
-  // ─────────────────────────────────
-  // 이미지 생성
-  // ─────────────────────────────────
   async function genImgInternal(i: number) {
     const s = slides[i];
     if (!s.imagePrompt.trim()) return;
     if (!settings.cfAccountId || !settings.cfApiToken) return;
     setGeneratingIdx(i);
     try {
-      const url = await generateImage(
-        settings.cfAccountId,
-        settings.cfApiToken,
-        s.imagePrompt,
-        { workerUrl: settings.workerUrl }
-      );
+      const url = await generateImage(settings.cfAccountId, settings.cfApiToken, s.imagePrompt, {
+        workerUrl: settings.workerUrl,
+      });
       updateSlide(i, {
-        background: {
-          ...s.background,
-          imageUrl: url,
-          type: 'image',
-          imageLayout: s.background.imageLayout || 'full-bleed',
-        },
+        background: { ...s.background, imageUrl: url, type: 'image', imageLayout: s.background.imageLayout || 'full-bleed' },
       });
     } catch (e: any) {
       console.error(`슬라이드 ${i + 1} 실패:`, e);
@@ -253,9 +199,7 @@ export function CreateView({
       alert('설정에서 Cloudflare 정보를 입력하세요.');
       return;
     }
-    const targets = slides
-      .map((s, i) => ({ s, i }))
-      .filter(({ s }) => !s.background.imageUrl);
+    const targets = slides.map((s, i) => ({ s, i })).filter(({ s }) => !s.background.imageUrl);
     if (targets.length === 0) {
       alert('모든 슬라이드에 이미지가 이미 있습니다.');
       return;
@@ -272,20 +216,12 @@ export function CreateView({
       setBatchProgress({ current: k + 1, total: targets.length });
       if (!s.imagePrompt.trim()) continue;
       try {
-        const url = await generateImage(
-          settings.cfAccountId,
-          settings.cfApiToken,
-          s.imagePrompt,
-          { workerUrl: settings.workerUrl }
-        );
+        const url = await generateImage(settings.cfAccountId, settings.cfApiToken, s.imagePrompt, {
+          workerUrl: settings.workerUrl,
+        });
         working[i] = {
           ...working[i],
-          background: {
-            ...working[i].background,
-            imageUrl: url,
-            type: 'image',
-            imageLayout: working[i].background.imageLayout || 'full-bleed',
-          },
+          background: { ...working[i].background, imageUrl: url, type: 'image', imageLayout: working[i].background.imageLayout || 'full-bleed' },
         };
         onSlidesChange([...working]);
         await new Promise((r) => setTimeout(r, 1200));
@@ -299,15 +235,30 @@ export function CreateView({
     setTimeout(() => onSaveProject?.(), 500);
   }
 
-  // ─────────────────────────────────
-  // PNG 다운로드
-  // ─────────────────────────────────
+  function handleApplyPreset(newPreset: Preset) {
+    onPresetChange(newPreset);
+    if (slides.length > 0) {
+      // 배경만 교체, 콘텐츠는 그대로
+      const updated = slides.map((s) => ({
+        ...s,
+        background: applyPresetBackground(s, newPreset),
+      }));
+      onSlidesChange(updated);
+    }
+  }
+
+  function handlePresetStyleChange(patch: any) {
+    // 현재 프리셋의 blockStyles를 즉시 수정 (커스텀 프리셋으로 만들지 않고 인메모리)
+    const updatedPreset = {
+      ...preset,
+      blockStyles: { ...preset.blockStyles, ...patch },
+    };
+    onPresetChange(updatedPreset);
+  }
+
   async function exportCurrentCard() {
     const node = cardRefs.current[selectedIdx];
-    if (!node) {
-      alert('카드가 없습니다.');
-      return;
-    }
+    if (!node) return alert('카드가 없습니다.');
     setExporting('단일 카드');
     try {
       const blob = await renderCardToPng(node, dim.width, dim.height);
@@ -319,20 +270,13 @@ export function CreateView({
 
   async function exportCards(size: CardSize) {
     const nodes = cardRefs.current.filter(Boolean) as HTMLDivElement[];
-    if (!nodes.length) {
-      alert('카드가 없습니다.');
-      return;
-    }
+    if (!nodes.length) return alert('카드가 없습니다.');
     setExporting('카드 저장 중');
     setExportMenuOpen(false);
     const d = CARD_SIZE_DIMENSIONS[size];
     try {
-      await exportCardsAsZip(
-        nodes,
-        `cardnews-${size}-${Date.now()}.zip`,
-        d.width,
-        d.height,
-        (i, total) => setExporting(`카드 ${i}/${total}`)
+      await exportCardsAsZip(nodes, `cardnews-${size}-${Date.now()}.zip`, d.width, d.height, (i, total) =>
+        setExporting(`카드 ${i}/${total}`)
       );
     } finally {
       setExporting('');
@@ -341,67 +285,34 @@ export function CreateView({
 
   async function exportBackgrounds(size: CardSize) {
     const nodes = bgRefs.current.filter(Boolean) as HTMLDivElement[];
-    if (!nodes.length) {
-      alert('배경이 없습니다.');
-      return;
-    }
+    if (!nodes.length) return alert('배경이 없습니다.');
     setExporting('배경 저장 중');
     setExportMenuOpen(false);
     const d = CARD_SIZE_DIMENSIONS[size];
     try {
-      await exportCardsAsZip(
-        nodes,
-        `cardnews-bg-${size}-${Date.now()}.zip`,
-        d.width,
-        d.height,
-        (i, total) => setExporting(`배경 ${i}/${total}`)
+      await exportCardsAsZip(nodes, `cardnews-bg-${size}-${Date.now()}.zip`, d.width, d.height, (i, total) =>
+        setExporting(`배경 ${i}/${total}`)
       );
     } finally {
       setExporting('');
     }
   }
 
-  // ═══════════════════════════════════════
   // 빈 상태
-  // ═══════════════════════════════════════
   if (slides.length === 0) {
     return (
       <>
         <div className="max-w-2xl mx-auto mt-8 space-y-4">
           <Card>
-            <CardHeader title="카드 사이즈 선택" subtitle="먼저 사이즈를 고르세요" />
+            <CardHeader title="카드 사이즈 선택" />
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => onCardSizeChange('instagram')}
-                className={`p-5 rounded-xl border-2 transition text-center ${
-                  cardSize === 'instagram'
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-surface-border hover:border-primary-300'
-                }`}
-              >
-                <div className="flex justify-center mb-3">
-                  <div
-                    className="bg-gradient-to-br from-primary-500 to-primary-700 rounded"
-                    style={{ width: 60, height: 75 }}
-                  />
-                </div>
+              <button onClick={() => onCardSizeChange('instagram')} className={`p-5 rounded-xl border-2 transition text-center ${cardSize === 'instagram' ? 'border-primary-500 bg-primary-50' : 'border-surface-border hover:border-primary-300'}`}>
+                <div className="flex justify-center mb-3"><div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded" style={{ width: 60, height: 75 }} /></div>
                 <div className="font-semibold text-base">인스타그램</div>
                 <div className="text-xs text-ink-muted mt-1">1080 × 1350 (4:5)</div>
               </button>
-              <button
-                onClick={() => onCardSizeChange('square')}
-                className={`p-5 rounded-xl border-2 transition text-center ${
-                  cardSize === 'square'
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-surface-border hover:border-primary-300'
-                }`}
-              >
-                <div className="flex justify-center mb-3">
-                  <div
-                    className="bg-gradient-to-br from-primary-500 to-primary-700 rounded"
-                    style={{ width: 75, height: 75 }}
-                  />
-                </div>
+              <button onClick={() => onCardSizeChange('square')} className={`p-5 rounded-xl border-2 transition text-center ${cardSize === 'square' ? 'border-primary-500 bg-primary-50' : 'border-surface-border hover:border-primary-300'}`}>
+                <div className="flex justify-center mb-3"><div className="bg-gradient-to-br from-primary-500 to-primary-700 rounded" style={{ width: 75, height: 75 }} /></div>
                 <div className="font-semibold text-base">정사각형</div>
                 <div className="text-xs text-ink-muted mt-1">1080 × 1080 (1:1)</div>
               </button>
@@ -410,32 +321,13 @@ export function CreateView({
 
           <Card>
             <div className="text-center py-8">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-3">
-                <Sparkles size={24} />
-              </div>
-              <div className="text-base font-semibold mb-1">
-                새 카드뉴스를 시작하세요
-              </div>
-              <div className="text-sm text-ink-secondary mb-5">
-                키워드, 블로그 URL, 또는 직접 텍스트로 생성
-              </div>
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-3"><Sparkles size={24} /></div>
+              <div className="text-base font-semibold mb-1">새 카드뉴스를 시작하세요</div>
+              <div className="text-sm text-ink-secondary mb-5">키워드, 블로그 URL, 또는 직접 텍스트로 생성</div>
               <div className="flex gap-2 justify-center flex-wrap">
-                <Button
-                  size="lg"
-                  icon={<Plus size={18} />}
-                  onClick={() => setSourcePanelOpen(true)}
-                >
-                  새로 제작
-                </Button>
+                <Button size="lg" icon={<Plus size={18} />} onClick={() => setSourcePanelOpen(true)}>새로 제작</Button>
                 {projects.length > 0 && (
-                  <Button
-                    size="lg"
-                    variant="secondary"
-                    icon={<FolderOpen size={18} />}
-                    onClick={() => setProjectListOpen(true)}
-                  >
-                    프로젝트 목록 ({projects.length})
-                  </Button>
+                  <Button size="lg" variant="secondary" icon={<FolderOpen size={18} />} onClick={() => setProjectListOpen(true)}>프로젝트 목록 ({projects.length})</Button>
                 )}
               </div>
             </div>
@@ -443,17 +335,7 @@ export function CreateView({
 
           {sourcePanelOpen && (
             <Card>
-              <CardHeader
-                title="카드뉴스 소스 입력"
-                action={
-                  <button
-                    onClick={() => setSourcePanelOpen(false)}
-                    className="p-1.5 rounded-lg hover:bg-surface-hover text-ink-secondary"
-                  >
-                    <X size={16} />
-                  </button>
-                }
-              />
+              <CardHeader title="카드뉴스 소스 입력" action={<button onClick={() => setSourcePanelOpen(false)} className="p-1.5 rounded-lg hover:bg-surface-hover text-ink-secondary"><X size={16} /></button>} />
               <InputPanel
                 settings={settings}
                 preset={preset}
@@ -468,177 +350,49 @@ export function CreateView({
           )}
         </div>
 
-        <ProjectList
-          open={projectListOpen}
-          onClose={() => setProjectListOpen(false)}
-          projects={projects}
-          customPresets={customPresets}
-          currentProjectId={currentProjectId || undefined}
-          onSelect={onSelectProject}
-          onDelete={onDeleteProject}
-          onRename={onRenameProject}
-          onCreate={() => {
-            setProjectListOpen(false);
-            onCreateNew();
-          }}
-        />
+        <ProjectList open={projectListOpen} onClose={() => setProjectListOpen(false)} projects={projects} customPresets={customPresets} currentProjectId={currentProjectId || undefined} onSelect={onSelectProject} onDelete={onDeleteProject} onRename={onRenameProject} onCreate={() => { setProjectListOpen(false); onCreateNew(); }} />
       </>
     );
   }
 
-  // ═══════════════════════════════════════
   // 편집 화면
-  // ═══════════════════════════════════════
   return (
     <>
       <div className="max-w-7xl mx-auto flex flex-col gap-4">
         {/* 상단 툴바 */}
         <Card padding={false} className="px-4 py-2.5 flex items-center gap-2 flex-wrap">
-          <Button size="sm" icon={<FilePlus size={14} />} onClick={onCreateNew}>
-            새로 제작
-          </Button>
-
+          <Button size="sm" icon={<FilePlus size={14} />} onClick={onCreateNew}>새로 제작</Button>
           <div className="h-6 w-px bg-surface-border" />
-
-          <Badge variant="primary">
-            {currentProject ? currentProject.name.slice(0, 14) : '새 카드뉴스'}
-          </Badge>
-          <span className="text-sm text-ink-muted hidden md:inline">
-            {slides.length}장
-          </span>
-
+          <Badge variant="primary">{currentProject ? currentProject.name.slice(0, 14) : '새 카드뉴스'}</Badge>
+          <span className="text-sm text-ink-muted hidden md:inline">{slides.length}장</span>
           <div className="flex items-center gap-1 ml-1">
-            <button
-              onClick={() => onCardSizeChange('instagram')}
-              className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${
-                cardSize === 'instagram'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 hover:bg-gray-200'
-              }`}
-            >
-              인스타 4:5
-            </button>
-            <button
-              onClick={() => onCardSizeChange('square')}
-              className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${
-                cardSize === 'square'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 hover:bg-gray-200'
-              }`}
-            >
-              정사각형 1:1
-            </button>
+            <button onClick={() => onCardSizeChange('instagram')} className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${cardSize === 'instagram' ? 'bg-primary-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}>인스타 4:5</button>
+            <button onClick={() => onCardSizeChange('square')} className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${cardSize === 'square' ? 'bg-primary-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}>정사각형 1:1</button>
           </div>
-
           <div className="ml-auto flex gap-1.5 flex-wrap">
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={<Save size={14} />}
-              onClick={onSaveProject}
-            >
-              현재 프로젝트 저장
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<List size={14} />}
-              onClick={() => setProjectListOpen(true)}
-            >
-              프로젝트 목록
-            </Button>
-
+            <Button size="sm" variant="secondary" icon={<Save size={14} />} onClick={onSaveProject}>현재 프로젝트 저장</Button>
+            <Button size="sm" variant="ghost" icon={<List size={14} />} onClick={() => setProjectListOpen(true)}>프로젝트 목록</Button>
             {currentProjectId && (
-              <Button
-                size="sm"
-                variant="danger"
-                icon={<Trash2 size={14} />}
-                onClick={() => {
-                  if (
-                    confirm(
-                      `"${currentProject?.name}" 카드뉴스를 삭제할까요?\n\n삭제하면 복구할 수 없습니다.`
-                    )
-                  ) {
-                    onDeleteProject(currentProjectId);
-                  }
-                }}
-              >
-                삭제
-              </Button>
+              <Button size="sm" variant="danger" icon={<Trash2 size={14} />} onClick={() => { if (confirm(`"${currentProject?.name}" 카드뉴스를 삭제할까요?`)) onDeleteProject(currentProjectId); }}>삭제</Button>
             )}
-
             <div className="relative">
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<ImageDown size={14} />}
-                onClick={() => setExportMenuOpen(!exportMenuOpen)}
-                loading={!!exporting}
-              >
+              <Button size="sm" variant="ghost" icon={<ImageDown size={14} />} onClick={() => setExportMenuOpen(!exportMenuOpen)} loading={!!exporting}>
                 {exporting ? exporting : '카드를 이미지로 저장'}
               </Button>
               {exportMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-surface-border p-2 z-30 min-w-[260px]">
-                  <button
-                    onClick={exportCurrentCard}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
-                  >
-                    <div className="font-medium">현재 카드만</div>
-                    <div className="text-xs text-ink-muted">
-                      {dim.width}×{dim.height} PNG 1장
-                    </div>
-                  </button>
+                  <button onClick={exportCurrentCard} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"><div className="font-medium">현재 카드만</div><div className="text-xs text-ink-muted">{dim.width}×{dim.height} PNG</div></button>
                   <div className="h-px bg-surface-border my-1" />
-                  <button
-                    onClick={() => exportCards('instagram')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
-                  >
-                    <div className="font-medium">카드 전체 (4:5)</div>
-                    <div className="text-xs text-ink-muted">ZIP · 1080×1350</div>
-                  </button>
-                  <button
-                    onClick={() => exportCards('square')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
-                  >
-                    <div className="font-medium">카드 전체 (1:1)</div>
-                    <div className="text-xs text-ink-muted">ZIP · 1080×1080</div>
-                  </button>
+                  <button onClick={() => exportCards('instagram')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"><div className="font-medium">카드 전체 (4:5)</div><div className="text-xs text-ink-muted">ZIP</div></button>
+                  <button onClick={() => exportCards('square')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"><div className="font-medium">카드 전체 (1:1)</div><div className="text-xs text-ink-muted">ZIP</div></button>
                   <div className="h-px bg-surface-border my-1" />
-                  <button
-                    onClick={() => exportBackgrounds('instagram')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
-                  >
-                    <div className="font-medium">배경만 (4:5)</div>
-                    <div className="text-xs text-ink-muted">
-                      영상 편집용 ZIP
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => exportBackgrounds('square')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
-                  >
-                    <div className="font-medium">배경만 (1:1)</div>
-                    <div className="text-xs text-ink-muted">ZIP</div>
-                  </button>
+                  <button onClick={() => exportBackgrounds('instagram')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"><div className="font-medium">배경만 (4:5)</div></button>
+                  <button onClick={() => exportBackgrounds('square')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"><div className="font-medium">배경만 (1:1)</div></button>
                 </div>
               )}
             </div>
-
-            <Button
-              size="sm"
-              icon={
-                batchLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Wand2 size={14} />
-                )
-              }
-              onClick={genAllImages}
-              disabled={batchLoading}
-            >
-              {batchLoading
-                ? `${batchProgress.current}/${batchProgress.total}`
-                : '전체 카드 이미지 생성'}
+            <Button size="sm" icon={batchLoading ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} onClick={genAllImages} disabled={batchLoading}>
+              {batchLoading ? `${batchProgress.current}/${batchProgress.total}` : '전체 카드 이미지 생성'}
             </Button>
           </div>
         </Card>
@@ -653,104 +407,59 @@ export function CreateView({
             onSelect={handleApplyPreset}
             onSaveCustom={onSaveCustom}
             onDeleteCustom={onDeleteCustom}
-            onImportCustom={(p) => {
-              onImportCustom(p);
-              handleApplyPreset(p);
-            }}
+            onImportCustom={(p) => { onImportCustom(p); handleApplyPreset(p); }}
             onToggleFavorite={onToggleFavorite}
           />
         </Card>
 
         {/* 슬라이드 스트립 */}
         <Card padding={false} className="py-3">
-          <HorizontalSlideStrip
-            slides={slides}
-            preset={preset}
-            brand={settings.brand}
-            cardSize={cardSize}
-            selectedIdx={selectedIdx}
-            onSelect={setSelectedIdx}
-          />
+          <HorizontalSlideStrip slides={slides} preset={preset} brand={settings.brand} cardSize={cardSize} selectedIdx={selectedIdx} onSelect={setSelectedIdx} />
         </Card>
 
         {/* 2컬럼 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7 space-y-4">
-            {/* 미리보기 */}
             {selected && (
               <DraggableCardPreview
                 slide={selected}
                 preset={preset}
                 brand={settings.brand}
                 cardSize={cardSize}
-                onSlideChange={(patch) => updateSlide(selectedIdx, patch)}
+                onSelectBlock={(id) => { setSelectedBlockId(id); setSelectedBackground(false); }}
+                onSelectBackground={() => { setSelectedBlockId(null); setSelectedBackground(true); }}
                 onOpenPhoneMockup={() => setPhoneModalOpen(true)}
-                onElementSelect={setSelectedElement}
               />
             )}
 
-            {/* 이미지 생성 (미리보기 아래) */}
+            {/* 이미지 생성 */}
             <Card>
-              <CardHeader
-                title="🖼 배경 이미지 생성 (선택)"
-                subtitle="AI로 배경 이미지를 만들어 배경에 적용합니다"
-              />
+              <CardHeader title="🖼 배경 이미지 생성 (선택)" subtitle="AI로 배경 이미지를 만듭니다" />
               <div className="space-y-3">
-                <Textarea
-                  label="프롬프트 (영어)"
+                <textarea
                   value={selected.imagePrompt}
-                  onChange={(e) =>
-                    updateSlide(selectedIdx, { imagePrompt: e.target.value })
-                  }
+                  onChange={(e) => updateSlide(selectedIdx, { imagePrompt: e.target.value })}
                   placeholder="minimal illustration of..."
                   rows={3}
-                  className="font-mono text-xs"
+                  className="w-full rounded-lg border border-surface-border px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                 />
-
                 {selected.imagePromptKo && (
-                  <div className="text-xs text-ink-muted bg-surface-bg rounded-lg p-2.5 leading-relaxed">
-                    <span className="font-medium text-ink-secondary">
-                      참고:{' '}
-                    </span>
+                  <div className="text-xs text-ink-muted bg-surface-bg rounded-lg p-2.5">
+                    <span className="font-medium text-ink-secondary">참고: </span>
                     {selected.imagePromptKo}
                   </div>
                 )}
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="md"
-                    variant="secondary"
-                    icon={<ImageIcon size={14} />}
-                    loading={generatingIdx === selectedIdx}
-                    onClick={() => genImg(selectedIdx)}
-                    disabled={generatingIdx !== null || batchLoading}
-                    className="flex-1"
-                  >
-                    {generatingIdx === selectedIdx
-                      ? '생성 중...'
-                      : '이 슬라이드 배경 이미지 생성'}
+                <div className="flex gap-2">
+                  <Button size="md" variant="secondary" icon={<ImageIcon size={14} />} loading={generatingIdx === selectedIdx} onClick={() => genImg(selectedIdx)} disabled={generatingIdx !== null || batchLoading} className="flex-1">
+                    {generatingIdx === selectedIdx ? '생성 중...' : '이 슬라이드 배경 이미지 생성'}
                   </Button>
                 </div>
-
                 {selected.background.imageUrl && (
                   <div className="rounded-xl border-2 border-primary-200 overflow-hidden">
-                    <img
-                      src={selected.background.imageUrl}
-                      alt=""
-                      className="w-full max-h-72 object-contain bg-gray-100"
-                    />
+                    <img src={selected.background.imageUrl} alt="" className="w-full max-h-72 object-contain bg-gray-100" />
                     <div className="flex items-center gap-2 p-2 bg-primary-50">
-                      <div className="text-xs text-primary-700 flex-1">
-                        이미지 준비됨
-                      </div>
-                      <button
-                        onClick={() =>
-                          updateBackground({ imageUrl: '', imageId: undefined, type: 'color' })
-                        }
-                        className="p-1.5 rounded text-primary-700 hover:bg-primary-100"
-                      >
-                        <X size={14} />
-                      </button>
+                      <div className="text-xs text-primary-700 flex-1">이미지 준비됨</div>
+                      <button onClick={() => updateSlide(selectedIdx, { background: { ...selected.background, imageUrl: '', imageId: undefined, type: 'color' } })} className="p-1.5 rounded text-primary-700 hover:bg-primary-100"><X size={14} /></button>
                     </div>
                   </div>
                 )}
@@ -762,67 +471,57 @@ export function CreateView({
             <Card className="sticky top-20">
               <CardHeader
                 title={`슬라이드 #${selectedIdx + 1}`}
-                subtitle={`${selected?.type.toUpperCase()}${
-                  isLast ? ' · 마지막' : ''
-                }`}
+                subtitle={`${selected?.type.toUpperCase()}${isLast ? ' · 마지막' : ''}`}
                 action={
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => {
-                        const j = selectedIdx - 1;
-                        if (j < 0) return;
-                        const next = [...slides];
-                        [next[selectedIdx], next[j]] = [next[j], next[selectedIdx]];
-                        onSlidesChange(next);
-                        setSelectedIdx(j);
-                      }}
-                      disabled={selectedIdx === 0}
-                      className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        const j = selectedIdx + 1;
-                        if (j >= slides.length) return;
-                        const next = [...slides];
-                        [next[selectedIdx], next[j]] = [next[j], next[selectedIdx]];
-                        onSlidesChange(next);
-                        setSelectedIdx(j);
-                      }}
-                      disabled={selectedIdx === slides.length - 1}
-                      className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`슬라이드 #${selectedIdx + 1}을(를) 삭제할까요?`)) {
-                          const next = slides.filter((_, idx) => idx !== selectedIdx);
-                          onSlidesChange(next);
-                          if (selectedIdx >= next.length) {
-                            setSelectedIdx(Math.max(0, next.length - 1));
-                          }
-                        }
-                      }}
-                      className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <button onClick={() => { const j = selectedIdx - 1; if (j < 0) return; const next = [...slides]; [next[selectedIdx], next[j]] = [next[j], next[selectedIdx]]; onSlidesChange(next); setSelectedIdx(j); }} disabled={selectedIdx === 0} className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"><ArrowUp size={14} /></button>
+                    <button onClick={() => { const j = selectedIdx + 1; if (j >= slides.length) return; const next = [...slides]; [next[selectedIdx], next[j]] = [next[j], next[selectedIdx]]; onSlidesChange(next); setSelectedIdx(j); }} disabled={selectedIdx === slides.length - 1} className="p-1.5 rounded-lg bg-surface-hover hover:bg-gray-200 disabled:opacity-30"><ArrowDown size={14} /></button>
+                    <button onClick={() => { if (confirm(`슬라이드 #${selectedIdx + 1}을(를) 삭제할까요?`)) { const next = slides.filter((_, idx) => idx !== selectedIdx); onSlidesChange(next); if (selectedIdx >= next.length) setSelectedIdx(Math.max(0, next.length - 1)); } }} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100"><Trash2 size={14} /></button>
                   </div>
                 }
               />
 
               {selected && (
                 <div className="space-y-3">
-                  <SlideStyleEditor
-                    slide={selected}
-                    selectedElement={selectedElement}
-                    onChangeText={updateText}
-                    onChangeBackground={updateBackground}
-                    onResetText={resetText}
-                    onToggleVisible={toggleVisible}
-                  />
+                  {/* 블록 편집 or 스타일 편집 or 배경 */}
+                  {selectedBackground ? (
+                    <BackgroundEditorInline background={selected.background} onChange={(patch) => updateSlide(selectedIdx, { background: { ...selected.background, ...patch } })} />
+                  ) : selectedBlockId ? (
+                    <div className="space-y-4">
+                      {selected.blocks
+                        .filter((b) => b.id === selectedBlockId)
+                        .map((b) => (
+                          <div key={b.id} className="space-y-4">
+                            <BlockEditor
+                              block={b}
+                              onChange={(patch) => updateBlock(b.id, patch)}
+                              onDelete={() => deleteBlock(b.id)}
+                              onMoveUp={() => moveBlock(b.id, -1)}
+                              onMoveDown={() => moveBlock(b.id, 1)}
+                              canMoveUp={selected.blocks.findIndex((x) => x.id === b.id) > 0}
+                              canMoveDown={selected.blocks.findIndex((x) => x.id === b.id) < selected.blocks.length - 1}
+                              onReplace={(t) => replaceBlock(b.id, t)}
+                            />
+                            <div className="border-t pt-3">
+                              <BlockStyleEditor block={b} preset={preset} onPresetStyleChange={handlePresetStyleChange} />
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <div className="text-sm text-ink-secondary mb-3">
+                        블록을 추가하거나 미리보기에서 선택하세요
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {(['headline', 'body', 'label', 'highlight', 'list', 'numbered-card', 'point-box', 'divider'] as BlockType[]).map((t) => (
+                          <button key={t} onClick={() => addBlock(t)} className="text-left p-2 rounded border border-surface-border hover:border-primary-300 text-[10px] font-medium">
+                            + {t === 'numbered-card' ? '번호' : t === 'point-box' ? '박스' : t === 'highlight' ? '강조' : t === 'divider' ? '선' : t === 'label' ? '라벨' : t === 'list' ? '리스트' : t === 'headline' ? '제목' : '본문'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
@@ -831,77 +530,30 @@ export function CreateView({
       </div>
 
       {/* 숨겨진 렌더 DOM */}
-      <div
-        style={{
-          position: 'fixed',
-          left: -99999,
-          top: 0,
-          pointerEvents: 'none',
-          opacity: 0,
-        }}
-        aria-hidden="true"
-      >
+      <div style={{ position: 'fixed', left: -99999, top: 0, pointerEvents: 'none', opacity: 0 }} aria-hidden="true">
         {slides.map((s, i) => (
-          <div
-            key={`card-${s.id}`}
-            ref={(el) => (cardRefs.current[i] = el)}
-            style={{ width: dim.width, height: dim.height }}
-          >
-            <CardRenderer
-              slide={s}
-              preset={preset}
-              brand={settings.brand}
-              width={dim.width}
-              height={dim.height}
-            />
+          <div key={`card-${s.id}`} ref={(el) => (cardRefs.current[i] = el)} style={{ width: dim.width, height: dim.height }}>
+            <CardRenderer slide={s} preset={preset} brand={settings.brand} width={dim.width} height={dim.height} />
           </div>
         ))}
         {slides.map((s, i) => (
-          <div
-            key={`bg-${s.id}`}
-            ref={(el) => (bgRefs.current[i] = el)}
-            style={{ width: dim.width, height: dim.height }}
-          >
-            <BackgroundOnlyRenderer
-              slide={s}
-              brand={settings.brand}
-              width={dim.width}
-              height={dim.height}
-            />
+          <div key={`bg-${s.id}`} ref={(el) => (bgRefs.current[i] = el)} style={{ width: dim.width, height: dim.height }}>
+            <BackgroundOnlyRenderer slide={s} brand={settings.brand} width={dim.width} height={dim.height} />
           </div>
         ))}
       </div>
 
-      <Modal
-        open={phoneModalOpen}
-        onClose={() => setPhoneModalOpen(false)}
-        title="스마트폰에서 보기"
-        maxWidth="md"
-      >
-        {selected && (
-          <PhoneMockup
-            slide={selected}
-            preset={preset}
-            brand={settings.brand}
-            isLast={isLast}
-          />
-        )}
+      <Modal open={phoneModalOpen} onClose={() => setPhoneModalOpen(false)} title="스마트폰에서 보기" maxWidth="md">
+        {selected && <PhoneMockup slide={selected} preset={preset} brand={settings.brand} isLast={isLast} />}
       </Modal>
 
-      <ProjectList
-        open={projectListOpen}
-        onClose={() => setProjectListOpen(false)}
-        projects={projects}
-        customPresets={customPresets}
-        currentProjectId={currentProjectId || undefined}
-        onSelect={onSelectProject}
-        onDelete={onDeleteProject}
-        onRename={onRenameProject}
-        onCreate={() => {
-          setProjectListOpen(false);
-          onCreateNew();
-        }}
-      />
+      <ProjectList open={projectListOpen} onClose={() => setProjectListOpen(false)} projects={projects} customPresets={customPresets} currentProjectId={currentProjectId || undefined} onSelect={onSelectProject} onDelete={onDeleteProject} onRename={onRenameProject} onCreate={() => { setProjectListOpen(false); onCreateNew(); }} />
     </>
   );
+}
+
+// 배경 편집 인라인 (기존 BackgroundEditor 재사용)
+import { BackgroundEditor } from '@/components/BackgroundEditor';
+function BackgroundEditorInline({ background, onChange }: { background: any; onChange: (patch: any) => void }) {
+  return <BackgroundEditor background={background} onChange={onChange} onChangeImage={() => {}} />;
 }

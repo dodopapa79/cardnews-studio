@@ -3,7 +3,8 @@ import type { Slide, Preset } from './types';
 export function generateProjectName(slides: Slide[]): string {
   if (!slides.length) return '제목 없는 카드뉴스';
   const cover = slides.find((s) => s.type === 'cover') || slides[0];
-  const headline = cover.texts?.headline?.content || '제목 없는 카드뉴스';
+  const headlineBlock = cover.blocks.find((b) => b.type === 'headline');
+  const headline = headlineBlock?.content.text || '제목 없는 카드뉴스';
   return headline.length > 30 ? headline.slice(0, 30) + '...' : headline;
 }
 
