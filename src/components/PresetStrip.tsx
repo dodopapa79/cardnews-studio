@@ -61,17 +61,30 @@ export function PresetStrip({
 }) {
   const [openAll, setOpenAll] = useState(false);
 
-  const all = sortPresets([...STYLE_PRESETS, ...customPresets], favorites);
+  // ⚠️ 안전 필터: undefined, id 없는 프리셋 제거
+  const safeCustom = (customPresets || []).filter(
+    (p): p is Preset => !!p && typeof p.id === 'string' && !!p.name
+  );
+  const safeBuiltin = (STYLE_PRESETS || []).filter(
+    (p): p is Preset => !!p && typeof p.id === 'string'
+  );
+
+  const all = sortPresets([...safeBuiltin, ...safeCustom], favorites || []);
 
   // 1줄 표시: 선택된 것 + 앞의 5개 (중복 제거)
   const stripItems = (() => {
     const result: Preset[] = [];
     const seen = new Set<string>();
-    result.push(current);
-    seen.add(current.id);
+
+    // 현재 프리셋이 유효하면 추가
+    if (current && typeof current.id === 'string') {
+      result.push(current);
+      seen.add(current.id);
+    }
+
     for (const p of all) {
       if (result.length >= 6) break;
-      if (!seen.has(p.id)) {
+      if (p && typeof p.id === 'string' && !seen.has(p.id)) {
         result.push(p);
         seen.add(p.id);
       }
@@ -94,8 +107,8 @@ export function PresetStrip({
             <MiniPresetCard
               key={p.id}
               preset={p}
-              selected={current.id === p.id}
-              favorite={favorites.includes(p.id)}
+              selected={current?.id === p.id}
+              favorite={(favorites || []).includes(p.id)}
               brand={brand}
               onClick={() => onSelect(p)}
               onToggleFavorite={() => onToggleFavorite(p.id)}
@@ -120,8 +133,8 @@ export function PresetStrip({
       >
         <PresetGallery
           current={current}
-          customPresets={customPresets}
-          favorites={favorites}
+          customPresets={safeCustom}
+          favorites={favorites || []}
           brand={brand}
           onSelect={(p) => {
             onSelect(p);
@@ -138,7 +151,7 @@ export function PresetStrip({
 }
 
 // ─────────────────────────────────────────
-// 미니 프리셋 카드 (스트립용)
+// 미니 프리셋 카드
 // ─────────────────────────────────────────
 function MiniPresetCard({
   preset,
@@ -155,13 +168,21 @@ function MiniPresetCard({
   onClick: () => void;
   onToggleFavorite: () => void;
 }) {
-  const sample = makeSampleSlide(preset);
+  if (!preset) return null;
+
+  let sample: Slide | null = null;
+  try {
+    sample = makeSampleSlide(preset);
+  } catch (e) {
+    console.error('샘플 슬라이드 생성 실패:', e);
+    return null;
+  }
 
   return (
     <div className="group relative shrink-0">
       <button
         onClick={onClick}
-        className={`rounded-lg border-2 overflow-hidden transition-all ${
+        className={`rounded-lg border-2 overflow-hidden transition-all relative ${
           selected
             ? 'border-primary-500 shadow-md'
             : 'border-surface-border hover:border-primary-300'
@@ -189,7 +210,6 @@ function MiniPresetCard({
         </div>
       </button>
 
-      {/* 즐겨찾기 */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -205,14 +225,12 @@ function MiniPresetCard({
         <Star size={10} fill={favorite ? 'currentColor' : 'none'} />
       </button>
 
-      {/* 선택 표시 */}
       {selected && (
         <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center text-white shadow">
           <Check size={10} strokeWidth={3} />
         </div>
       )}
 
-      {/* 이름 */}
       <div className="text-[9px] text-center mt-1 text-ink-secondary truncate font-medium">
         {preset.name}
       </div>
@@ -249,7 +267,14 @@ function PresetGallery({
   const [importModal, setImportModal] = useState(false);
   const [newName, setNewName] = useState('');
 
-  const list = tab === 'builtin' ? STYLE_PRESETS : sortPresets(customPresets, favorites);
+  const safeBuiltin = STYLE_PRESETS.filter(
+    (p): p is Preset => !!p && typeof p.id === 'string'
+  );
+  const safeCustom = customPresets.filter(
+    (p): p is Preset => !!p && typeof p.id === 'string' && !!p.name
+  );
+
+  const list = tab === 'builtin' ? safeBuiltin : sortPresets(safeCustom, favorites);
 
   return (
     <div className="space-y-4">
@@ -264,7 +289,7 @@ function PresetGallery({
                 : 'text-ink-secondary'
             }`}
           >
-            기본 ({STYLE_PRESETS.length})
+            기본 ({safeBuiltin.length})
           </button>
           <button
             onClick={() => setTab('custom')}
@@ -274,7 +299,7 @@ function PresetGallery({
                 : 'text-ink-secondary'
             }`}
           >
-            커스텀 ({customPresets.length})
+            커스텀 ({safeCustom.length})
           </button>
         </div>
 
@@ -305,21 +330,33 @@ function PresetGallery({
           <div className="text-sm text-ink-muted mb-3">
             커스텀 프리셋이 없습니다
           </div>
-          <Button size="sm" onClick={() => setImportModal(true)} icon={<Sparkles size={12} />}>
+          <Button
+            size="sm"
+            onClick={() => setImportModal(true)}
+            icon={<Sparkles size={12} />}
+          >
             첫 프리셋 가져오기
           </Button>
         </div>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
           {list.map((p) => {
-            const isSelected = current.id === p.id;
+            if (!p) return null;
+            const isSelected = current?.id === p.id;
             const isFav = favorites.includes(p.id);
-            const sample = makeSampleSlide(p);
+
+            let sample: Slide | null = null;
+            try {
+              sample = makeSampleSlide(p);
+            } catch {
+              return null;
+            }
+
             return (
               <div key={p.id} className="group relative">
                 <button
                   onClick={() => onSelect(p)}
-                  className={`w-full rounded-lg border-2 overflow-hidden transition ${
+                  className={`w-full rounded-lg border-2 overflow-hidden transition relative ${
                     isSelected
                       ? 'border-primary-500 shadow-md'
                       : 'border-surface-border hover:border-primary-300'
@@ -343,7 +380,6 @@ function PresetGallery({
                   </div>
                 </button>
 
-                {/* 즐겨찾기 */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -358,14 +394,12 @@ function PresetGallery({
                   <Star size={11} fill={isFav ? 'currentColor' : 'none'} />
                 </button>
 
-                {/* 선택 표시 */}
                 {isSelected && (
                   <div className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary-600 flex items-center justify-center text-white">
                     <Check size={12} strokeWidth={3} />
                   </div>
                 )}
 
-                {/* 삭제 */}
                 {!p.builtin && (
                   <button
                     onClick={(e) => {
@@ -426,7 +460,7 @@ function PresetGallery({
       </Modal>
 
       {/* AI 프리셋 가져오기 */}
-      <PresetImportModal
+      <ImportModalInline
         open={importModal}
         onClose={() => setImportModal(false)}
         onSave={(preset) => {
@@ -439,9 +473,9 @@ function PresetGallery({
 }
 
 // ─────────────────────────────────────────
-// AI 프리셋 가져오기 모달 (이름 입력 포함)
+// AI 프리셋 가져오기 (인라인)
 // ─────────────────────────────────────────
-function PresetImportModal({
+function ImportModalInline({
   open,
   onClose,
   onSave,
@@ -498,16 +532,15 @@ function PresetImportModal({
             사용 방법
           </div>
           <div className="space-y-1 leading-relaxed">
-            <div>1. 참고할 카드뉴스 이미지를 AI(ChatGPT/Gemini/Claude)에게 보여줌</div>
+            <div>1. 참고할 카드뉴스 이미지를 AI에게 보여줌</div>
             <div>2. AI가 반환한 JSON을 아래에 붙여넣기</div>
-            <div>3. 프리셋 이름을 지정하고 파싱 → 저장</div>
+            <div>3. 프리셋 이름 지정 → 파싱 → 저장</div>
           </div>
         </div>
 
-        {/* 프리셋 이름 */}
         <label className="block">
           <div className="text-sm font-medium text-ink-secondary mb-1.5">
-            프리셋 이름 <span className="text-red-500">*</span>
+            프리셋 이름
           </div>
           <input
             value={name}
@@ -517,7 +550,6 @@ function PresetImportModal({
           />
         </label>
 
-        {/* JSON */}
         <label className="block">
           <div className="text-sm font-medium text-ink-secondary mb-1.5">
             JSON 붙여넣기
@@ -525,7 +557,7 @@ function PresetImportModal({
           <textarea
             value={jsonText}
             onChange={(e) => setJsonText(e.target.value)}
-            placeholder='{ "name": "프리셋 이름", "defaultBackground": {...}, ... }'
+            placeholder='{ "name": "...", "defaultBackground": {...}, ... }'
             rows={12}
             className="w-full rounded-lg border border-surface-border px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
           />
@@ -538,12 +570,12 @@ function PresetImportModal({
         )}
 
         {parsed && (
-          <div className="p-3 rounded-lg bg-green-50 border border-green-200 space-y-1">
+          <div className="p-3 rounded-lg bg-green-50 border border-green-200">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-green-700">
               <Check size={14} />
               파싱 성공
             </div>
-            <div className="text-xs text-green-700">
+            <div className="text-xs text-green-700 mt-1">
               이름: <strong>{parsed.name}</strong>
             </div>
           </div>
