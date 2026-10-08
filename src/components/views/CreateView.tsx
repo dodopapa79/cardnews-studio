@@ -456,6 +456,7 @@ export function CreateView({
               />
               <InputPanel
                 settings={settings}
+                preset={preset}
                 onSlides={(s) => {
                   autoGenRef.current.clear();
                   onSlidesChange(s);
@@ -744,7 +745,7 @@ export function CreateView({
                       </div>
                       <button
                         onClick={() =>
-                          updateBackground({ imageUrl: '', type: 'color' })
+                          updateBackground({ imageUrl: '', imageId: undefined, type: 'color' })
                         }
                         className="p-1.5 rounded text-primary-700 hover:bg-primary-100"
                       >

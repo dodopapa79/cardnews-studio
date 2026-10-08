@@ -31,6 +31,10 @@ export function BackgroundEditor({
   const [bgTab, setBgTab] = useState<'preset' | 'custom'>('preset');
 
   const hasImage = !!background.imageUrl;
+  // 오버레이 색을 따로 지정하지 않으면 기본 어둡기(약 55%)가 적용되므로 같은 값으로 표시
+  const overlayValue = background.overlayColor
+    ? background.overlayOpacity ?? 0.4
+    : 0.55;
 
   return (
     <div className="space-y-4">
@@ -211,7 +215,7 @@ export function BackgroundEditor({
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="font-medium text-ink-secondary">어둡게 처리</span>
               <span className="text-ink-muted">
-                {Math.round((background.overlayOpacity ?? 0) * 100)}%
+                {Math.round(overlayValue * 100)}%
               </span>
             </div>
             <input
@@ -219,7 +223,7 @@ export function BackgroundEditor({
               min={0}
               max={1}
               step={0.05}
-              value={background.overlayOpacity ?? 0}
+              value={overlayValue}
               onChange={(e) => {
                 onChange({
                   overlayColor: background.overlayColor || '#000000',

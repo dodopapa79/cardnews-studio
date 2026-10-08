@@ -1,5 +1,7 @@
-import type { Slide, BackgroundConfig, TextElementConfig, TextAnimation } from './types';
-import { DEFAULT_BACKGROUND, createDefaultText } from './types';
+import type { Slide, SlideType, Preset } from './types';
+import { buildTextsForSlide, buildBackgroundForPreset, STYLE_PRESETS } from './presets';
+
+const FALLBACK_PRESET: Preset = STYLE_PRESETS[0];
 
 const BASE =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
@@ -30,12 +32,8 @@ interface GenerateOptions {
   slideCount?: number;
   tone?: string;
   topic?: string;
-  backgroundDefaults?: Partial<BackgroundConfig>;
-  headlineDefaults?: Partial<TextElementConfig>;
-  bodyDefaults?: Partial<TextElementConfig>;
-  labelDefaults?: Partial<TextElementConfig>;
-  highlightDefaults?: Partial<TextElementConfig>;
-  footerDefaults?: Partial<TextElementConfig>;
+  /** 현재 선택된 프리셋 (색·글자 크기·배경이 생성 단계부터 적용됨) */
+  preset?: Preset;
 }
 
 /**
@@ -56,12 +54,7 @@ export async function generateCardNews(
     slideCount = 6,
     tone = '친근하고 정보성 있게',
     topic = '',
-    backgroundDefaults,
-    headlineDefaults,
-    bodyDefaults,
-    labelDefaults,
-    highlightDefaults,
-    footerDefaults,
+    preset,
   } = options;
 
   const prompt = `
@@ -176,57 +169,31 @@ ${tone}
 
   const parsed = JSON.parse(text) as { slides: any[] };
 
+  const VALID_TYPES: SlideType[] = ['cover', 'point', 'data', 'quote', 'cta'];
+
   return parsed.slides.map((s, i) => {
     const isLast = i === parsed.slides.length - 1;
-    const type = s.type || 'point';
+    const rawType: SlideType = VALID_TYPES.includes(s.type) ? s.type : 'point';
+    // 첫 장은 표지, 마지막 장은 마무리(CTA) 배치를 사용
+    const type: SlideType =
+      i === 0 && rawType !== 'data' ? 'cover' : isLast ? 'cta' : rawType;
 
-    const background: BackgroundConfig = {
-      ...DEFAULT_BACKGROUND,
-      ...(backgroundDefaults || {}),
-    };
+    // 프리셋이 없으면 기본 프리셋(첫 번째)과 같은 모양으로 만들어짐
+    const background = preset
+      ? buildBackgroundForPreset(preset)
+      : buildBackgroundForPreset(FALLBACK_PRESET);
 
-    const texts: Slide['texts'] = {
-      label: s.label
-        ? createDefaultText(s.label, {
-            ...(labelDefaults || {}),
-            fontSize: 22,
-            fontWeight: 700,
-            x: 0.08,
-            y: 0.1,
-            maxWidth: 0.5,
-          })
-        : undefined,
-      headline: s.headline
-        ? createDefaultText(s.headline, {
-            ...(headlineDefaults || {}),
-            x: 0.08,
-            y: type === 'cover' ? 0.4 : 0.35,
-            maxWidth: 0.84,
-            animation: 'slide-up' as TextAnimation,
-          })
-        : undefined,
-      body: s.body
-        ? createDefaultText(s.body, {
-            ...(bodyDefaults || {}),
-            x: 0.08,
-            y: type === 'cover' ? 0.62 : 0.6,
-            maxWidth: 0.84,
-            animation: 'fade-in' as TextAnimation,
-          })
-        : undefined,
-      highlight:
-        type === 'data' && s.highlight
-          ? createDefaultText(s.highlight, {
-              ...(highlightDefaults || {}),
-              fontSize: 160,
-              fontWeight: 900,
-              x: 0.08,
-              y: 0.35,
-              animation: 'zoom-in' as TextAnimation,
-            })
-          : undefined,
-      footer: undefined,
-    };
+    const texts = buildTextsForSlide(
+      type,
+      {
+        label: s.label,
+        headline: s.headline,
+        body: s.body,
+        highlight: s.highlight,
+        footer: undefined,
+      },
+      preset || FALLBACK_PRESET
+    );
 
     return {
       id: `slide-${Date.now()}-${i}`,
@@ -236,7 +203,7 @@ ${tone}
       imagePrompt: s.imagePrompt || '',
       imagePromptKo: s.imagePromptKo || '',
       isLast,
-    };
+    } as Slide;
   });
 }
 

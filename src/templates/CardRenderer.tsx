@@ -1,7 +1,7 @@
 'use client';
 import React, { forwardRef } from 'react';
 import type { Slide, Preset, BrandInfo } from '@/lib/types';
-import { BackgroundLayer } from './BackgroundLayer';
+import { BackgroundLayer, hasDarkImageBackdrop } from './BackgroundLayer';
 import { TextLayer } from './TextLayer';
 
 // ─────────────────────────────────────────────
@@ -135,6 +135,7 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
     ref
   ) {
     const bgIsDark = isDark(slide.background.color);
+    const onDarkImage = hasDarkImageBackdrop(slide.background);
 
     return (
       <div
@@ -171,7 +172,9 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
         </div>
 
         {/* 마지막 카드 브랜드 */}
-        {slide.isLast && <LastCardBrand brand={brand} isDark={bgIsDark} />}
+        {slide.isLast && (
+          <LastCardBrand brand={brand} isDark={bgIsDark || onDarkImage} />
+        )}
 
         {/* 텍스트 레이어 */}
         <TextLayer
@@ -181,6 +184,7 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
           editable={editable}
           selectedElement={selectedElement}
           accent="#8b5cf6"
+          onDarkBackdrop={onDarkImage}
           onSelectElement={onSelectElement}
           onChangeText={onChangeText}
         />
@@ -196,7 +200,8 @@ export const BackgroundOnlyRenderer = forwardRef<
   HTMLDivElement,
   { slide: Slide; width: number; height: number; brand?: BrandInfo }
 >(function BackgroundOnlyRenderer({ slide, width, height, brand }, ref) {
-  const bgIsDark = isDark(slide.background.color);
+  const bgIsDark =
+    isDark(slide.background.color) || hasDarkImageBackdrop(slide.background);
 
   return (
     <div

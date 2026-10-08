@@ -4,16 +4,19 @@ import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Tabs } from '@/components/ui/Tabs';
 import { generateCardNews, expandKeyword, fetchBlogContent } from '@/lib/gemini';
-import type { Settings, Slide } from '@/lib/types';
+import type { Settings, Slide, Preset } from '@/lib/types';
 import { Sparkles, AlertCircle, Link2, Search, PencilRuler } from 'lucide-react';
 
 export function InputPanel({
   settings,
   onSlides,
+  preset,
   compact = false,
 }: {
   settings: Settings;
   onSlides: (s: Slide[]) => void;
+  /** 현재 선택된 프리셋 (생성 즉시 스타일 적용) */
+  preset?: Preset;
   compact?: boolean;
 }) {
   const [mode, setMode] = useState<'keyword' | 'blog' | 'manual'>('keyword');
@@ -46,7 +49,7 @@ export function InputPanel({
         if (!manual.trim()) throw new Error('내용을 입력하세요.');
         source = manual;
       }
-      const slides = await generateCardNews(settings.geminiApiKey, source, { slideCount });
+      const slides = await generateCardNews(settings.geminiApiKey, source, { slideCount, preset });
       onSlides(slides);
     } catch (e: any) {
       setError(e.message || '오류가 발생했습니다.');

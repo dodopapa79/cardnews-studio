@@ -219,26 +219,25 @@ export function BackgroundLayer({
               display: 'block',
             }}
           />
-          {/* 오버레이 */}
-          {bg.overlayColor && bg.overlayOpacity !== undefined && (
+          {/* 오버레이: 지정한 값이 있으면 그 값, 없으면 기본 그라데이션(글자 가독성용) */}
+          {bg.overlayColor ? (
+            (bg.overlayOpacity ?? 0.4) > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: hexToRgba(bg.overlayColor, bg.overlayOpacity ?? 0.4),
+                  pointerEvents: 'none',
+                }}
+              />
+            )
+          ) : (
             <div
               style={{
                 position: 'absolute',
                 inset: 0,
-                background: hexToRgba(
-                  bg.overlayColor,
-                  bg.overlayOpacity
-                ),
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-          {!bg.overlayColor && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'rgba(0,0,0,0.35)',
+                background:
+                  'linear-gradient(180deg, rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.70) 100%)',
                 pointerEvents: 'none',
               }}
             />
@@ -363,4 +362,22 @@ export function BackgroundLayer({
       )}
     </div>
   );
+}
+
+// ─────────────────────────────────────────────
+// 전체 배경 이미지 위에 글자가 올라가는지 (밝은 글자가 필요한지) 판단
+// ─────────────────────────────────────────────
+export function hasDarkImageBackdrop(bg: BackgroundConfig): boolean {
+  const isImage = bg.type === 'image' && !!bg.imageUrl;
+  if (!isImage) return false;
+  if ((bg.imageLayout || 'full-bleed') !== 'full-bleed') return false;
+  // 밝은 오버레이를 진하게 덮은 경우는 어두운 배경이 아님
+  if (
+    bg.overlayColor &&
+    (bg.overlayOpacity ?? 0) >= 0.5 &&
+    !isDarkColor(bg.overlayColor)
+  ) {
+    return false;
+  }
+  return true;
 }
