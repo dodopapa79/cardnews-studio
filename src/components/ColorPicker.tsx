@@ -20,17 +20,17 @@ export function ColorPicker({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {!compact && (
         <div className="flex items-center justify-between">
-          <div className="text-xs font-medium text-ink-secondary">{label}</div>
+          <div className="text-sm font-medium text-ink-secondary">{label}</div>
           {onReset && (
             <button
               onClick={onReset}
-              className="text-[10px] text-ink-muted hover:text-primary-600 flex items-center gap-0.5"
+              className="text-xs text-ink-muted hover:text-primary-600 flex items-center gap-0.5"
               title="초기화"
             >
-              <RotateCcw size={9} />
+              <RotateCcw size={11} />
               초기화
             </button>
           )}
@@ -46,7 +46,7 @@ export function ColorPicker({
             className="sr-only"
           />
           <div
-            className="w-8 h-8 rounded-lg border-2 border-white shadow-sm hover:scale-105 transition-transform"
+            className="w-10 h-10 rounded-lg border-2 border-white shadow-sm hover:scale-105 transition-transform"
             style={{ background: value || '#000000' }}
           />
         </label>
@@ -60,23 +60,23 @@ export function ColorPicker({
               onChange(v);
             }
           }}
-          className="flex-1 min-w-0 rounded-lg border border-surface-border px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="flex-1 min-w-0 rounded-lg border border-surface-border px-2.5 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
           placeholder="#000000"
         />
 
         {presets && presets.length > 0 && (
           <button
             onClick={() => setOpen(!open)}
-            className="p-1.5 rounded-lg hover:bg-surface-hover text-ink-secondary shrink-0"
+            className="p-2 rounded-lg hover:bg-surface-hover text-ink-secondary shrink-0"
             title="추천 색상"
           >
-            <Palette size={13} />
+            <Palette size={16} />
           </button>
         )}
       </div>
 
       {open && presets && (
-        <div className="flex gap-1 flex-wrap p-2 rounded-lg bg-surface-bg">
+        <div className="flex gap-1.5 flex-wrap p-2.5 rounded-lg bg-surface-bg">
           {presets.map((p, i) => (
             <button
               key={i}
@@ -84,7 +84,7 @@ export function ColorPicker({
                 onChange(p);
                 setOpen(false);
               }}
-              className="w-5 h-5 rounded border border-white shadow-sm hover:scale-110 transition-transform"
+              className="w-6 h-6 rounded border border-white shadow-sm hover:scale-110 transition-transform"
               style={{ background: p }}
               title={p}
             />

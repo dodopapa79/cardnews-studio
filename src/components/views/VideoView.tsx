@@ -4,12 +4,10 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
-import { ColorPicker } from '@/components/ColorPicker';
 import { renderNodeToDataUrl } from '@/lib/card-renderer';
 import { generateShorts, downloadBlob } from '@/lib/video-generator';
 import { getPresetById } from '@/presets';
 import { CardSlide } from '@/templates';
-import { formatRelativeTime } from '@/lib/utils';
 import { BGM_SOURCES, BGM_CATEGORY_LABELS, getAudioDuration } from '@/lib/bgm';
 import type {
   Slide,
@@ -17,18 +15,15 @@ import type {
   CardNewsProject,
   BrandInfo,
   UploadedBgm,
-  LogoConfig,
   VideoStyle,
-  VideoCardPosition,
   VideoTransition,
-  VideoBackgroundType,
+  TextAnimation,
 } from '@/lib/types';
-import { EMPTY_LOGO, DEFAULT_VIDEO_STYLE, VIDEO_BG_PRESETS } from '@/lib/types';
+import { DEFAULT_VIDEO_STYLE } from '@/lib/types';
 import {
   Film,
   AlertCircle,
   Music,
-  Image as ImageIcon,
   X,
   Play,
   Pause,
@@ -37,12 +32,25 @@ import {
   Smartphone,
   Check,
   Loader2,
-  Palette,
-  MoveVertical,
-  Sliders,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
+
+const TRANSITIONS: { id: VideoTransition; name: string }[] = [
+  { id: 'fade', name: '페이드' },
+  { id: 'slide', name: '슬라이드' },
+  { id: 'slide-up', name: '슬라이드업' },
+  { id: 'zoom', name: '줌' },
+  { id: 'blur', name: '블러' },
+];
+
+const TEXT_ANIMS: { id: TextAnimation; name: string }[] = [
+  { id: 'none', name: '없음' },
+  { id: 'fade-in', name: '페이드인' },
+  { id: 'slide-up', name: '위로' },
+  { id: 'slide-down', name: '아래로' },
+  { id: 'slide-left', name: '좌측' },
+  { id: 'slide-right', name: '우측' },
+  { id: 'zoom-in', name: '줌인' },
+];
 
 export function VideoView({
   slides: currentSlides,
@@ -70,7 +78,6 @@ export function VideoView({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(currentProjectId);
 
   const [videoStyle, setVideoStyle] = useState<VideoStyle>(DEFAULT_VIDEO_STYLE);
-  const [videoStyleOpen, setVideoStyleOpen] = useState(true);
 
   const localCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,11 +86,8 @@ export function VideoView({
   const [error, setError] = useState('');
   const [bgm, setBgm] = useState<UploadedBgm | null>(null);
   const [bgmCategory, setBgmCategory] = useState<string>('all');
-  const [logo, setLogo] = useState<LogoConfig>(EMPTY_LOGO);
   const [phoneMockupOpen, setPhoneMockupOpen] = useState(false);
-  const [projectListOpen, setProjectListOpen] = useState(true);
 
-  // 미리보기
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [previewSlideIdx, setPreviewSlideIdx] = useState(0);
@@ -92,20 +96,19 @@ export function VideoView({
   const [previewImages, setPreviewImages] = useState<HTMLImageElement[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const updateVideo = (patch: Partial<VideoStyle>) =>
+  const updateVideo = (patch: Partial<VideoStyle>) => {
     setVideoStyle((prev) => ({ ...prev, ...patch }));
+    setPreviewPlaying(false);
+  };
 
-  // 프로젝트 로드
   function loadFromProject(project: CardNewsProject) {
     const p = getPresetById(project.presetId);
     setSelectedSlides(project.slides);
     setSelectedPreset(p);
-    setSelectedColorId(
-      project.presetColorId || p.colorVariants[0]?.id || ''
-    );
+    setSelectedColorId(project.presetColorId || p.colorVariants[0]?.id || '');
     setSelectedBrand(project.brand);
     setSelectedProjectId(project.id);
-    setProjectListOpen(false);
+    setPreviewPlaying(false);
   }
 
   useEffect(() => {
@@ -121,7 +124,6 @@ export function VideoView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProjectId, projects]);
 
-  // 카드 렌더 → 이미지
   useEffect(() => {
     if (selectedSlides.length === 0) {
       setPreviewImages([]);
@@ -169,56 +171,20 @@ export function VideoView({
     };
   }, [selectedSlides, selectedColorId, selectedPreset.id]);
 
-  // ─────────────────────────────────
-  // 미리보기 렌더 헬퍼
-  // ─────────────────────────────────
-  function drawPreviewBackground(ctx: CanvasRenderingContext2D, W: number, H: number) {
-    if (videoStyle.backgroundType === 'gradient') {
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, videoStyle.backgroundColor);
-      grad.addColorStop(1, videoStyle.backgroundColorEnd);
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
-    } else if (videoStyle.backgroundType === 'mesh') {
-      ctx.fillStyle = videoStyle.backgroundColor;
-      ctx.fillRect(0, 0, W, H);
-      const r1 = ctx.createRadialGradient(
-        W * 0.2, H * 0.2, 0,
-        W * 0.2, H * 0.2, W * 0.7
-      );
-      r1.addColorStop(0, videoStyle.backgroundColorEnd + 'cc');
-      r1.addColorStop(1, 'transparent');
-      ctx.fillStyle = r1;
-      ctx.fillRect(0, 0, W, H);
-      const r2 = ctx.createRadialGradient(
-        W * 0.8, H * 0.7, 0,
-        W * 0.8, H * 0.7, W * 0.8
-      );
-      r2.addColorStop(0, videoStyle.backgroundColorEnd + '99');
-      r2.addColorStop(1, 'transparent');
-      ctx.fillStyle = r2;
-      ctx.fillRect(0, 0, W, H);
-    } else {
-      ctx.fillStyle = videoStyle.backgroundColor;
-      ctx.fillRect(0, 0, W, H);
-    }
-  }
-
-  function getPreviewCardRect(img: HTMLImageElement, W: number, H: number) {
-    const targetH = H * videoStyle.cardScale;
+  function getPreviewCardRect(img: HTMLImageElement, W: number, H: number, extraScale = 1) {
+    const maxW = W * 0.9;
+    const maxH = H * 0.75;
     const ratio = img.width / img.height;
-    let w = targetH * ratio;
-    let h = targetH;
-    const maxW = W * 0.92;
-    if (w > maxW) {
-      w = maxW;
-      h = w / ratio;
+    let w = maxW;
+    let h = w / ratio;
+    if (h > maxH) {
+      h = maxH;
+      w = h * ratio;
     }
-    let y = 0;
-    if (videoStyle.cardPosition === 'top') y = H * 0.08;
-    else if (videoStyle.cardPosition === 'bottom') y = H - h - H * 0.08;
-    else y = (H - h) / 2;
+    w *= extraScale;
+    h *= extraScale;
     const x = (W - w) / 2;
+    const y = (H - h) / 2;
     return { x, y, w, h };
   }
 
@@ -233,24 +199,23 @@ export function VideoView({
     scale = 1,
     blur = 0
   ) {
-    const rect = getPreviewCardRect(img, W, H);
-    const cx = rect.x + rect.w / 2;
-    const cy = rect.y + rect.h / 2;
-    const sw = rect.w * scale;
-    const sh = rect.h * scale;
+    const rect = getPreviewCardRect(img, W, H, scale);
+    const cx = rect.x + rect.w / 2 + offsetX;
+    const cy = rect.y + rect.h / 2 + offsetY;
+    const sw = rect.w;
+    const sh = rect.h;
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(offsetX, offsetY);
     if (blur > 0) ctx.filter = `blur(${blur}px)`;
 
-    if (videoStyle.cardShadow) {
-      ctx.shadowColor = 'rgba(0,0,0,0.4)';
-      ctx.shadowBlur = 20;
-      ctx.shadowOffsetY = 10;
-    }
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 20;
+    ctx.shadowOffsetY = 8;
+
+    const radius = 10;
     ctx.beginPath();
-    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, videoStyle.cardRadius * 0.4);
+    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, radius);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
 
@@ -261,7 +226,7 @@ export function VideoView({
 
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, videoStyle.cardRadius * 0.4);
+    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, radius);
     ctx.clip();
     ctx.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh);
     ctx.restore();
@@ -269,34 +234,61 @@ export function VideoView({
     ctx.restore();
   }
 
-  function drawPreviewProgressBar(
+  function renderPreviewTransition(
     ctx: CanvasRenderingContext2D,
+    fromImg: HTMLImageElement,
+    toImg: HTMLImageElement,
+    t: number,
     W: number,
-    elapsed: number,
-    totalMs: number,
-    slideIdx: number,
-    slideCount: number
+    H: number,
+    type: VideoTransition
   ) {
-    if (!videoStyle.showProgressBar) return;
-    const progress = elapsed / totalMs;
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(0, 0, W, 3);
-    ctx.fillStyle = videoStyle.progressBarColor;
-    ctx.fillRect(0, 0, W * progress, 3);
-
-    const dotY = 12;
-    const dotSpacing = 8;
-    const startX = (W - (slideCount - 1) * dotSpacing) / 2;
-    for (let i = 0; i < slideCount; i++) {
-      ctx.beginPath();
-      ctx.arc(startX + i * dotSpacing, dotY, i === slideIdx ? 3 : 1.5, 0, Math.PI * 2);
-      ctx.fillStyle =
-        i <= slideIdx ? videoStyle.progressBarColor : 'rgba(255,255,255,0.3)';
-      ctx.fill();
+    if (type === 'fade') {
+      drawPreviewCard(ctx, fromImg, W, H, 1 - t);
+      drawPreviewCard(ctx, toImg, W, H, t);
+    } else if (type === 'slide') {
+      drawPreviewCard(ctx, fromImg, W, H, 1, -t * W, 0);
+      drawPreviewCard(ctx, toImg, W, H, 1, (1 - t) * W, 0);
+    } else if (type === 'slide-up') {
+      drawPreviewCard(ctx, fromImg, W, H, 1, 0, -t * H * 0.5);
+      drawPreviewCard(ctx, toImg, W, H, 1, 0, (1 - t) * H * 0.5);
+    } else if (type === 'zoom') {
+      drawPreviewCard(ctx, fromImg, W, H, 1 - t, 0, 0, 1 + t * 0.15);
+      drawPreviewCard(ctx, toImg, W, H, t, 0, 0, 0.85 + t * 0.15);
+    } else if (type === 'blur') {
+      drawPreviewCard(ctx, fromImg, W, H, 1 - t, 0, 0, 1, t * 12);
+      drawPreviewCard(ctx, toImg, W, H, t, 0, 0, 1, (1 - t) * 12);
     }
   }
 
-  // 정지 상태 그리기
+  function applyPreviewTextAnimation(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    slideProgress: number,
+    animation: TextAnimation,
+    W: number,
+    H: number
+  ) {
+    const t = Math.min(slideProgress * 2, 1);
+    if (animation === 'none') {
+      drawPreviewCard(ctx, img, W, H, 1);
+    } else if (animation === 'fade-in') {
+      drawPreviewCard(ctx, img, W, H, t);
+    } else if (animation === 'slide-up') {
+      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), 0, (1 - t) * 30);
+    } else if (animation === 'slide-down') {
+      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), 0, -(1 - t) * 30);
+    } else if (animation === 'slide-left') {
+      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), (1 - t) * 40, 0);
+    } else if (animation === 'slide-right') {
+      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), -(1 - t) * 40, 0);
+    } else if (animation === 'zoom-in') {
+      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), 0, 0, 0.85 + t * 0.15);
+    } else {
+      drawPreviewCard(ctx, img, W, H, 1);
+    }
+  }
+
   useEffect(() => {
     if (previewPlaying) return;
     const canvas = previewCanvasRef.current;
@@ -304,14 +296,12 @@ export function VideoView({
     const ctx = canvas.getContext('2d')!;
     const W = canvas.width;
     const H = canvas.height;
-
-    drawPreviewBackground(ctx, W, H);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
     const img = previewImages[previewSlideIdx] || previewImages[0];
     drawPreviewCard(ctx, img, W, H, 1);
-    drawPreviewProgressBar(ctx, W, 0, 1, previewSlideIdx, previewImages.length);
-  }, [previewImages, previewSlideIdx, previewPlaying, videoStyle]);
+  }, [previewImages, previewSlideIdx, previewPlaying]);
 
-  // 재생 루프
   useEffect(() => {
     if (!previewPlaying || previewImages.length === 0) return;
     const canvas = previewCanvasRef.current;
@@ -334,40 +324,41 @@ export function VideoView({
         previewImages.length - 1
       );
       const slideElapsed = e - slideIdx * videoStyle.slideDurationMs;
+      const slideProgress = slideElapsed / videoStyle.slideDurationMs;
       const isTransition =
         slideElapsed > videoStyle.slideDurationMs - videoStyle.transitionMs &&
         slideIdx < previewImages.length - 1;
       const nextIdx = Math.min(slideIdx + 1, previewImages.length - 1);
 
       setPreviewSlideIdx(slideIdx);
-      drawPreviewBackground(ctx, W, H);
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, W, H);
 
       if (isTransition) {
         const t =
           (slideElapsed - (videoStyle.slideDurationMs - videoStyle.transitionMs)) /
           videoStyle.transitionMs;
-        const type = videoStyle.transition;
-        if (type === 'fade') {
-          drawPreviewCard(ctx, previewImages[slideIdx], W, H, 1 - t);
-          drawPreviewCard(ctx, previewImages[nextIdx], W, H, t);
-        } else if (type === 'slide') {
-          drawPreviewCard(ctx, previewImages[slideIdx], W, H, 1, -t * W, 0);
-          drawPreviewCard(ctx, previewImages[nextIdx], W, H, 1, (1 - t) * W, 0);
-        } else if (type === 'slide-up') {
-          drawPreviewCard(ctx, previewImages[slideIdx], W, H, 1, 0, -t * H * 0.3);
-          drawPreviewCard(ctx, previewImages[nextIdx], W, H, 1, 0, (1 - t) * H * 0.3);
-        } else if (type === 'zoom') {
-          drawPreviewCard(ctx, previewImages[slideIdx], W, H, 1 - t, 0, 0, 1 - t * 0.15);
-          drawPreviewCard(ctx, previewImages[nextIdx], W, H, t, 0, 0, 0.85 + t * 0.15);
-        } else if (type === 'blur') {
-          drawPreviewCard(ctx, previewImages[slideIdx], W, H, 1 - t, 0, 0, 1, t * 10);
-          drawPreviewCard(ctx, previewImages[nextIdx], W, H, t, 0, 0, 1, (1 - t) * 10);
-        }
+        renderPreviewTransition(
+          ctx,
+          previewImages[slideIdx],
+          previewImages[nextIdx],
+          t,
+          W,
+          H,
+          videoStyle.transition
+        );
       } else {
-        drawPreviewCard(ctx, previewImages[slideIdx], W, H, 1);
+        applyPreviewTextAnimation(
+          ctx,
+          previewImages[slideIdx],
+          slideProgress,
+          videoStyle.textAnimation,
+          W,
+          H
+        );
       }
 
-      drawPreviewProgressBar(ctx, W, e, totalMs, slideIdx, previewImages.length);
       previewRafRef.current = requestAnimationFrame(tick);
     };
 
@@ -377,7 +368,6 @@ export function VideoView({
     };
   }, [previewPlaying, previewImages, videoStyle]);
 
-  // BGM
   async function handleBgmUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -401,26 +391,10 @@ export function VideoView({
     e.target.value = '';
   }
 
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('이미지 파일만 업로드할 수 있습니다.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setLogo((prev) => ({ ...prev, imageUrl: reader.result as string }));
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  }
-
-  // 영상 생성
   async function handleGenerate() {
     const nodes = localCardRefs.current.filter(Boolean) as HTMLDivElement[];
     if (nodes.length === 0) {
-      setError('카드뉴스가 없습니다. 먼저 카드뉴스를 만들어주세요.');
+      setError('카드뉴스가 없습니다.');
       return;
     }
 
@@ -440,11 +414,14 @@ export function VideoView({
       setStatus('영상 녹화 중...');
       const blob = await generateShorts(cardPngs, {
         ...videoStyle,
-        subtitleTexts: selectedSlides.map((s) => s.headline),
         bgm: bgm
-          ? { file: bgm.file, volume: bgm.volume, fadeIn: bgm.fadeIn, fadeOut: bgm.fadeOut }
+          ? {
+              file: bgm.file,
+              volume: bgm.volume,
+              fadeIn: bgm.fadeIn,
+              fadeOut: bgm.fadeOut,
+            }
           : undefined,
-        logo: logo.imageUrl ? logo : undefined,
         onProgress: setProgress,
         onStatus: setStatus,
       });
@@ -452,7 +429,7 @@ export function VideoView({
       downloadBlob(blob, `shorts-${Date.now()}.webm`);
       setStatus('완료!');
     } catch (e: any) {
-      setError(e.message || '영상 생성 중 오류가 발생했습니다.');
+      setError(e.message || '영상 생성 중 오류');
     } finally {
       setLoading(false);
       setTimeout(() => {
@@ -462,7 +439,6 @@ export function VideoView({
     }
   }
 
-  // 빈 상태
   if (selectedSlides.length === 0) {
     return (
       <div className="max-w-4xl mx-auto space-y-4">
@@ -471,21 +447,14 @@ export function VideoView({
             <div className="w-16 h-16 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-4">
               <Film size={28} />
             </div>
-            <div className="text-base font-semibold mb-1">카드뉴스를 선택하세요</div>
-            <div className="text-sm text-ink-secondary mb-6">
-              저장된 카드뉴스를 불러와서 숏츠 영상으로 만드세요
+            <div className="text-base font-semibold mb-1">
+              저장된 카드뉴스가 없습니다
+            </div>
+            <div className="text-sm text-ink-secondary">
+              먼저 카드뉴스를 만들어주세요
             </div>
           </div>
         </Card>
-
-        {projectListOpen && (
-          <ProjectListInline
-            projects={projects}
-            currentProjectId={selectedProjectId}
-            onSelect={loadFromProject}
-            onClose={() => setProjectListOpen(false)}
-          />
-        )}
       </div>
     );
   }
@@ -497,212 +466,94 @@ export function VideoView({
   return (
     <>
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* 상단 바 */}
-        <Card padding={false} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Film size={16} className="text-primary-600" />
-            <span className="text-sm font-medium">
-              {currentProjectName || '카드뉴스'}
-            </span>
-            <span className="text-xs text-ink-muted">
-              ({selectedSlides.length}장)
-            </span>
+        {/* 프로젝트 선택 가로 스크롤 */}
+        <Card padding={false} className="p-3">
+          <div className="flex items-center gap-3 mb-2 px-1">
+            <FolderOpen size={14} className="text-primary-600" />
+            <span className="text-sm font-semibold">카드뉴스 선택</span>
+            <span className="text-xs text-ink-muted">({projects.length}개)</span>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<FolderOpen size={14} />}
-            onClick={() => setProjectListOpen(!projectListOpen)}
-            className="ml-auto"
+          <div
+            className="flex gap-2 overflow-x-auto pb-1"
+            style={{ scrollbarWidth: 'thin' }}
           >
-            다른 카드뉴스 ({projects.length})
-          </Button>
+            {projects.map((p) => {
+              const preset = getPresetById(p.presetId);
+              const cover = p.slides[0];
+              const isCurrent = selectedProjectId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => loadFromProject(p)}
+                  className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all text-left ${
+                    isCurrent
+                      ? 'border-primary-500 shadow-md'
+                      : 'border-surface-border hover:border-primary-300'
+                  }`}
+                  style={{ width: 90 }}
+                >
+                  <div
+                    className="relative bg-white"
+                    style={{
+                      aspectRatio: p.cardSize === 'square' ? '1 / 1' : '4 / 5',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 1080,
+                        height: p.cardSize === 'square' ? 1080 : 1350,
+                        transform: 'scale(0.083)',
+                        transformOrigin: 'top left',
+                      }}
+                    >
+                      {cover && (
+                        <CardSlide
+                          slide={cover}
+                          preset={preset}
+                          colorId={p.presetColorId}
+                          brand={p.brand}
+                          width={1080}
+                          height={p.cardSize === 'square' ? 1080 : 1350}
+                          isLast={false}
+                        />
+                      )}
+                    </div>
+                    {isCurrent && (
+                      <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center text-white">
+                        <Check size={11} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-1.5 bg-white">
+                    <div className="text-[10px] font-semibold truncate">
+                      {p.name}
+                    </div>
+                    <div className="text-[9px] text-ink-muted">
+                      {p.slides.length}장
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </Card>
 
-        {/* 인라인 프로젝트 목록 */}
-        {projectListOpen && (
-          <ProjectListInline
-            projects={projects}
-            currentProjectId={selectedProjectId}
-            onSelect={loadFromProject}
-            onClose={() => setProjectListOpen(false)}
-          />
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* 좌측 컨트롤 */}
           <div className="lg:col-span-7 space-y-3">
-            {/* 배경 섹션 */}
             <Card>
               <CardHeader
-                title="🎨 배경"
-                subtitle="영상의 배경 색상/그라데이션"
+                title="현재 카드뉴스"
+                subtitle={currentProjectName || ''}
               />
-              <div className="space-y-3">
-                {/* 배경 프리셋 */}
-                <div className="grid grid-cols-6 gap-2">
-                  {VIDEO_BG_PRESETS.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        updateVideo({
-                          backgroundColor: p.from,
-                          backgroundColorEnd: p.to,
-                          backgroundPreset: p.id,
-                          backgroundType: 'gradient',
-                        });
-                      }}
-                      className={`aspect-square rounded-lg border-2 transition-all ${
-                        videoStyle.backgroundPreset === p.id
-                          ? 'border-primary-500 scale-105'
-                          : 'border-surface-border hover:border-primary-300'
-                      }`}
-                      style={{
-                        background: `linear-gradient(135deg, ${p.from} 0%, ${p.to} 100%)`,
-                      }}
-                      title={p.name}
-                    />
-                  ))}
-                </div>
-
-                {/* 배경 타입 */}
-                <div className="flex gap-2">
-                  {(['color', 'gradient', 'mesh'] as VideoBackgroundType[]).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => updateVideo({ backgroundType: t })}
-                      className={`flex-1 py-2 rounded-lg border text-xs font-medium transition ${
-                        videoStyle.backgroundType === t
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-surface-border'
-                      }`}
-                    >
-                      {t === 'color' ? '단색' : t === 'gradient' ? '그라데이션' : '메시'}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 컬러피커 */}
-                <div className="grid grid-cols-2 gap-3">
-                  <ColorPicker
-                    label="시작 색상"
-                    value={videoStyle.backgroundColor}
-                    onChange={(v) =>
-                      updateVideo({ backgroundColor: v, backgroundPreset: '' })
-                    }
-                    presets={['#000000', '#0f172a', '#7f1d1d', '#3b0764', '#052e16', '#ffffff']}
-                  />
-                  {videoStyle.backgroundType !== 'color' && (
-                    <ColorPicker
-                      label="끝 색상"
-                      value={videoStyle.backgroundColorEnd}
-                      onChange={(v) =>
-                        updateVideo({ backgroundColorEnd: v, backgroundPreset: '' })
-                      }
-                      presets={['#1a1a1a', '#1e293b', '#991b1b', '#581c87', '#064e3b', '#f5f5f5']}
-                    />
-                  )}
-                </div>
+              <div className="text-sm text-ink-secondary">
+                {selectedSlides.length}장 · {selectedPreset.name}
               </div>
             </Card>
 
-            {/* 카드 위치 */}
-            <Card>
-              <CardHeader title="📐 카드 배치" subtitle="카드가 화면 어디에 위치할지" />
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  {(['top', 'center', 'bottom'] as VideoCardPosition[]).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => updateVideo({ cardPosition: p })}
-                      className={`py-3 rounded-lg border-2 transition ${
-                        videoStyle.cardPosition === p
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-surface-border hover:border-primary-300'
-                      }`}
-                    >
-                      <div
-                        className="mx-auto bg-gray-800 rounded mb-1.5"
-                        style={{
-                          width: 24,
-                          height: 40,
-                          display: 'flex',
-                          alignItems:
-                            p === 'top' ? 'flex-start' : p === 'center' ? 'center' : 'flex-end',
-                          justifyContent: 'center',
-                          padding: 3,
-                        }}
-                      >
-                        <div className="w-full h-4 bg-primary-400 rounded-sm" />
-                      </div>
-                      <div className="text-[11px] font-medium">
-                        {p === 'top' ? '상단' : p === 'center' ? '중앙' : '하단'}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-ink-secondary">카드 크기</span>
-                    <span className="text-ink-muted">
-                      {Math.round(videoStyle.cardScale * 100)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.6}
-                    max={1}
-                    step={0.05}
-                    value={videoStyle.cardScale}
-                    onChange={(e) => updateVideo({ cardScale: Number(e.target.value) })}
-                    className="w-full"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-medium text-ink-secondary">라운드</span>
-                      <span className="text-ink-muted">{videoStyle.cardRadius}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={64}
-                      step={4}
-                      value={videoStyle.cardRadius}
-                      onChange={(e) =>
-                        updateVideo({ cardRadius: Number(e.target.value) })
-                      }
-                      className="w-full"
-                    />
-                  </div>
-                  <label className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={videoStyle.cardShadow}
-                      onChange={(e) => updateVideo({ cardShadow: e.target.checked })}
-                    />
-                    카드 그림자
-                  </label>
-                </div>
-              </div>
-            </Card>
-
-            {/* 전환 효과 */}
             <Card>
               <CardHeader title="🎬 전환 효과" />
               <div className="grid grid-cols-5 gap-2 mb-3">
-                {(
-                  [
-                    { id: 'fade', name: '페이드' },
-                    { id: 'slide', name: '슬라이드' },
-                    { id: 'slide-up', name: '슬라이드업' },
-                    { id: 'zoom', name: '줌' },
-                    { id: 'blur', name: '블러' },
-                  ] as { id: VideoTransition; name: string }[]
-                ).map((t) => (
+                {TRANSITIONS.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => updateVideo({ transition: t.id })}
@@ -719,7 +570,9 @@ export function VideoView({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-ink-secondary">전환 시간</span>
+                    <span className="font-medium text-ink-secondary">
+                      전환 시간
+                    </span>
                     <span className="text-ink-muted">
                       {videoStyle.transitionMs}ms
                     </span>
@@ -738,7 +591,9 @@ export function VideoView({
                 </div>
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-ink-secondary">슬라이드 시간</span>
+                    <span className="font-medium text-ink-secondary">
+                      슬라이드 시간
+                    </span>
                     <span className="text-ink-muted">
                       {(videoStyle.slideDurationMs / 1000).toFixed(1)}s
                     </span>
@@ -758,40 +613,25 @@ export function VideoView({
               </div>
             </Card>
 
-            {/* 진행바 */}
             <Card>
-              <CardHeader title="📊 진행 표시" />
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={videoStyle.showProgressBar}
-                    onChange={(e) =>
-                      updateVideo({ showProgressBar: e.target.checked })
-                    }
-                  />
-                  진행 바 표시
-                </label>
-                {videoStyle.showProgressBar && (
-                  <ColorPicker
-                    label="진행 바 색상"
-                    value={videoStyle.progressBarColor}
-                    onChange={(v) => updateVideo({ progressBarColor: v })}
-                    presets={['#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#10b981']}
-                  />
-                )}
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={videoStyle.showSubtitle}
-                    onChange={(e) => updateVideo({ showSubtitle: e.target.checked })}
-                  />
-                  자막 표시 (헤드라인)
-                </label>
+              <CardHeader title="✨ 텍스트 등장 효과" />
+              <div className="grid grid-cols-4 gap-2">
+                {TEXT_ANIMS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => updateVideo({ textAnimation: t.id })}
+                    className={`py-2 rounded-lg border text-xs font-medium transition ${
+                      videoStyle.textAnimation === t.id
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-surface-border hover:border-primary-300'
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                ))}
               </div>
             </Card>
 
-            {/* BGM */}
             <Card>
               <CardHeader
                 title="🎵 배경음악"
@@ -802,7 +642,9 @@ export function VideoView({
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-primary-50 border border-primary-200">
                     <Music size={20} className="text-primary-600" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{bgm.fileName}</div>
+                      <div className="text-sm font-medium truncate">
+                        {bgm.fileName}
+                      </div>
                       <div className="text-xs text-ink-muted">업로드됨</div>
                     </div>
                     <button
@@ -830,7 +672,9 @@ export function VideoView({
                       />
                     </label>
                     <label className="text-xs">
-                      <div className="font-medium mb-1">페이드 인: {bgm.fadeIn}s</div>
+                      <div className="font-medium mb-1">
+                        페이드 인: {bgm.fadeIn}s
+                      </div>
                       <input
                         type="range"
                         min={0}
@@ -873,7 +717,9 @@ export function VideoView({
                     <div className="border-2 border-dashed border-surface-border rounded-lg p-5 text-center hover:border-primary-400 hover:bg-primary-50/30 transition">
                       <Music size={22} className="mx-auto text-ink-muted mb-2" />
                       <div className="text-sm font-medium">음원 파일 업로드</div>
-                      <div className="text-xs text-ink-muted mt-1">mp3, wav, m4a</div>
+                      <div className="text-xs text-ink-muted mt-1">
+                        mp3, wav, m4a
+                      </div>
                     </div>
                   </label>
                   <div>
@@ -925,7 +771,8 @@ export function VideoView({
                               {track.name}
                             </div>
                             <div className="text-[10px] text-ink-muted">
-                              {track.source} · {BGM_CATEGORY_LABELS[track.category]}
+                              {track.source} ·{' '}
+                              {BGM_CATEGORY_LABELS[track.category]}
                             </div>
                           </div>
                           <div className="text-xs text-primary-600 opacity-0 group-hover:opacity-100 transition">
@@ -938,119 +785,13 @@ export function VideoView({
                 </div>
               )}
             </Card>
-
-            {/* 로고 */}
-            <Card>
-              <CardHeader
-                title="🏷 로고"
-                subtitle="첫/마지막 프레임에 삽입"
-              />
-              {logo.imageUrl ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-primary-50 border border-primary-200">
-                    <img
-                      src={logo.imageUrl}
-                      alt="logo"
-                      className="w-12 h-12 object-contain bg-white rounded"
-                    />
-                    <div className="flex-1 text-sm font-medium">로고 준비됨</div>
-                    <button
-                      onClick={() => setLogo(EMPTY_LOGO)}
-                      className="p-1.5 rounded text-primary-600 hover:bg-primary-100"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <label>
-                      <div className="font-medium mb-1">표시 시점</div>
-                      <select
-                        value={logo.frame}
-                        onChange={(e) =>
-                          setLogo({ ...logo, frame: e.target.value as any })
-                        }
-                        className="w-full border rounded px-2 py-1.5"
-                      >
-                        <option value="first">첫 프레임</option>
-                        <option value="last">마지막 프레임</option>
-                        <option value="both">양쪽 다</option>
-                      </select>
-                    </label>
-                    <label>
-                      <div className="font-medium mb-1">화면 위치</div>
-                      <select
-                        value={logo.position}
-                        onChange={(e) =>
-                          setLogo({ ...logo, position: e.target.value as any })
-                        }
-                        className="w-full border rounded px-2 py-1.5"
-                      >
-                        <option value="bottom-right">우측 하단</option>
-                        <option value="bottom-left">좌측 하단</option>
-                        <option value="top-right">우측 상단</option>
-                        <option value="top-left">좌측 상단</option>
-                        <option value="center">중앙</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <label>
-                      <div className="font-medium mb-1">크기: {logo.size}px</div>
-                      <input
-                        type="range"
-                        min={80}
-                        max={500}
-                        step={10}
-                        value={logo.size}
-                        onChange={(e) =>
-                          setLogo({ ...logo, size: Number(e.target.value) })
-                        }
-                        className="w-full"
-                      />
-                    </label>
-                    <label>
-                      <div className="font-medium mb-1">
-                        투명도: {Math.round(logo.opacity * 100)}%
-                      </div>
-                      <input
-                        type="range"
-                        min={0.3}
-                        max={1}
-                        step={0.05}
-                        value={logo.opacity}
-                        onChange={(e) =>
-                          setLogo({ ...logo, opacity: Number(e.target.value) })
-                        }
-                        className="w-full"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ) : (
-                <label className="block cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleLogoUpload}
-                  />
-                  <div className="border-2 border-dashed border-surface-border rounded-lg p-5 text-center hover:border-primary-400 hover:bg-primary-50/30 transition">
-                    <ImageIcon size={22} className="mx-auto text-ink-muted mb-2" />
-                    <div className="text-sm font-medium">로고 이미지 업로드</div>
-                    <div className="text-xs text-ink-muted mt-1">
-                      PNG, SVG 권장 (투명 배경)
-                    </div>
-                  </div>
-                </label>
-              )}
-            </Card>
           </div>
 
           {/* 우측 미리보기 + 생성 */}
           <div className="lg:col-span-5 space-y-3">
             <Card padding={false} className="sticky top-20 p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-semibold">📱 실시간 미리보기</div>
+                <div className="text-sm font-semibold">📱 미리보기</div>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1061,14 +802,14 @@ export function VideoView({
                 </Button>
               </div>
 
-              <div className="flex justify-center bg-gray-900 rounded-xl overflow-hidden p-2">
+              <div className="flex justify-center bg-black rounded-xl overflow-hidden p-2">
                 <canvas
                   ref={previewCanvasRef}
                   width={360}
                   height={640}
                   style={{
                     width: '100%',
-                    maxWidth: 300,
+                    maxWidth: 280,
                     aspectRatio: '9 / 16',
                     borderRadius: 12,
                   }}
@@ -1082,7 +823,7 @@ export function VideoView({
                     setPreviewPlaying(!previewPlaying);
                   }}
                   disabled={previewImages.length === 0 || previewLoading}
-                  className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:opacity-50"
+                  className="w-11 h-11 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:opacity-50"
                 >
                   {previewLoading ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -1099,7 +840,7 @@ export function VideoView({
                     ? '준비 안 됨'
                     : previewPlaying
                     ? `${previewSlideIdx + 1}/${previewImages.length}`
-                    : '일시정지'}
+                    : '플레이 버튼을 눌러주세요'}
                 </div>
                 <button
                   onClick={() => {
@@ -1107,6 +848,7 @@ export function VideoView({
                     setPreviewSlideIdx(0);
                   }}
                   className="w-8 h-8 rounded-full hover:bg-surface-hover text-ink-secondary flex items-center justify-center"
+                  title="처음으로"
                 >
                   <RotateCcw size={14} />
                 </button>
@@ -1125,9 +867,6 @@ export function VideoView({
                   )}초`}
                 />
                 <Row label="포맷" value="WebM" />
-                <Row label="테마" value={selectedPreset.name} />
-                {bgm && <Row label="배경음악" value="포함" />}
-                {logo.imageUrl && <Row label="로고" value="포함" />}
               </div>
             </Card>
 
@@ -1166,7 +905,6 @@ export function VideoView({
         </div>
       </div>
 
-      {/* 숨겨진 카드 DOM */}
       <div
         style={{
           position: 'fixed',
@@ -1220,103 +958,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-ink-secondary">{label}</span>
       <span className="font-medium">{value}</span>
     </div>
-  );
-}
-
-// ─────────────────────────────────────────
-// 인라인 프로젝트 목록
-// ─────────────────────────────────────────
-function ProjectListInline({
-  projects,
-  currentProjectId,
-  onSelect,
-  onClose,
-}: {
-  projects: CardNewsProject[];
-  currentProjectId: string | null;
-  onSelect: (p: CardNewsProject) => void;
-  onClose: () => void;
-}) {
-  if (projects.length === 0) {
-    return (
-      <Card>
-        <div className="text-center py-8 text-sm text-ink-muted">
-          저장된 카드뉴스가 없습니다
-        </div>
-      </Card>
-    );
-  }
-  return (
-    <Card padding={false} className="p-2">
-      <div className="flex items-center justify-between px-2 py-1">
-        <div className="text-xs font-semibold text-ink-secondary">
-          카드뉴스 목록 ({projects.length})
-        </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-lg hover:bg-surface-hover text-ink-muted"
-        >
-          <X size={14} />
-        </button>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-72 overflow-y-auto p-1">
-        {projects.map((p) => {
-          const preset = getPresetById(p.presetId);
-          const cover = p.slides[0];
-          const isCurrent = currentProjectId === p.id;
-          return (
-            <button
-              key={p.id}
-              onClick={() => onSelect(p)}
-              className={`rounded-lg overflow-hidden border-2 transition-all text-left ${
-                isCurrent
-                  ? 'border-primary-500'
-                  : 'border-surface-border hover:border-primary-300'
-              }`}
-            >
-              <div
-                className="relative bg-white"
-                style={{
-                  aspectRatio:
-                    p.cardSize === 'square' ? '1 / 1' : '4 / 5',
-                }}
-              >
-                <div
-                  style={{
-                    width: p.cardSize === 'square' ? 1080 : 1080,
-                    height: p.cardSize === 'square' ? 1080 : 1350,
-                    transform: `scale(${140 / 1080})`,
-                    transformOrigin: 'top left',
-                  }}
-                >
-                  {cover && (
-                    <CardSlide
-                      slide={cover}
-                      preset={preset}
-                      colorId={p.presetColorId}
-                      brand={p.brand}
-                      width={p.cardSize === 'square' ? 1080 : 1080}
-                      height={p.cardSize === 'square' ? 1080 : 1350}
-                      isLast={false}
-                    />
-                  )}
-                </div>
-                {isCurrent && (
-                  <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center text-white">
-                    <Check size={11} strokeWidth={3} />
-                  </div>
-                )}
-              </div>
-              <div className="p-2 bg-white border-t border-surface-border">
-                <div className="text-[11px] font-semibold truncate">{p.name}</div>
-                <div className="text-[9px] text-ink-muted">
-                  {p.slides.length}장 · {formatRelativeTime(p.updatedAt)}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </Card>
   );
 }

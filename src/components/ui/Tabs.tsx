@@ -23,7 +23,7 @@ export function Tabs({
           key={t.id}
           onClick={() => onChange(t.id)}
           className={clsx(
-            'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+            'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold transition-all',
             active === t.id
               ? 'bg-white text-primary-700 shadow-sm'
               : 'text-ink-secondary hover:text-ink-primary'

@@ -1,6 +1,10 @@
 'use client';
 import { clsx } from 'clsx';
-import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from 'react';
+import type {
+  InputHTMLAttributes,
+  TextareaHTMLAttributes,
+  SelectHTMLAttributes,
+} from 'react';
 
 export function Input({
   label,
@@ -14,18 +18,20 @@ export function Input({
   return (
     <label className="block">
       {label && (
-        <div className="text-xs font-medium text-ink-secondary mb-1.5">{label}</div>
+        <div className="text-sm font-medium text-ink-secondary mb-1.5">
+          {label}
+        </div>
       )}
       <input
         {...rest}
         className={clsx(
-          'w-full rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-ink-primary',
+          'w-full rounded-lg border border-surface-border bg-white px-3.5 py-2.5 text-base text-ink-primary',
           'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
           'placeholder:text-ink-muted transition-shadow',
           className
         )}
       />
-      {hint && <div className="text-xs text-ink-muted mt-1.5">{hint}</div>}
+      {hint && <div className="text-sm text-ink-muted mt-1.5">{hint}</div>}
     </label>
   );
 }
@@ -42,18 +48,20 @@ export function Textarea({
   return (
     <label className="block">
       {label && (
-        <div className="text-xs font-medium text-ink-secondary mb-1.5">{label}</div>
+        <div className="text-sm font-medium text-ink-secondary mb-1.5">
+          {label}
+        </div>
       )}
       <textarea
         {...rest}
         className={clsx(
-          'w-full rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-ink-primary',
+          'w-full rounded-lg border border-surface-border bg-white px-3.5 py-2.5 text-base text-ink-primary',
           'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
           'placeholder:text-ink-muted transition-shadow resize-none',
           className
         )}
       />
-      {hint && <div className="text-xs text-ink-muted mt-1.5">{hint}</div>}
+      {hint && <div className="text-sm text-ink-muted mt-1.5">{hint}</div>}
     </label>
   );
 }
@@ -67,12 +75,14 @@ export function Select({
   return (
     <label className="block">
       {label && (
-        <div className="text-xs font-medium text-ink-secondary mb-1.5">{label}</div>
+        <div className="text-sm font-medium text-ink-secondary mb-1.5">
+          {label}
+        </div>
       )}
       <select
         {...rest}
         className={clsx(
-          'w-full rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-ink-primary',
+          'w-full rounded-lg border border-surface-border bg-white px-3.5 py-2.5 text-base text-ink-primary',
           'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
           className
         )}

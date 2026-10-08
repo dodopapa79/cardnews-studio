@@ -116,7 +116,7 @@ export default function Page() {
 
   function handlePresetChange(p: Preset, colorId?: string) {
     setPreset(p);
-    const cid = colorId || p.colorVariants[0].id;
+    const cid = colorId || p.colorVariants[0]?.id || '';
     setPresetColorId(cid);
     const newStats = incrementPresetStat(p.id);
     setStats(newStats);
@@ -134,6 +134,7 @@ export default function Page() {
       name,
       category: 'custom',
       builtin: false,
+      version: 1,
     };
     const updated = [...customPresets, next];
     setCustomPresets(updated);
@@ -154,11 +155,21 @@ export default function Page() {
       id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       category: 'custom' as const,
       builtin: false,
+      version: 1,
     }));
     const updated = [...customPresets, ...imported];
     setCustomPresets(updated);
     saveCustomPresets(updated);
     alert(`${imported.length}개 프리셋을 가져왔습니다.`);
+  }
+
+  /** AI가 생성한 프리셋 하나 추가 */
+  function handleImportCustom(preset: Preset) {
+    const updated = [...customPresets, preset];
+    setCustomPresets(updated);
+    saveCustomPresets(updated);
+    // 즉시 적용
+    handlePresetChange(preset);
   }
 
   async function handleSaveProject() {
@@ -316,6 +327,7 @@ export default function Page() {
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
           onImportPresets={handleImportPresets}
+          onImportCustom={handleImportCustom}
           onToggleFavorite={handleToggleFavorite}
           cardRefs={cardRefs}
           projects={projects}
@@ -345,6 +357,7 @@ export default function Page() {
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
           onImport={handleImportPresets}
+          onImportCustom={handleImportCustom}
           onToggleFavorite={handleToggleFavorite}
         />
       )}

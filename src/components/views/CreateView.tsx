@@ -14,8 +14,15 @@ import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { ProjectList } from '@/components/ProjectList';
 import { SlideStyleEditor } from '@/components/SlideStyleEditor';
 import { generateImage } from '@/lib/imagegen';
+import { translatePromptToKo } from '@/lib/gemini';
 import { exportCardsAsZip } from '@/lib/card-renderer';
-import type { Preset, Settings, Slide, CardNewsProject, CardSize } from '@/lib/types';
+import type {
+  Preset,
+  Settings,
+  Slide,
+  CardNewsProject,
+  CardSize,
+} from '@/lib/types';
 import { CARD_SIZE_DIMENSIONS } from '@/lib/types';
 import {
   Sparkles,
@@ -29,9 +36,10 @@ import {
   Save,
   FolderOpen,
   Plus,
-  ChevronDown,
   Download,
   FilePlus,
+  Layout,
+  ChevronDown,
 } from 'lucide-react';
 
 export function CreateView({
@@ -47,6 +55,7 @@ export function CreateView({
   onSaveCustom,
   onDeleteCustom,
   onImportPresets,
+  onImportCustom,
   onToggleFavorite,
   cardRefs,
   projects,
@@ -72,6 +81,7 @@ export function CreateView({
   onSaveCustom: (name: string) => void;
   onDeleteCustom: (id: string) => void;
   onImportPresets: (p: Preset[]) => void;
+  onImportCustom?: (p: Preset) => void;
   onToggleFavorite: (id: string) => void;
   cardRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
   projects: CardNewsProject[];
@@ -97,6 +107,8 @@ export function CreateView({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exporting, setExporting] = useState('');
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [showSizeSelect, setShowSizeSelect] = useState(false);
   const autoGenRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -109,6 +121,7 @@ export function CreateView({
     }
   }, [slides.length, selectedIdx]);
 
+  // 첫 카드 자동 이미지
   useEffect(() => {
     if (slides.length === 0) return;
     const first = slides[0];
@@ -213,11 +226,25 @@ export function CreateView({
         console.error(`슬라이드 ${i + 1} 실패:`, e);
       }
     }
-
     setBatchLoading(false);
     setBatchProgress({ current: 0, total: 0 });
     onBatchLockChange?.(false);
     setTimeout(() => onSaveProject?.(), 500);
+  }
+
+  async function handleTranslate() {
+    if (!selected || !selected.imagePrompt) return;
+    if (!settings.geminiApiKey) {
+      alert('Gemini API 키가 필요합니다.');
+      return;
+    }
+    setTranslating(true);
+    try {
+      const ko = await translatePromptToKo(settings.geminiApiKey, selected.imagePrompt);
+      if (ko) update(selectedIdx, { imagePromptKo: ko });
+    } finally {
+      setTranslating(false);
+    }
   }
 
   async function handleExport(size: CardSize) {
@@ -237,17 +264,71 @@ export function CreateView({
     }
   }
 
+  // ═══════════════════════════════════════
+  // 빈 상태 = 새로 제작
+  // ═══════════════════════════════════════
   if (slides.length === 0) {
     return (
       <>
-        <div className="max-w-2xl mx-auto mt-12 space-y-4">
+        <div className="max-w-2xl mx-auto mt-8 space-y-4">
+          {/* 카드 사이즈 먼저 선택 */}
           <Card>
-            <div className="text-center py-12">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-4">
-                <Sparkles size={28} />
+            <CardHeader title="카드 사이즈 선택" subtitle="먼저 사이즈를 고르세요" />
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  onCardSizeChange('instagram');
+                  setShowSizeSelect(true);
+                }}
+                className={`p-5 rounded-xl border-2 transition text-center ${
+                  cardSize === 'instagram'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-surface-border hover:border-primary-300'
+                }`}
+              >
+                <div className="flex justify-center mb-3">
+                  <div
+                    className="bg-gradient-to-br from-primary-500 to-primary-700 rounded"
+                    style={{ width: 60, height: 75 }}
+                  />
+                </div>
+                <div className="font-semibold text-base">인스타그램</div>
+                <div className="text-xs text-ink-muted mt-1">1080 × 1350 (4:5)</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  onCardSizeChange('square');
+                  setShowSizeSelect(true);
+                }}
+                className={`p-5 rounded-xl border-2 transition text-center ${
+                  cardSize === 'square'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-surface-border hover:border-primary-300'
+                }`}
+              >
+                <div className="flex justify-center mb-3">
+                  <div
+                    className="bg-gradient-to-br from-primary-500 to-primary-700 rounded"
+                    style={{ width: 75, height: 75 }}
+                  />
+                </div>
+                <div className="font-semibold text-base">정사각형</div>
+                <div className="text-xs text-ink-muted mt-1">1080 × 1080 (1:1)</div>
+              </button>
+            </div>
+          </Card>
+
+          {/* 새로 제작 or 목록에서 불러오기 */}
+          <Card>
+            <div className="text-center py-8">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-3">
+                <Sparkles size={24} />
               </div>
-              <div className="text-lg font-semibold mb-1">카드뉴스를 시작해보세요</div>
-              <div className="text-sm text-ink-secondary mb-6">
+              <div className="text-base font-semibold mb-1">
+                새 카드뉴스를 시작하세요
+              </div>
+              <div className="text-sm text-ink-secondary mb-5">
                 키워드, 블로그 URL, 또는 직접 텍스트로 생성
               </div>
               <div className="flex gap-2 justify-center flex-wrap">
@@ -256,7 +337,7 @@ export function CreateView({
                   icon={<Plus size={18} />}
                   onClick={() => setSourcePanelOpen(true)}
                 >
-                  새 카드뉴스 만들기
+                  새로 제작
                 </Button>
                 {projects.length > 0 && (
                   <Button
@@ -265,7 +346,7 @@ export function CreateView({
                     icon={<FolderOpen size={18} />}
                     onClick={() => setProjectListOpen(true)}
                   >
-                    저장된 카드뉴스 ({projects.length})
+                    목록에서 불러오기 ({projects.length})
                   </Button>
                 )}
               </div>
@@ -316,14 +397,16 @@ export function CreateView({
     );
   }
 
+  // ═══════════════════════════════════════
+  // 편집 화면
+  // ═══════════════════════════════════════
   return (
     <>
-      <div className="flex flex-col gap-4">
-        {/* 상단 툴바 */}
-        <Card padding={false} className="px-4 py-2.5 flex items-center gap-2 flex-wrap">
+      <div className="max-w-7xl mx-auto flex flex-col gap-4">
+        {/* ═══ 상단 툴바 ═══ */}
+        <Card padding={false} className="px-4 py-3 flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
-            variant="primary"
             icon={<FilePlus size={14} />}
             onClick={onCreateNew}
           >
@@ -333,17 +416,17 @@ export function CreateView({
           <div className="h-6 w-px bg-surface-border mx-1" />
 
           <Badge variant="primary">
-            {currentProject ? currentProject.name.slice(0, 12) : '새 카드뉴스'}
+            {currentProject ? currentProject.name.slice(0, 14) : '새 카드뉴스'}
           </Badge>
-          <span className="text-xs text-ink-muted hidden md:inline">
+          <span className="text-sm text-ink-muted hidden md:inline">
             {slides.length}장
           </span>
 
+          {/* 카드 사이즈 */}
           <div className="flex items-center gap-1 ml-2 pl-3 border-l border-surface-border">
-            <span className="text-xs text-ink-muted hidden lg:inline">사이즈:</span>
             <button
               onClick={() => onCardSizeChange('instagram')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${
                 cardSize === 'instagram'
                   ? 'bg-primary-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200'
@@ -353,7 +436,7 @@ export function CreateView({
             </button>
             <button
               onClick={() => onCardSizeChange('square')}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${
                 cardSize === 'square'
                   ? 'bg-primary-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200'
@@ -364,6 +447,7 @@ export function CreateView({
           </div>
 
           <div className="ml-auto flex gap-1.5 flex-wrap">
+            {/* 색상 도트 */}
             <div className="flex items-center gap-1 pr-2 border-r border-surface-border">
               {preset.colorVariants.map((c) => (
                 <button
@@ -372,7 +456,7 @@ export function CreateView({
                     setColorId(c.id);
                     onPresetChange(preset, c.id);
                   }}
-                  className={`w-5 h-5 rounded-full border-2 transition-all ${
+                  className={`w-6 h-6 rounded-full border-2 transition-all ${
                     colorId === c.id
                       ? 'border-primary-500 scale-110'
                       : 'border-white shadow-sm hover:scale-110'
@@ -408,6 +492,27 @@ export function CreateView({
               목록
             </Button>
 
+            {/* 삭제 버튼 */}
+            {currentProjectId && (
+              <Button
+                size="sm"
+                variant="danger"
+                icon={<Trash2 size={14} />}
+                onClick={() => {
+                  if (
+                    confirm(
+                      `"${currentProject?.name}" 카드뉴스를 삭제할까요?\n\n삭제하면 복구할 수 없습니다.`
+                    )
+                  ) {
+                    onDeleteProject(currentProjectId);
+                  }
+                }}
+              >
+                삭제
+              </Button>
+            )}
+
+            {/* PNG 저장 */}
             <div className="relative">
               <Button
                 size="sm"
@@ -416,23 +521,23 @@ export function CreateView({
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}
                 loading={!!exporting}
               >
-                {exporting ? exporting : 'PNG'}
+                {exporting ? exporting : 'PNG 저장'}
               </Button>
               {exportMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-surface-border p-1 z-30 min-w-[200px]">
                   <button
                     onClick={() => handleExport('instagram')}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover rounded flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center justify-between"
                   >
                     <span>인스타 4:5</span>
-                    <span className="text-ink-muted">1080 × 1350</span>
+                    <span className="text-ink-muted text-xs">1080 × 1350</span>
                   </button>
                   <button
                     onClick={() => handleExport('square')}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover rounded flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center justify-between"
                   >
                     <span>정사각형 1:1</span>
-                    <span className="text-ink-muted">1080 × 1080</span>
+                    <span className="text-ink-muted text-xs">1080 × 1080</span>
                   </button>
                 </div>
               )}
@@ -452,37 +557,51 @@ export function CreateView({
             >
               {batchLoading
                 ? `${batchProgress.current}/${batchProgress.total}`
-                : '모든 이미지'}
+                : '이미지 한번에 저장'}
             </Button>
           </div>
         </Card>
 
-        {sourcePanelOpen && (
-          <Card>
-            <CardHeader
-              title="카드뉴스 소스 재입력"
-              subtitle="새로 생성하면 현재 슬라이드가 대체됩니다"
-              action={
-                <button
-                  onClick={() => setSourcePanelOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-surface-hover text-ink-secondary"
-                >
-                  <X size={16} />
-                </button>
+        {/* ═══ 프리셋 최상단 ═══ */}
+        <Card>
+          <PresetPicker
+            current={preset}
+            currentColorId={colorId}
+            customPresets={customPresets}
+            favorites={favorites}
+            stats={stats}
+            brand={settings.brand}
+            onSelect={(p, cid) => {
+              // 프리셋 변경 시 저장 질문
+              if (slides.length > 0 && preset.id !== p.id) {
+                setTimeout(() => {
+                  if (
+                    confirm(
+                      `"${p.name}" 프리셋을 적용했습니다.\n\n이 스타일을 프리셋으로 저장할까요?`
+                    )
+                  ) {
+                    const name = prompt('프리셋 이름을 입력하세요');
+                    if (name?.trim()) onSaveCustom(name.trim());
+                  }
+                }, 100);
               }
-            />
-            <InputPanel
-              settings={settings}
-              onSlides={(s) => {
-                autoGenRef.current.clear();
-                onSlidesChange(s);
-                setSelectedIdx(0);
-                setSourcePanelOpen(false);
-              }}
-            />
-          </Card>
-        )}
+              onPresetChange(p, cid);
+              if (cid) setColorId(cid);
+            }}
+            onColorChange={(cid) => {
+              setColorId(cid);
+              onPresetChange(preset, cid);
+            }}
+            onSaveCustom={onSaveCustom}
+            onDeleteCustom={onDeleteCustom}
+            onImport={onImportPresets}
+            onImportCustom={onImportCustom}
+            onToggleFavorite={onToggleFavorite}
+            inline
+          />
+        </Card>
 
+        {/* ═══ 슬라이드 스트립 ═══ */}
         <Card padding={false} className="py-3">
           <HorizontalSlideStrip
             slides={slides}
@@ -495,6 +614,7 @@ export function CreateView({
           />
         </Card>
 
+        {/* ═══ 2컬럼: 미리보기 | 편집 ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7">
             {selected && (
@@ -552,19 +672,18 @@ export function CreateView({
                 <div className="space-y-3">
                   <Tabs
                     tabs={[
-                      { id: 'content', label: '내용' },
-                      { id: 'style', label: '스타일' },
+                      { id: 'content', label: '내용 & 스타일' },
                       { id: 'preset', label: '프리셋' },
                     ]}
-                    active={rightTab}
+                    active={rightTab === 'style' ? 'content' : rightTab}
                     onChange={(v) => setRightTab(v as any)}
                   />
 
                   <div className="max-h-[calc(100vh-380px)] overflow-y-auto pr-1">
-                    {rightTab === 'content' && (
+                    {rightTab !== 'preset' && (
                       <div className="space-y-3">
                         <Input
-                          label="라벨 (선택)"
+                          label="라벨"
                           value={selected.label}
                           onChange={(e) =>
                             update(selectedIdx, { label: e.target.value })
@@ -585,7 +704,7 @@ export function CreateView({
                           onChange={(e) =>
                             update(selectedIdx, { body: e.target.value })
                           }
-                          placeholder="40자 이내"
+                          placeholder="60자 이내"
                           rows={3}
                         />
                         {selected.type === 'data' && (
@@ -599,10 +718,12 @@ export function CreateView({
                           />
                         )}
 
+                        {/* 이미지 */}
                         <div className="border-t pt-3">
-                          <div className="text-xs font-semibold text-ink-secondary mb-2">
+                          <div className="text-sm font-semibold text-ink-secondary mb-2">
                             🖼 이미지
                           </div>
+
                           <Textarea
                             label="프롬프트 (영어)"
                             value={selected.imagePrompt}
@@ -613,6 +734,25 @@ export function CreateView({
                             rows={3}
                             className="font-mono text-xs"
                           />
+
+                          {/* 한글 설명 */}
+                          {selected.imagePromptKo && (
+                            <div className="mt-2 text-xs text-ink-secondary bg-surface-bg rounded-lg p-2">
+                              <span className="font-medium">한글 설명:</span>{' '}
+                              {selected.imagePromptKo}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleTranslate}
+                              loading={translating}
+                            >
+                              한글로 번역
+                            </Button>
+                          </div>
 
                           <div className="flex items-center gap-2 mt-3">
                             <Select
@@ -646,36 +786,40 @@ export function CreateView({
                           </div>
 
                           {selected.imageUrl && (
-                            <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-primary-50 border border-primary-200">
+                            <div className="mt-3 rounded-xl border-2 border-primary-200 overflow-hidden">
                               <img
                                 src={selected.imageUrl}
                                 alt=""
-                                className="w-12 h-12 object-cover rounded-lg"
+                                className="w-full max-h-72 object-contain bg-gray-100"
                               />
-                              <div className="text-xs text-primary-700 flex-1">
-                                이미지 준비됨
+                              <div className="flex items-center gap-2 p-2 bg-primary-50">
+                                <div className="text-xs text-primary-700 flex-1">
+                                  이미지 준비됨
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    update(selectedIdx, { imageUrl: '' })
+                                  }
+                                  className="p-1 rounded text-primary-700 hover:bg-primary-100"
+                                >
+                                  <X size={14} />
+                                </button>
                               </div>
-                              <button
-                                onClick={() =>
-                                  update(selectedIdx, { imageUrl: '' })
-                                }
-                                className="p-1 rounded text-primary-700 hover:bg-primary-100"
-                              >
-                                <X size={14} />
-                              </button>
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
 
-                    {rightTab === 'style' && (
-                      <SlideStyleEditor
-                        slide={selected}
-                        preset={preset}
-                        onChange={(patch) => update(selectedIdx, patch)}
-                        selectedElement={selectedElement}
-                      />
+                        {/* 스타일 편집기 */}
+                        <div className="border-t pt-3">
+                          <SlideStyleEditor
+                            slide={selected}
+                            preset={preset}
+                            colorId={colorId}
+                            onChange={(patch) => update(selectedIdx, patch)}
+                            selectedElement={selectedElement}
+                          />
+                        </div>
+                      </div>
                     )}
 
                     {rightTab === 'preset' && (
@@ -697,6 +841,7 @@ export function CreateView({
                         onSaveCustom={onSaveCustom}
                         onDeleteCustom={onDeleteCustom}
                         onImport={onImportPresets}
+                        onImportCustom={onImportCustom}
                         onToggleFavorite={onToggleFavorite}
                         inline
                       />

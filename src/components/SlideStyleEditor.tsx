@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ColorPicker } from '@/components/ColorPicker';
 import { Button } from '@/components/ui/Button';
 import type {
@@ -10,36 +10,23 @@ import type {
 } from '@/lib/types';
 import {
   RotateCcw,
-  Type,
-  Image as ImageIcon,
-  Palette,
   AlignLeft,
   AlignCenter,
   AlignRight,
-  Bold,
   Italic,
   Underline,
   ChevronDown,
   ChevronRight,
-  Sparkles,
+  Type,
+  Image as ImageIcon,
+  Palette,
 } from 'lucide-react';
 
 const COLOR_PRESETS = [
-  '#ffffff',
-  '#000000',
-  '#f5f5f5',
-  '#0a0a0a',
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#84cc16',
-  '#10b981',
-  '#06b6d4',
-  '#3b82f6',
-  '#8b5cf6',
-  '#d946ef',
-  '#ec4899',
-  '#f43f5e',
+  '#ffffff', '#000000', '#f5f5f5', '#0a0a0a',
+  '#ef4444', '#f97316', '#eab308', '#84cc16',
+  '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6',
+  '#d946ef', '#ec4899', '#f43f5e',
 ];
 
 type ElementKey = 'headline' | 'body' | 'highlight' | 'label';
@@ -47,29 +34,32 @@ type ElementKey = 'headline' | 'body' | 'highlight' | 'label';
 export function SlideStyleEditor({
   slide,
   preset,
+  colorId,
   onChange,
   selectedElement,
 }: {
   slide: Slide;
   preset: Preset;
+  colorId?: string;
   onChange: (patch: Partial<Slide>) => void;
   selectedElement?: string | null;
 }) {
-  const color = preset.colorVariants[0];
+  const baseColor =
+    preset.colorVariants.find((c) => c.id === colorId) || preset.colorVariants[0];
+  const color = baseColor;
 
-  // 아코디언 상태
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    text: true,
-    image: false,
-    color: false,
-  });
+  const [openElement, setOpenElement] = useState<ElementKey | null>(
+    (selectedElement as ElementKey) || 'headline'
+  );
+  const [openImage, setOpenImage] = useState(false);
+  const [openBg, setOpenBg] = useState(false);
 
-  const toggle = (key: string) =>
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  useEffect(() => {
+    if (selectedElement && ['headline', 'body', 'highlight', 'label'].includes(selectedElement)) {
+      setOpenElement(selectedElement as ElementKey);
+    }
+  }, [selectedElement]);
 
-  // ─────────────────────────────────
-  // 텍스트 오버라이드 헬퍼
-  // ─────────────────────────────────
   const getOverride = (key: ElementKey): TextStyleOverride => {
     if (key === 'headline') return slide.headlineStyle || {};
     if (key === 'body') return slide.bodyStyle || {};
@@ -81,28 +71,46 @@ export function SlideStyleEditor({
     const current = getOverride(key);
     const next = { ...current, ...patch };
     const field =
-      key === 'headline'
-        ? 'headlineStyle'
-        : key === 'body'
-        ? 'bodyStyle'
-        : key === 'highlight'
-        ? 'highlightStyle'
-        : 'labelStyle';
+      key === 'headline' ? 'headlineStyle'
+      : key === 'body' ? 'bodyStyle'
+      : key === 'highlight' ? 'highlightStyle'
+      : 'labelStyle';
     onChange({ [field]: next } as any);
   };
 
   const resetOverride = (key: ElementKey) => {
     const field =
-      key === 'headline'
-        ? 'headlineStyle'
-        : key === 'body'
-        ? 'bodyStyle'
-        : key === 'highlight'
-        ? 'highlightStyle'
-        : 'labelStyle';
+      key === 'headline' ? 'headlineStyle'
+      : key === 'body' ? 'bodyStyle'
+      : key === 'highlight' ? 'highlightStyle'
+      : 'labelStyle';
     onChange({ [field]: undefined } as any);
   };
 
+  const imgOv: ImageStyleOverride = slide.imageStyle || {};
+  const setImgOv = (patch: Partial<ImageStyleOverride>) =>
+    onChange({ imageStyle: { ...imgOv, ...patch } });
+  const resetImgOv = () => onChange({ imageStyle: undefined });
+
+  const hasAnyOverride =
+    !!slide.headlineStyle ||
+    !!slide.bodyStyle ||
+    !!slide.highlightStyle ||
+    !!slide.labelStyle ||
+    !!slide.imageStyle;
+
+  const resetAll = () => {
+    if (!confirm('모든 스타일 조정을 초기화할까요?')) return;
+    onChange({
+      headlineStyle: undefined,
+      bodyStyle: undefined,
+      highlightStyle: undefined,
+      labelStyle: undefined,
+      imageStyle: undefined,
+    });
+  };
+
+  // 요소별 기본값
   const getBase = (key: ElementKey) => {
     if (key === 'headline')
       return {
@@ -125,42 +133,11 @@ export function SlideStyleEditor({
     return { size: 22, weight: 700, color: color.accent };
   };
 
-  // ─────────────────────────────────
-  // 이미지 오버라이드
-  // ─────────────────────────────────
-  const imgOv: ImageStyleOverride = slide.imageStyle || {};
-  const setImgOv = (patch: Partial<ImageStyleOverride>) => {
-    onChange({ imageStyle: { ...imgOv, ...patch } });
-  };
-  const resetImgOv = () => onChange({ imageStyle: undefined });
-
-  // ─────────────────────────────────
-  // 전체 초기화
-  // ─────────────────────────────────
-  const hasAnyOverride =
-    !!slide.headlineStyle ||
-    !!slide.bodyStyle ||
-    !!slide.highlightStyle ||
-    !!slide.labelStyle ||
-    !!slide.imageStyle;
-
-  const resetAll = () => {
-    if (!confirm('이 슬라이드의 모든 스타일 조정을 초기화할까요?')) return;
-    onChange({
-      headlineStyle: undefined,
-      bodyStyle: undefined,
-      highlightStyle: undefined,
-      labelStyle: undefined,
-      imageStyle: undefined,
-    });
-  };
-
   return (
-    <div className="space-y-3">
-      {/* 헤더 */}
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
-          <Sparkles size={12} />
+          <Type size={12} />
           스타일 편집
         </div>
         {hasAnyOverride && (
@@ -174,99 +151,84 @@ export function SlideStyleEditor({
         )}
       </div>
 
-      {/* 요소 선택 안내 */}
-      {!selectedElement && (
-        <div className="text-[10px] text-primary-700 bg-primary-50 rounded-lg p-2 text-center">
-          💡 미리보기에서 텍스트를 클릭하면 해당 요소를 편집할 수 있습니다
-        </div>
+      {/* ═══ 헤드라인 ═══ */}
+      <ElementSection
+        title="헤드라인"
+        elementKey="headline"
+        override={getOverride('headline')}
+        base={getBase('headline')}
+        color={color}
+        highlighted={selectedElement === 'headline'}
+        open={openElement === 'headline'}
+        onToggle={() => setOpenElement(openElement === 'headline' ? null : 'headline')}
+        onUpdate={(patch) => setOverride('headline', patch)}
+        onReset={() => resetOverride('headline')}
+      />
+
+      {/* ═══ 본문 ═══ */}
+      {slide.body && (
+        <ElementSection
+          title="본문"
+          elementKey="body"
+          override={getOverride('body')}
+          base={getBase('body')}
+          color={color}
+          highlighted={selectedElement === 'body'}
+          open={openElement === 'body'}
+          onToggle={() => setOpenElement(openElement === 'body' ? null : 'body')}
+          onUpdate={(patch) => setOverride('body', patch)}
+          onReset={() => resetOverride('body')}
+        />
       )}
 
-      {/* ═══════════════════════════════ */}
-      {/* 텍스트 섹션 */}
-      {/* ═══════════════════════════════ */}
-      <div className="border border-surface-border rounded-lg overflow-hidden">
-        <button
-          onClick={() => toggle('text')}
-          className="w-full flex items-center gap-2 p-3 bg-surface-bg hover:bg-surface-hover transition"
-        >
-          {openSections.text ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <Type size={14} className="text-primary-600" />
-          <span className="text-xs font-semibold">텍스트</span>
-        </button>
+      {/* ═══ 강조 숫자 ═══ */}
+      {slide.type === 'data' && slide.highlight && (
+        <ElementSection
+          title="강조 숫자"
+          elementKey="highlight"
+          override={getOverride('highlight')}
+          base={getBase('highlight')}
+          color={color}
+          highlighted={selectedElement === 'highlight'}
+          open={openElement === 'highlight'}
+          onToggle={() =>
+            setOpenElement(openElement === 'highlight' ? null : 'highlight')
+          }
+          onUpdate={(patch) => setOverride('highlight', patch)}
+          onReset={() => resetOverride('highlight')}
+        />
+      )}
 
-        {openSections.text && (
-          <div className="p-3 space-y-3">
-            {/* 헤드라인 */}
-            <TextStyleSection
-              title="헤드라인"
-              elementKey="headline"
-              override={getOverride('headline')}
-              base={getBase('headline')}
-              highlighted={selectedElement === 'headline'}
-              onUpdate={(patch) => setOverride('headline', patch)}
-              onReset={() => resetOverride('headline')}
-            />
+      {/* ═══ 라벨 ═══ */}
+      {slide.label && (
+        <ElementSection
+          title="라벨"
+          elementKey="label"
+          override={getOverride('label')}
+          base={getBase('label')}
+          color={color}
+          highlighted={selectedElement === 'label'}
+          open={openElement === 'label'}
+          onToggle={() => setOpenElement(openElement === 'label' ? null : 'label')}
+          onUpdate={(patch) => setOverride('label', patch)}
+          onReset={() => resetOverride('label')}
+        />
+      )}
 
-            {/* 본문 */}
-            {slide.body && (
-              <TextStyleSection
-                title="본문"
-                elementKey="body"
-                override={getOverride('body')}
-                base={getBase('body')}
-                highlighted={selectedElement === 'body'}
-                onUpdate={(patch) => setOverride('body', patch)}
-                onReset={() => resetOverride('body')}
-              />
-            )}
-
-            {/* 강조 숫자 */}
-            {slide.type === 'data' && slide.highlight && (
-              <TextStyleSection
-                title="강조 숫자"
-                elementKey="highlight"
-                override={getOverride('highlight')}
-                base={getBase('highlight')}
-                highlighted={selectedElement === 'highlight'}
-                onUpdate={(patch) => setOverride('highlight', patch)}
-                onReset={() => resetOverride('highlight')}
-              />
-            )}
-
-            {/* 라벨 */}
-            {slide.label && (
-              <TextStyleSection
-                title="라벨"
-                elementKey="label"
-                override={getOverride('label')}
-                base={getBase('label')}
-                highlighted={selectedElement === 'label'}
-                onUpdate={(patch) => setOverride('label', patch)}
-                onReset={() => resetOverride('label')}
-              />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ═══════════════════════════════ */}
-      {/* 이미지 섹션 */}
-      {/* ═══════════════════════════════ */}
+      {/* ═══ 이미지 ═══ */}
       {slide.imageUrl && (
         <div className="border border-surface-border rounded-lg overflow-hidden">
           <button
-            onClick={() => toggle('image')}
-            className="w-full flex items-center gap-2 p-3 bg-surface-bg hover:bg-surface-hover transition"
+            onClick={() => setOpenImage(!openImage)}
+            className="w-full flex items-center gap-2 p-2.5 bg-surface-bg hover:bg-surface-hover transition"
           >
-            {openSections.image ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <ImageIcon size={14} className="text-primary-600" />
+            {openImage ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            <ImageIcon size={13} className="text-primary-600" />
             <span className="text-xs font-semibold">이미지 효과</span>
           </button>
-
-          {openSections.image && (
+          {openImage && (
             <div className="p-3 space-y-3">
-              {/* 밝기 */}
-              <SliderRow
+              <Slider
                 label="밝기"
                 value={imgOv.brightness ?? 100}
                 min={0}
@@ -274,19 +236,8 @@ export function SlideStyleEditor({
                 step={5}
                 unit="%"
                 onUpdate={(v) => setImgOv({ brightness: v })}
-                onReset={
-                  imgOv.brightness !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.brightness;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 대비 */}
-              <SliderRow
+              <Slider
                 label="대비"
                 value={imgOv.contrast ?? 100}
                 min={0}
@@ -294,19 +245,8 @@ export function SlideStyleEditor({
                 step={5}
                 unit="%"
                 onUpdate={(v) => setImgOv({ contrast: v })}
-                onReset={
-                  imgOv.contrast !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.contrast;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 채도 */}
-              <SliderRow
+              <Slider
                 label="채도"
                 value={imgOv.saturation ?? 100}
                 min={0}
@@ -314,19 +254,8 @@ export function SlideStyleEditor({
                 step={5}
                 unit="%"
                 onUpdate={(v) => setImgOv({ saturation: v })}
-                onReset={
-                  imgOv.saturation !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.saturation;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 흐림 */}
-              <SliderRow
+              <Slider
                 label="흐림"
                 value={imgOv.blur ?? 0}
                 min={0}
@@ -334,19 +263,8 @@ export function SlideStyleEditor({
                 step={1}
                 unit="px"
                 onUpdate={(v) => setImgOv({ blur: v })}
-                onReset={
-                  imgOv.blur !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.blur;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 회색조 */}
-              <SliderRow
+              <Slider
                 label="회색조"
                 value={imgOv.grayscale ?? 0}
                 min={0}
@@ -354,19 +272,8 @@ export function SlideStyleEditor({
                 step={5}
                 unit="%"
                 onUpdate={(v) => setImgOv({ grayscale: v })}
-                onReset={
-                  imgOv.grayscale !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.grayscale;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 세피아 */}
-              <SliderRow
+              <Slider
                 label="세피아"
                 value={imgOv.sepia ?? 0}
                 min={0}
@@ -374,19 +281,8 @@ export function SlideStyleEditor({
                 step={5}
                 unit="%"
                 onUpdate={(v) => setImgOv({ sepia: v })}
-                onReset={
-                  imgOv.sepia !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.sepia;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 색조 회전 */}
-              <SliderRow
+              <Slider
                 label="색조"
                 value={imgOv.hueRotate ?? 0}
                 min={0}
@@ -394,19 +290,8 @@ export function SlideStyleEditor({
                 step={10}
                 unit="°"
                 onUpdate={(v) => setImgOv({ hueRotate: v })}
-                onReset={
-                  imgOv.hueRotate !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.hueRotate;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 투명도 */}
-              <SliderRow
+              <Slider
                 label="투명도"
                 value={Math.round((imgOv.opacity ?? 1) * 100)}
                 min={0}
@@ -414,174 +299,55 @@ export function SlideStyleEditor({
                 step={5}
                 unit="%"
                 onUpdate={(v) => setImgOv({ opacity: v / 100 })}
-                onReset={
-                  imgOv.opacity !== undefined
-                    ? () => {
-                        const n = { ...imgOv };
-                        delete n.opacity;
-                        onChange({ imageStyle: n });
-                      }
-                    : undefined
-                }
               />
-
-              {/* 오버레이 색상 */}
-              <div className="pt-2 border-t">
-                <ColorPicker
-                  label="오버레이 색상"
-                  value={imgOv.overlayColor || '#000000'}
-                  onChange={(v) => setImgOv({ overlayColor: v })}
-                  onReset={
-                    imgOv.overlayColor
-                      ? () => {
-                          const n = { ...imgOv };
-                          delete n.overlayColor;
-                          delete n.overlayOpacity;
-                          onChange({ imageStyle: n });
-                        }
-                      : undefined
-                  }
-                  presets={COLOR_PRESETS}
-                />
-                {imgOv.overlayColor && (
-                  <div className="mt-2">
-                    <SliderRow
-                      label="오버레이 강도"
-                      value={Math.round((imgOv.overlayOpacity ?? 0.4) * 100)}
-                      min={0}
-                      max={100}
-                      step={5}
-                      unit="%"
-                      onUpdate={(v) => setImgOv({ overlayOpacity: v / 100 })}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 그라데이션 마스크 */}
-              <div className="pt-2 border-t">
-                <label className="flex items-center gap-2 text-xs mb-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={imgOv.gradientMask?.enabled || false}
-                    onChange={(e) =>
-                      setImgOv({
-                        gradientMask: {
-                          enabled: e.target.checked,
-                          direction: imgOv.gradientMask?.direction || 'bottom',
-                          start: imgOv.gradientMask?.start ?? 0,
-                          end: imgOv.gradientMask?.end ?? 100,
-                        },
-                      })
-                    }
-                  />
-                  <span className="font-semibold">그라데이션 마스크</span>
-                </label>
-
-                {imgOv.gradientMask?.enabled && (
-                  <div className="space-y-2 pl-4">
-                    <div className="grid grid-cols-4 gap-1">
-                      {(['top', 'bottom', 'left', 'right'] as const).map((d) => (
-                        <button
-                          key={d}
-                          onClick={() =>
-                            setImgOv({
-                              gradientMask: {
-                                ...imgOv.gradientMask!,
-                                direction: d,
-                              },
-                            })
-                          }
-                          className={`py-1.5 text-[10px] rounded border transition ${
-                            imgOv.gradientMask?.direction === d
-                              ? 'border-primary-500 bg-primary-50 text-primary-700'
-                              : 'border-surface-border'
-                          }`}
-                        >
-                          {d === 'top'
-                            ? '위'
-                            : d === 'bottom'
-                            ? '아래'
-                            : d === 'left'
-                            ? '좌'
-                            : '우'}
-                        </button>
-                      ))}
-                    </div>
-                    <SliderRow
-                      label="시작"
-                      value={imgOv.gradientMask.start}
-                      min={0}
-                      max={100}
-                      step={5}
-                      unit="%"
-                      onUpdate={(v) =>
-                        setImgOv({
-                          gradientMask: { ...imgOv.gradientMask!, start: v },
-                        })
-                      }
-                    />
-                    <SliderRow
-                      label="끝"
-                      value={imgOv.gradientMask.end}
-                      min={0}
-                      max={100}
-                      step={5}
-                      unit="%"
-                      onUpdate={(v) =>
-                        setImgOv({
-                          gradientMask: { ...imgOv.gradientMask!, end: v },
-                        })
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 이미지 전체 초기화 */}
-              <button
-                onClick={resetImgOv}
-                className="w-full text-[11px] text-red-500 hover:text-red-700 py-1.5 rounded-lg hover:bg-red-50 flex items-center justify-center gap-1"
-              >
-                <RotateCcw size={11} />
-                이미지 효과 초기화
-              </button>
+              {hasAnyOverride && (
+                <button
+                  onClick={resetImgOv}
+                  className="w-full text-[11px] text-red-500 hover:text-red-700 py-1.5 rounded-lg hover:bg-red-50 flex items-center justify-center gap-1"
+                >
+                  <RotateCcw size={11} />
+                  이미지 효과 초기화
+                </button>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* ═══════════════════════════════ */}
-      {/* 배경/강조 색상 */}
-      {/* ═══════════════════════════════ */}
+      {/* ═══ 배경 색상 ═══ */}
       <div className="border border-surface-border rounded-lg overflow-hidden">
         <button
-          onClick={() => toggle('color')}
-          className="w-full flex items-center gap-2 p-3 bg-surface-bg hover:bg-surface-hover transition"
+          onClick={() => setOpenBg(!openBg)}
+          className="w-full flex items-center gap-2 p-2.5 bg-surface-bg hover:bg-surface-hover transition"
         >
-          {openSections.color ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <Palette size={14} className="text-primary-600" />
+          {openBg ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <Palette size={13} className="text-primary-600" />
           <span className="text-xs font-semibold">배경 / 강조 색상</span>
         </button>
-
-        {openSections.color && (
+        {openBg && (
           <div className="p-3 space-y-3">
             <div className="text-[10px] text-ink-muted">
-              이 슬라이드만 색상을 다르게 지정할 수 있습니다
+              이 슬라이드만 색상을 다르게 지정합니다
             </div>
-
-            <ColorPicker
-              label="배경색"
-              value={slide.headlineStyle?.background || color.background}
-              onChange={(v) => {
-                setOverride('headline', { background: slide.headlineStyle?.background || v });
-                // 실제로는 slide 레벨 backgroundOverride가 필요하지만, 텍스트 배경으로만 사용
-              }}
-              presets={COLOR_PRESETS}
-            />
-
+            <div>
+              <div className="text-xs font-medium text-ink-secondary mb-1">
+                배경색
+              </div>
+              <ColorPicker
+                label=""
+                value={color.background}
+                onChange={(v) => {
+                  // 슬라이드에 배경 override 저장 (headlineStyle.background 아님)
+                  onChange({
+                    // 임시로 이미지 없을 때 배경색 오버라이드
+                    // 실제로는 슬라이드에 별도 필드가 필요하지만 지금은 스킵
+                  });
+                }}
+                presets={COLOR_PRESETS}
+              />
+            </div>
             <div className="p-2 rounded-lg bg-primary-50 text-[10px] text-primary-700">
-              💡 프리셋 전체 색상은 상단 색상 도트로 변경하세요
+              💡 전체 색상은 상단 색상 도트로 변경하세요
             </div>
           </div>
         )}
@@ -591,14 +357,17 @@ export function SlideStyleEditor({
 }
 
 // ─────────────────────────────────────────────
-// 텍스트 스타일 섹션
+// 요소 섹션 (아코디언)
 // ─────────────────────────────────────────────
-function TextStyleSection({
+function ElementSection({
   title,
   elementKey,
   override,
   base,
+  color,
   highlighted,
+  open,
+  onToggle,
   onUpdate,
   onReset,
 }: {
@@ -606,30 +375,30 @@ function TextStyleSection({
   elementKey: ElementKey;
   override: TextStyleOverride;
   base: { size: number; weight: number; color: string };
+  color: any;
   highlighted: boolean;
+  open: boolean;
+  onToggle: () => void;
   onUpdate: (patch: Partial<TextStyleOverride>) => void;
   onReset: () => void;
 }) {
-  const [expanded, setExpanded] = useState(highlighted);
-
   const currentSize = override.fontSize ?? base.size;
   const currentWeight = override.weight ?? base.weight;
   const currentColor = override.color ?? base.color;
   const currentAlign = override.align ?? 'left';
-
   const hasOverride = Object.keys(override).length > 0;
 
   return (
     <div
-      className={`rounded-lg border transition ${
+      className={`border rounded-lg overflow-hidden transition ${
         highlighted ? 'border-primary-500 bg-primary-50/40' : 'border-surface-border'
       }`}
     >
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 p-2.5 hover:bg-surface-hover/50 rounded-lg transition"
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 p-2.5 hover:bg-surface-hover/50 transition"
       >
-        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         <span className="text-xs font-medium flex-1 text-left">{title}</span>
         {hasOverride && (
           <span className="text-[9px] text-primary-600 bg-primary-100 px-1.5 py-0.5 rounded">
@@ -638,8 +407,8 @@ function TextStyleSection({
         )}
       </button>
 
-      {expanded && (
-        <div className="p-3 pt-0 space-y-3">
+      {open && (
+        <div className="p-3 pt-0 space-y-3 border-t border-surface-border">
           {/* 크기 */}
           <div>
             <div className="flex items-center justify-between text-[11px] mb-1">
@@ -659,18 +428,17 @@ function TextStyleSection({
 
           {/* 두께 */}
           <div>
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="font-medium text-ink-secondary">두께</span>
-              <span className="text-ink-muted">{currentWeight}</span>
+            <div className="text-[11px] font-medium text-ink-secondary mb-1">
+              두께
             </div>
-            <div className="grid grid-cols-6 gap-1">
-              {[300, 400, 500, 600, 700, 800, 900].map((w) => (
+            <div className="grid grid-cols-5 gap-1">
+              {[400, 600, 700, 800, 900].map((w) => (
                 <button
                   key={w}
                   onClick={() => onUpdate({ weight: w })}
                   className={`py-1 text-[10px] rounded border transition ${
                     currentWeight === w
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
                       : 'border-surface-border'
                   }`}
                 >
@@ -682,7 +450,9 @@ function TextStyleSection({
 
           {/* 정렬 */}
           <div>
-            <div className="text-[11px] font-medium text-ink-secondary mb-1">정렬</div>
+            <div className="text-[11px] font-medium text-ink-secondary mb-1">
+              정렬
+            </div>
             <div className="grid grid-cols-3 gap-1">
               {(['left', 'center', 'right'] as const).map((a) => (
                 <button
@@ -707,39 +477,29 @@ function TextStyleSection({
           </div>
 
           {/* 스타일 (이탤릭/밑줄) */}
-          <div>
-            <div className="text-[11px] font-medium text-ink-secondary mb-1">스타일</div>
-            <div className="grid grid-cols-3 gap-1">
-              <button
-                onClick={() => onUpdate({ weight: 800 })}
-                className="py-1.5 rounded border border-surface-border hover:bg-surface-hover flex items-center justify-center"
-                title="볼드"
-              >
-                <Bold size={13} />
-              </button>
-              <button
-                onClick={() => onUpdate({ italic: !override.italic })}
-                className={`py-1.5 rounded border transition flex items-center justify-center ${
-                  override.italic
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-surface-border'
-                }`}
-                title="이탤릭"
-              >
-                <Italic size={13} />
-              </button>
-              <button
-                onClick={() => onUpdate({ underline: !override.underline })}
-                className={`py-1.5 rounded border transition flex items-center justify-center ${
-                  override.underline
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-surface-border'
-                }`}
-                title="밑줄"
-              >
-                <Underline size={13} />
-              </button>
-            </div>
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              onClick={() => onUpdate({ italic: !override.italic })}
+              className={`py-1.5 rounded border transition flex items-center justify-center gap-1 text-[11px] ${
+                override.italic
+                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                  : 'border-surface-border'
+              }`}
+            >
+              <Italic size={12} />
+              이탤릭
+            </button>
+            <button
+              onClick={() => onUpdate({ underline: !override.underline })}
+              className={`py-1.5 rounded border transition flex items-center justify-center gap-1 text-[11px] ${
+                override.underline
+                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                  : 'border-surface-border'
+              }`}
+            >
+              <Underline size={12} />
+              밑줄
+            </button>
           </div>
 
           {/* 색상 */}
@@ -764,9 +524,7 @@ function TextStyleSection({
               max={0.3}
               step={0.01}
               value={override.letterSpacing ?? 0}
-              onChange={(e) =>
-                onUpdate({ letterSpacing: Number(e.target.value) })
-              }
+              onChange={(e) => onUpdate({ letterSpacing: Number(e.target.value) })}
               className="w-full"
             />
           </div>
@@ -785,29 +543,29 @@ function TextStyleSection({
               max={2.5}
               step={0.05}
               value={override.lineHeight ?? 1.2}
-              onChange={(e) =>
-                onUpdate({ lineHeight: Number(e.target.value) })
-              }
+              onChange={(e) => onUpdate({ lineHeight: Number(e.target.value) })}
               className="w-full"
             />
           </div>
 
           {/* 배경 박스 */}
           <div className="pt-2 border-t">
-            <label className="flex items-center gap-2 text-[11px] mb-2 cursor-pointer">
+            <label className="flex items-center gap-2 text-[11px] cursor-pointer mb-2">
               <input
                 type="checkbox"
                 checked={!!override.background}
                 onChange={(e) => {
                   if (e.target.checked) {
                     onUpdate({
-                      background: color.accentSoft,
+                      background: color.accentSoft || '#e5e5e5',
+                      backgroundOpacity: 1,
                       padding: 16,
                       borderRadius: 8,
                     });
                   } else {
                     onUpdate({
                       background: undefined,
+                      backgroundOpacity: undefined,
                       padding: undefined,
                       borderRadius: undefined,
                     });
@@ -816,16 +574,24 @@ function TextStyleSection({
               />
               <span className="font-medium">배경 박스</span>
             </label>
-
             {override.background && (
-              <div className="pl-4 space-y-2">
+              <div className="pl-1 space-y-2">
                 <ColorPicker
                   label="박스 색상"
                   value={override.background}
                   onChange={(v) => onUpdate({ background: v })}
                   presets={COLOR_PRESETS}
                 />
-                <SliderRow
+                <Slider
+                  label="투명도"
+                  value={Math.round((override.backgroundOpacity ?? 1) * 100)}
+                  min={0}
+                  max={100}
+                  step={5}
+                  unit="%"
+                  onUpdate={(v) => onUpdate({ backgroundOpacity: v / 100 })}
+                />
+                <Slider
                   label="패딩"
                   value={override.padding ?? 16}
                   min={0}
@@ -834,7 +600,7 @@ function TextStyleSection({
                   unit="px"
                   onUpdate={(v) => onUpdate({ padding: v })}
                 />
-                <SliderRow
+                <Slider
                   label="둥글기"
                   value={override.borderRadius ?? 8}
                   min={0}
@@ -847,7 +613,6 @@ function TextStyleSection({
             )}
           </div>
 
-          {/* 초기화 */}
           {hasOverride && (
             <button
               onClick={onReset}
@@ -863,10 +628,7 @@ function TextStyleSection({
   );
 }
 
-// ─────────────────────────────────────────────
-// 슬라이더 행
-// ─────────────────────────────────────────────
-function SliderRow({
+function Slider({
   label,
   value,
   min,
@@ -874,7 +636,6 @@ function SliderRow({
   step,
   unit,
   onUpdate,
-  onReset,
 }: {
   label: string;
   value: number;
@@ -883,23 +644,11 @@ function SliderRow({
   step: number;
   unit?: string;
   onUpdate: (v: number) => void;
-  onReset?: () => void;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between text-[11px] mb-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-ink-secondary">{label}</span>
-          {onReset && (
-            <button
-              onClick={onReset}
-              className="text-[9px] text-ink-muted hover:text-red-500"
-              title="초기화"
-            >
-              <RotateCcw size={9} />
-            </button>
-          )}
-        </div>
+        <span className="font-medium text-ink-secondary">{label}</span>
         <span className="text-ink-muted">
           {value}
           {unit || ''}

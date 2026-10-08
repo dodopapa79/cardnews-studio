@@ -7,11 +7,23 @@ import type {
   BrandInfo,
   TextStyleOverride,
   ImageStyleOverride,
-  ImageLayout,
 } from '@/lib/types';
 
 // ─────────────────────────────────────────────
-// 유틸: 이미지 필터
+// 색상 밝기 판단
+// ─────────────────────────────────────────────
+function isDarkColor(hex: string): boolean {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return false;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum < 0.5;
+}
+
+// ─────────────────────────────────────────────
+// 이미지 필터
 // ─────────────────────────────────────────────
 function buildImageFilter(ov?: ImageStyleOverride): string {
   if (!ov) return 'none';
@@ -29,80 +41,37 @@ function buildImageFilter(ov?: ImageStyleOverride): string {
 }
 
 // ─────────────────────────────────────────────
-// 유틸: 텍스트 자동 축소
+// 자동 축소
 // ─────────────────────────────────────────────
 function calcAutoSize(
   text: string,
   baseSize: number,
   maxWidthPx: number,
-  charWidthFactor = 1.05,
+  charFactor = 1.05,
   maxLines = 4
 ): number {
   if (!text) return baseSize;
-  const maxChars = Math.max(1, Math.floor(maxWidthPx / (baseSize * charWidthFactor)));
+  const maxChars = Math.max(1, Math.floor(maxWidthPx / (baseSize * charFactor)));
   const lines = Math.ceil(text.length / maxChars);
   if (lines <= maxLines) return baseSize;
   return Math.max(baseSize * 0.55, baseSize * (maxLines / lines));
 }
 
 // ─────────────────────────────────────────────
-// 유틸: 텍스트 스타일 적용
+// HEX + 투명도 → rgba
 // ─────────────────────────────────────────────
-function applyTextStyle(
-  base: {
-    fontSize: number;
-    color: string;
-    weight: number;
-    align: 'left' | 'center' | 'right';
-    lineHeight: number;
-    letterSpacing: string;
-    italic: boolean;
-    underline: boolean;
-    background: string;
-    padding: number;
-    borderRadius: number;
-  },
-  override?: TextStyleOverride,
-  autoShrinkText?: string,
-  maxWidth?: number,
-  charFactor = 1.05
-): React.CSSProperties {
-  let fontSize = base.fontSize;
-  if (override?.fontSize !== undefined) {
-    fontSize = override.fontSize;
-  } else if (autoShrinkText && maxWidth) {
-    fontSize = calcAutoSize(autoShrinkText, base.fontSize, maxWidth, charFactor);
-  }
-
-  const style: React.CSSProperties = {
-    fontSize,
-    color: override?.color ?? base.color,
-    fontWeight: override?.weight ?? base.weight,
-    textAlign: override?.align ?? base.align,
-    lineHeight: override?.lineHeight ?? base.lineHeight,
-    letterSpacing:
-      override?.letterSpacing !== undefined
-        ? `${override.letterSpacing}em`
-        : base.letterSpacing,
-    fontStyle: override?.italic ? 'italic' : 'normal',
-    textDecoration: override?.underline ? 'underline' : 'none',
-    margin: 0,
-    wordBreak: 'keep-all',
-    overflowWrap: 'anywhere',
-  };
-
-  if (override?.background) {
-    style.background = override.background;
-    style.padding = override.padding ?? 16;
-    style.borderRadius = override.borderRadius ?? 8;
-    style.display = 'inline-block';
-  }
-
-  return style;
+function hexToRgba(hex: string, opacity: number): string {
+  if (!hex || !hex.startsWith('#')) return hex;
+  const h = hex.replace('#', '');
+  if (h.length < 6) return hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
 // ─────────────────────────────────────────────
-// 배경 레이어
+// 배경
 // ─────────────────────────────────────────────
 function BackgroundLayer({
   color,
@@ -180,40 +149,48 @@ function BackgroundLayer({
 // ─────────────────────────────────────────────
 function ImageLayer({
   src,
-  layout,
+  layoutType,
   focal,
   filter,
   gradientMask,
   overlayColor,
   overlayOpacity,
   opacity,
+  width,
+  height,
   radius,
-  customPosition,
 }: {
   src: string;
-  layout: 'full' | 'top' | 'bottom' | 'left' | 'right' | 'custom';
+  layoutType: 'full' | 'top' | 'split-right';
   focal: { x: number; y: number };
   filter: string;
   gradientMask?: ImageStyleOverride['gradientMask'];
   overlayColor?: string;
   overlayOpacity?: number;
   opacity?: number;
+  width: number;
+  height: number;
   radius: number;
-  customPosition?: React.CSSProperties;
 }) {
   let pos: React.CSSProperties = {};
-  if (layout === 'custom' && customPosition) {
-    pos = customPosition;
-  } else if (layout === 'full') {
+  if (layoutType === 'full') {
     pos = { position: 'absolute', inset: 0, width: '100%', height: '100%' };
-  } else if (layout === 'top') {
-    pos = { position: 'absolute', top: 0, left: 0, right: 0, height: '65%' };
-  } else if (layout === 'bottom') {
-    pos = { position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%' };
-  } else if (layout === 'left') {
-    pos = { position: 'absolute', top: 0, bottom: 0, left: 0, width: '55%' };
-  } else if (layout === 'right') {
-    pos = { position: 'absolute', top: 0, bottom: 0, right: 0, width: '50%' };
+  } else if (layoutType === 'top') {
+    pos = {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: height * 0.55,
+    };
+  } else if (layoutType === 'split-right') {
+    pos = {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      right: 0,
+      width: width * 0.5,
+    };
   }
 
   const maskImage = (() => {
@@ -266,51 +243,62 @@ function ImageLayer({
 }
 
 // ─────────────────────────────────────────────
-// 드래그 가능 wrapper
+// 자유 텍스트
 // ─────────────────────────────────────────────
-function DraggableElement({
-  elementKey,
+function FreeText({
+  text,
+  base,
+  override,
   position,
   editable,
+  elementKey,
   selectedElement,
   onElementClick,
   onElementDrag,
   accent,
-  children,
-  style,
 }: {
-  elementKey: string;
+  text: string;
+  base: {
+    fontSize: number;
+    color: string;
+    weight: number;
+    align: 'left' | 'center' | 'right';
+    lineHeight: number;
+    letterSpacing: string;
+  };
+  override?: TextStyleOverride;
   position?: ElementPosition;
   editable: boolean;
+  elementKey: string;
   selectedElement?: string | null;
-  onElementClick?: (el: any) => void;
+  onElementClick?: (el: string) => void;
   onElementDrag?: (el: string, pos: ElementPosition) => void;
   accent: string;
-  children: React.ReactNode;
-  style?: React.CSSProperties;
 }) {
-  if (!editable) return <>{children}</>;
+  if (!text) return null;
 
+  const resolved: ElementPosition = position || { x: 0, y: 0 };
   const isSelected = selectedElement === elementKey;
-  const ox = position?.x ?? 0;
-  const oy = position?.y ?? 0;
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const container = e.currentTarget.closest('[data-card-container]') as HTMLElement;
+    const container = e.currentTarget.closest(
+      '[data-card-container]'
+    ) as HTMLElement;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const startOffset = { x: ox, y: oy };
+    const startOffset = { x: resolved.x, y: resolved.y };
 
     const onMove = (ev: MouseEvent) => {
       const dx = (ev.clientX - startX) / rect.width;
       const dy = (ev.clientY - startY) / rect.height;
       onElementDrag?.(elementKey, {
-        x: Math.max(-0.4, Math.min(0.4, startOffset.x + dx)),
-        y: Math.max(-0.4, Math.min(0.4, startOffset.y + dy)),
+        x: Math.max(0, Math.min(1, startOffset.x + dx)),
+        y: Math.max(0, Math.min(1, startOffset.y + dy)),
       });
     };
     const onUp = () => {
@@ -321,31 +309,76 @@ function DraggableElement({
     document.addEventListener('mouseup', onUp);
   };
 
+  const fontSize = override?.fontSize ?? base.fontSize;
+  const textColor = override?.color ?? base.color;
+  const weight = override?.weight ?? base.weight;
+  const align = override?.align ?? base.align;
+  const lineHeight = override?.lineHeight ?? base.lineHeight;
+  const letterSpacing =
+    override?.letterSpacing !== undefined
+      ? `${override.letterSpacing}em`
+      : base.letterSpacing;
+
+  const hasBg = !!override?.background;
+  const bgOpacity = override?.backgroundOpacity ?? 1;
+  const bgColor = hasBg
+    ? hexToRgba(override!.background!, bgOpacity)
+    : undefined;
+
   return (
     <div
+      data-element={elementKey}
       onMouseDown={handleMouseDown}
       onClick={(e) => {
         e.stopPropagation();
-        onElementClick?.(elementKey);
+        if (editable) onElementClick?.(elementKey);
       }}
       style={{
-        position: 'relative',
-        cursor: 'move',
-        outline: isSelected ? `3px solid ${accent}` : '2px dashed transparent',
-        outlineOffset: 6,
-        borderRadius: 4,
-        transform: `translate(${ox * 100}%, ${oy * 100}%)`,
+        position: 'absolute',
+        left: `${resolved.x * 100}%`,
+        top: `${resolved.y * 100}%`,
+        transform: align === 'center' ? 'translateX(-50%)' : undefined,
+        cursor: editable ? 'move' : 'default',
+        outline: editable
+          ? isSelected
+            ? `3px solid ${accent}`
+            : '2px dashed transparent'
+          : 'none',
+        outlineOffset: 8,
+        borderRadius: 6,
         transition: 'outline-color 0.15s',
-        ...style,
+        maxWidth: '90%',
+        zIndex: 3,
       }}
       onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.outline = `2px dashed ${accent}88`;
+        if (editable && !isSelected)
+          e.currentTarget.style.outline = `2px dashed ${accent}88`;
       }}
       onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.outline = '2px dashed transparent';
+        if (editable && !isSelected)
+          e.currentTarget.style.outline = '2px dashed transparent';
       }}
     >
-      {children}
+      <div
+        style={{
+          display: hasBg ? 'inline-block' : 'block',
+          background: bgColor,
+          padding: hasBg ? override?.padding ?? 16 : undefined,
+          borderRadius: hasBg ? override?.borderRadius ?? 8 : undefined,
+          fontSize,
+          color: textColor,
+          fontWeight: weight,
+          textAlign: align,
+          lineHeight,
+          letterSpacing,
+          fontStyle: override?.italic ? 'italic' : 'normal',
+          textDecoration: override?.underline ? 'underline' : 'none',
+          wordBreak: 'keep-all',
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {override?.content || text}
+      </div>
     </div>
   );
 }
@@ -386,17 +419,38 @@ function CardFooter({
           />
         )}
         {brand?.brandName && (
-          <div style={{ fontSize: 38, fontWeight: 900, color: accent, letterSpacing: '0.03em' }}>
+          <div
+            style={{
+              fontSize: 38,
+              fontWeight: 900,
+              color: accent,
+              letterSpacing: '0.03em',
+            }}
+          >
             {brand.brandName}
           </div>
         )}
         {brand?.website && (
-          <div style={{ fontSize: 26, color: textMuted, fontWeight: 500, letterSpacing: '0.02em' }}>
+          <div
+            style={{
+              fontSize: 26,
+              color: textMuted,
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+            }}
+          >
             {brand.website}
           </div>
         )}
         {brand?.handle && (
-          <div style={{ fontSize: 22, color: textMuted, opacity: 0.8, fontWeight: 500 }}>
+          <div
+            style={{
+              fontSize: 22,
+              color: textMuted,
+              opacity: 0.8,
+              fontWeight: 500,
+            }}
+          >
             {brand.handle}
           </div>
         )}
@@ -442,7 +496,7 @@ interface CardSlideProps {
   colorId?: string;
   brand?: BrandInfo;
   editable?: boolean;
-  onElementClick?: (el: any) => void;
+  onElementClick?: (el: string) => void;
   selectedElement?: string | null;
   onElementDrag?: (el: string, pos: ElementPosition) => void;
   width?: number;
@@ -468,174 +522,39 @@ export function CardSlide({
 }: CardSlideProps) {
   const baseColor =
     preset.colorVariants.find((c) => c.id === colorId) || preset.colorVariants[0];
-
   const color: ColorVariant = { ...baseColor };
-  const { typography, decoration, padding, layout } = preset;
+
+  const { typography, decoration, padding } = preset;
   const { positions } = slide;
   const pp = preset.positions;
 
-  const headlinePos = positions?.headline ?? pp?.headline;
-  const bodyPos = positions?.body ?? pp?.body;
-  const highlightPos = positions?.highlight ?? pp?.highlight;
-  const badgePos = positions?.badge ?? pp?.badge;
-  const labelPos = positions?.label ?? pp?.label;
+  const headlinePos = positions?.headline ?? pp?.headline ?? { x: 0.1, y: 0.5 };
+  const bodyPos = positions?.body ?? pp?.body ?? { x: 0.1, y: 0.75 };
+  const highlightPos = positions?.highlight ?? pp?.highlight ?? { x: 0.1, y: 0.3 };
+  const badgePos = positions?.badge ?? pp?.badge ?? { x: 0.1, y: 0.15 };
+  const labelPos = positions?.label ?? pp?.label ?? { x: 0.1, y: 0.1 };
 
   const focal = slide.imageStyle?.focal ?? positions?.imageFocal ?? { x: 0.5, y: 0.5 };
   const filter = buildImageFilter(slide.imageStyle);
 
   const hasImage = !!slide.imageUrl;
   const imgLayout = slide.imageLayout;
+
   const maxTextWidth = width - padding.left - padding.right;
 
-  const commonDrag = {
-    editable,
-    selectedElement,
-    onElementClick,
-    onElementDrag,
-    accent: color.accent,
-  };
+  const darkBg = isDarkColor(color.background);
+  const bottomBlack = darkBg;
 
-  // ─────────────────────────────────────
-  // 공통 텍스트 스타일
-  // ─────────────────────────────────────
-  const headlineBase = {
-    fontSize: typography.headlineSize,
-    color: color.text,
-    weight: typography.headlineWeight,
-    align: 'left' as const,
-    lineHeight: typography.lineHeight,
-    letterSpacing: typography.headlineLetterSpacing,
-    italic: false,
-    underline: false,
-    background: '',
-    padding: 0,
-    borderRadius: 0,
-  };
-  const bodyBase = {
-    fontSize: typography.bodySize,
-    color: color.textMuted,
-    weight: 400,
-    align: 'left' as const,
-    lineHeight: 1.55,
-    letterSpacing: '0',
-    italic: false,
-    underline: false,
-    background: '',
-    padding: 0,
-    borderRadius: 0,
-  };
-  const highlightBase = {
-    fontSize: Math.min(220, typography.headlineSize * 2),
-    color: color.accent,
-    weight: 900,
-    align: 'left' as const,
-    lineHeight: 0.95,
-    letterSpacing: '-0.04em',
-    italic: false,
-    underline: false,
-    background: '',
-    padding: 0,
-    borderRadius: 0,
-  };
-  const labelBase = {
-    fontSize: 22,
-    color: color.accent,
-    weight: 700,
-    align: 'left' as const,
-    lineHeight: 1.2,
-    letterSpacing: '0.15em',
-    italic: false,
-    underline: false,
-    background: '',
-    padding: 0,
-    borderRadius: 0,
-  };
+  const headlineBaseSize = slide.headlineStyle?.fontSize ?? typography.headlineSize;
+  const bodyBaseSize = slide.bodyStyle?.fontSize ?? typography.bodySize;
+  const headlineSize = calcAutoSize(slide.headline, headlineBaseSize, maxTextWidth, 1.05);
+  const bodySize = calcAutoSize(slide.body, bodyBaseSize, maxTextWidth, 0.55);
 
-  // ─────────────────────────────────────
-  // 요소 렌더
-  // ─────────────────────────────────────
-  const renderHeadline = (extra?: React.CSSProperties, align?: 'left' | 'center' | 'right') =>
-    slide.headline ? (
-      <DraggableElement elementKey="headline" position={headlinePos} {...commonDrag}>
-        <h1
-          style={{
-            ...applyTextStyle(
-              { ...headlineBase, align: align || headlineBase.align },
-              slide.headlineStyle,
-              slide.headline,
-              maxTextWidth,
-              1.05
-            ),
-            textTransform: typography.headlineUppercase ? 'uppercase' : 'none',
-            ...extra,
-          }}
-        >
-          {slide.headlineStyle?.content || slide.headline}
-        </h1>
-      </DraggableElement>
-    ) : null;
+  const onImage = hasImage && imgLayout === 'full-bleed';
+  const textColor = onImage ? '#ffffff' : color.text;
+  const textMutedColor = onImage ? '#ffffffcc' : color.textMuted;
 
-  const renderBody = (extra?: React.CSSProperties, align?: 'left' | 'center' | 'right') =>
-    slide.body ? (
-      <DraggableElement elementKey="body" position={bodyPos} {...commonDrag}>
-        <p
-          style={{
-            ...applyTextStyle(
-              { ...bodyBase, align: align || bodyBase.align },
-              slide.bodyStyle,
-              slide.body,
-              maxTextWidth,
-              0.55
-            ),
-            ...extra,
-          }}
-        >
-          {slide.bodyStyle?.content || slide.body}
-        </p>
-      </DraggableElement>
-    ) : null;
-
-  const renderHighlight = (extra?: React.CSSProperties) =>
-    slide.type === 'data' && slide.highlight ? (
-      <DraggableElement elementKey="highlight" position={highlightPos} {...commonDrag}>
-        <div
-          style={{
-            ...applyTextStyle(
-              highlightBase,
-              slide.highlightStyle,
-              slide.highlight,
-              maxTextWidth,
-              0.55
-            ),
-            ...extra,
-          }}
-        >
-          {slide.highlightStyle?.content || slide.highlight}
-        </div>
-      </DraggableElement>
-    ) : null;
-
-  const renderLabel = (extra?: React.CSSProperties, align?: 'left' | 'center' | 'right') =>
-    slide.label ? (
-      <DraggableElement elementKey="label" position={labelPos} {...commonDrag}>
-        <div
-          style={{
-            ...applyTextStyle(
-              { ...labelBase, align: align || labelBase.align },
-              slide.labelStyle,
-              slide.label,
-              maxTextWidth,
-              0.9
-            ),
-            textTransform: 'uppercase',
-            ...extra,
-          }}
-        >
-          {slide.labelStyle?.content || slide.label}
-        </div>
-      </DraggableElement>
-    ) : null;
-
+  // 뱃지
   const renderBadge = () => {
     if (isLast) return null;
     if (decoration.badgeStyle === 'none') return null;
@@ -647,13 +566,55 @@ export function CardSlide({
       cta: 'READY',
     };
     const label = labels[slide.type] || slide.type.toUpperCase();
-    const bgIsLight =
-      color.background === '#ffffff' ||
-      color.background.startsWith('#f') ||
-      color.background.startsWith('#e');
 
     return (
-      <DraggableElement elementKey="badge" position={badgePos} {...commonDrag}>
+      <div
+        data-element="badge"
+        onMouseDown={(e) => {
+          if (!editable) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const container = e.currentTarget.closest(
+            '[data-card-container]'
+          ) as HTMLElement;
+          if (!container) return;
+          const rect = container.getBoundingClientRect();
+          const startOffset = { ...badgePos };
+          const onMove = (ev: MouseEvent) => {
+            const dx = (ev.clientX - startX) / rect.width;
+            const dy = (ev.clientY - startY) / rect.height;
+            onElementDrag?.('badge', {
+              x: Math.max(0, Math.min(1, startOffset.x + dx)),
+              y: Math.max(0, Math.min(1, startOffset.y + dy)),
+            });
+          };
+          const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (editable) onElementClick?.('badge');
+        }}
+        style={{
+          position: 'absolute',
+          left: `${badgePos.x * 100}%`,
+          top: `${badgePos.y * 100}%`,
+          cursor: editable ? 'move' : 'default',
+          outline:
+            editable && selectedElement === 'badge'
+              ? `3px solid ${color.accent}`
+              : '2px dashed transparent',
+          outlineOffset: 6,
+          borderRadius: 4,
+          zIndex: 3,
+        }}
+      >
         <div
           style={{
             display: 'inline-block',
@@ -662,8 +623,8 @@ export function CardSlide({
             fontWeight: 800,
             letterSpacing: '0.15em',
             textTransform: 'uppercase',
-            color: bgIsLight ? color.accent : color.background,
-            backgroundColor: bgIsLight ? color.accentSoft : color.accent,
+            color: color.background,
+            backgroundColor: color.accent,
             borderRadius:
               decoration.badgeStyle === 'pill'
                 ? 999
@@ -678,604 +639,156 @@ export function CardSlide({
         >
           {label}
         </div>
-      </DraggableElement>
+      </div>
     );
   };
 
-  const renderImage = (
-    layoutType: 'full' | 'top' | 'bottom' | 'left' | 'right' | 'custom',
-    radius = 0,
-    customPosition?: React.CSSProperties
-  ) =>
-    hasImage ? (
-      <ImageLayer
-        src={slide.imageUrl}
-        layout={layoutType}
-        focal={focal}
-        filter={filter}
-        gradientMask={slide.imageStyle?.gradientMask}
-        overlayColor={slide.imageStyle?.overlayColor}
-        overlayOpacity={slide.imageStyle?.overlayOpacity}
-        opacity={slide.imageStyle?.opacity}
-        radius={radius}
-        customPosition={customPosition}
+  // 이미지
+  const renderImage = () => {
+    if (!hasImage) return null;
+    if (imgLayout === 'full-bleed') {
+      return (
+        <ImageLayer
+          src={slide.imageUrl}
+          layoutType="full"
+          focal={focal}
+          filter={filter}
+          gradientMask={slide.imageStyle?.gradientMask}
+          overlayColor={slide.imageStyle?.overlayColor}
+          overlayOpacity={slide.imageStyle?.overlayOpacity}
+          opacity={slide.imageStyle?.opacity}
+          width={width}
+          height={height}
+          radius={0}
+        />
+      );
+    }
+    if (imgLayout === 'top-image') {
+      return (
+        <ImageLayer
+          src={slide.imageUrl}
+          layoutType="top"
+          focal={focal}
+          filter={filter}
+          gradientMask={slide.imageStyle?.gradientMask}
+          overlayColor={slide.imageStyle?.overlayColor}
+          overlayOpacity={slide.imageStyle?.overlayOpacity}
+          opacity={slide.imageStyle?.opacity}
+          width={width}
+          height={height}
+          radius={0}
+        />
+      );
+    }
+    if (imgLayout === 'split') {
+      return (
+        <ImageLayer
+          src={slide.imageUrl}
+          layoutType="split-right"
+          focal={focal}
+          filter={filter}
+          gradientMask={slide.imageStyle?.gradientMask}
+          overlayColor={slide.imageStyle?.overlayColor}
+          overlayOpacity={slide.imageStyle?.overlayOpacity}
+          opacity={slide.imageStyle?.opacity}
+          width={width}
+          height={height}
+          radius={0}
+        />
+      );
+    }
+    return null;
+  };
+
+  // 텍스트 요소들 (모든 layout에서 자유 배치)
+  const headlineEl = (
+    <FreeText
+      text={slide.headline}
+      base={{
+        fontSize: slide.type === 'cover' ? headlineSize : headlineSize * 0.82,
+        color: textColor,
+        weight: typography.headlineWeight,
+        align: 'left',
+        lineHeight: typography.lineHeight,
+        letterSpacing: typography.headlineLetterSpacing,
+      }}
+      override={slide.headlineStyle}
+      position={headlinePos}
+      editable={editable}
+      elementKey="headline"
+      selectedElement={selectedElement}
+      onElementClick={onElementClick}
+      onElementDrag={onElementDrag}
+      accent={color.accent}
+    />
+  );
+
+  const bodyEl = (
+    <FreeText
+      text={slide.body}
+      base={{
+        fontSize: bodySize,
+        color: textMutedColor,
+        weight: 400,
+        align: 'left',
+        lineHeight: 1.55,
+        letterSpacing: '0',
+      }}
+      override={slide.bodyStyle}
+      position={bodyPos}
+      editable={editable}
+      elementKey="body"
+      selectedElement={selectedElement}
+      onElementClick={onElementClick}
+      onElementDrag={onElementDrag}
+      accent={color.accent}
+    />
+  );
+
+  const highlightEl =
+    slide.type === 'data' && slide.highlight ? (
+      <FreeText
+        text={slide.highlight}
+        base={{
+          fontSize: Math.min(220, headlineSize * 2),
+          color: color.accent,
+          weight: 900,
+          align: 'left',
+          lineHeight: 0.95,
+          letterSpacing: '-0.04em',
+        }}
+        override={slide.highlightStyle}
+        position={highlightPos}
+        editable={editable}
+        elementKey="highlight"
+        selectedElement={selectedElement}
+        onElementClick={onElementClick}
+        onElementDrag={onElementDrag}
+        accent={color.accent}
       />
     ) : null;
 
-  // ═════════════════════════════════════════
-  // 1. 센터드 클래식
-  // ═════════════════════════════════════════
-  const renderCentered = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        textAlign: 'center',
-        zIndex: 2,
-        boxSizing: 'border-box',
+  const labelEl = slide.label ? (
+    <FreeText
+      text={slide.label}
+      base={{
+        fontSize: 22,
+        color: color.accent,
+        weight: 700,
+        align: 'left',
+        lineHeight: 1.2,
+        letterSpacing: '0.15em',
       }}
-    >
-      {hasImage && imgLayout === 'full-bleed' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `linear-gradient(180deg, ${color.background}dd 0%, ${color.background}88 40%, ${color.background}ee 100%)`,
-            zIndex: 1,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
-      <div style={{ position: 'relative', zIndex: 2, width: '100%', textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 40 }}>
-          {renderBadge()}
-        </div>
-        <div style={{ marginBottom: 32 }}>{renderHighlight({ textAlign: 'center' })}</div>
-        <div style={{ marginBottom: 28 }}>{renderHeadline({ textAlign: 'center' }, 'center')}</div>
-        <div style={{ maxWidth: width * 0.75, marginLeft: 'auto', marginRight: 'auto' }}>
-          {renderBody({ textAlign: 'center' }, 'center')}
-        </div>
-      </div>
-    </div>
-  );
-
-  // ═════════════════════════════════════════
-  // 2. 하단 집중
-  // ═════════════════════════════════════════
-  const renderBottomFocus = () => (
-    <>
-      {hasImage && (
-        <>
-          {renderImage('full', 0)}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background}33 45%, ${color.background}f0 70%, ${color.background} 100%)`,
-              zIndex: 1,
-              pointerEvents: 'none',
-            }}
-          />
-        </>
-      )}
-
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          zIndex: 2,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ marginBottom: 20 }}>{renderBadge()}</div>
-        <div style={{ marginBottom: 16 }}>{renderHeadline({ color: '#ffffff' }, 'left')}</div>
-        <div>{renderBody({ color: '#ffffffcc' }, 'left')}</div>
-      </div>
-    </>
-  );
-
-  // ═════════════════════════════════════════
-  // 3. 좌측 정렬 볼드
-  // ═════════════════════════════════════════
-  const renderLeftBold = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        zIndex: 2,
-        boxSizing: 'border-box',
-      }}
-    >
-      {hasImage && imgLayout === 'full-bleed' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `linear-gradient(90deg, ${color.background}ee 0%, ${color.background}88 60%, ${color.background}66 100%)`,
-            zIndex: 1,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
-      <div style={{ position: 'relative', zIndex: 2, maxWidth: width * 0.82 }}>
-        <div style={{ marginBottom: 32 }}>{renderBadge()}</div>
-        {renderHighlight({ marginBottom: 28 })}
-        <div style={{ marginBottom: 32 }}>{renderHeadline()}</div>
-        <div style={{ maxWidth: width * 0.7 }}>{renderBody()}</div>
-      </div>
-    </div>
-  );
-
-  // ═════════════════════════════════════════
-  // 4. 상단 라벨
-  // ═════════════════════════════════════════
-  const renderTopLabel = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 2,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ marginBottom: 80 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20 }}>
-          {renderLabel()}
-          <div style={{ flex: 1, height: 2, backgroundColor: color.accent, opacity: 0.3 }} />
-        </div>
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-        }}
-      >
-        <div style={{ marginBottom: 32 }}>{renderHighlight()}</div>
-        <div style={{ marginBottom: 32 }}>{renderHeadline()}</div>
-        <div style={{ maxWidth: width * 0.8 }}>{renderBody()}</div>
-      </div>
-
-      {!isLast && <div style={{ marginTop: 40 }}>{renderBadge()}</div>}
-    </div>
-  );
-
-  // ═════════════════════════════════════════
-  // 5. 숫자 강조
-  // ═════════════════════════════════════════
-  const renderNumberFocus = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 2,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 60 }}>
-        <div style={{ width: 60, height: 2, backgroundColor: color.accent }} />
-        {renderLabel()}
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', gap: 40, alignItems: 'flex-start' }}>
-        <div style={{ flex: '0 0 auto', minWidth: 180 }}>
-          {renderHighlight({
-            fontSize: 200,
-            fontWeight: 900,
-            color: color.accent,
-            lineHeight: 0.9,
-            letterSpacing: '-0.05em',
-          })}
-        </div>
-        <div style={{ flex: 1, paddingTop: 20 }}>
-          <div style={{ marginBottom: 32 }}>{renderHeadline()}</div>
-          <div style={{ maxWidth: width * 0.55 }}>{renderBody()}</div>
-        </div>
-      </div>
-
-      {!isLast && <div style={{ marginTop: 40 }}>{renderBadge()}</div>}
-    </div>
-  );
-
-  // ═════════════════════════════════════════
-  // 6. 인용구
-  // ═════════════════════════════════════════
-  const renderQuoteStyle = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        textAlign: 'center',
-        zIndex: 2,
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* 큰 따옴표 */}
-      <div
-        style={{
-          fontSize: 220,
-          lineHeight: 0.6,
-          fontWeight: 900,
-          color: color.accent,
-          opacity: 0.35,
-          marginBottom: 20,
-          fontFamily: 'Georgia, serif',
-        }}
-      >
-        "
-      </div>
-
-      {/* 인용 텍스트 = 헤드라인 */}
-      <div style={{ maxWidth: width * 0.82, marginBottom: 40 }}>
-        {renderHeadline(
-          {
-            fontSize: Math.min(110, typography.headlineSize * 1.15),
-            fontWeight: 700,
-            fontStyle: 'italic',
-            lineHeight: 1.35,
-            letterSpacing: '-0.01em',
-            textAlign: 'center',
-          },
-          'center'
-        )}
-      </div>
-
-      {/* 하단 구분선 */}
-      <div
-        style={{
-          width: 80,
-          height: 3,
-          backgroundColor: color.accent,
-          marginBottom: 32,
-        }}
-      />
-
-      {/* 본문 (인용 설명) */}
-      <div style={{ maxWidth: width * 0.72 }}>
-        {renderBody(
-          {
-            fontSize: 24,
-            color: color.textMuted,
-            textAlign: 'center',
-            letterSpacing: '0.02em',
-          },
-          'center'
-        )}
-      </div>
-
-      {/* 하단 라벨 */}
-      {slide.label && (
-        <div style={{ marginTop: 40 }}>{renderLabel({ textAlign: 'center' }, 'center')}</div>
-      )}
-    </div>
-  );
-
-  // ═════════════════════════════════════════
-  // 7. 그리드 카드
-  // ═════════════════════════════════════════
-  const renderCardGrid = () => (
-    <>
-      {/* 상단 이미지 (약 55%) */}
-      {hasImage &&
-        renderImage('custom', 0, {
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '55%',
-        })}
-
-      {/* 하단 정보 박스 (약 45% + 여백) */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 60,
-          right: 60,
-          bottom: 60,
-          top: '50%',
-          backgroundColor: color.surface,
-          borderRadius: 24,
-          padding: 40,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-          zIndex: 2,
-        }}
-      >
-        <div style={{ marginBottom: 20 }}>{renderBadge()}</div>
-        <div style={{ marginBottom: 20 }}>{renderHeadline()}</div>
-        <div>{renderBody()}</div>
-      </div>
-    </>
-  );
-
-  // ═════════════════════════════════════════
-  // 8. 사이드 바
-  // ═════════════════════════════════════════
-  const renderSideBar = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        gap: 50,
-        zIndex: 2,
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* 좌측 색상 바 */}
-      <div
-        style={{
-          flex: '0 0 auto',
-          width: 8,
-          backgroundColor: color.accent,
-          borderRadius: 4,
-          alignSelf: 'stretch',
-          marginTop: 20,
-          marginBottom: 20,
-        }}
-      />
-
-      {/* 우측 콘텐츠 */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-        }}
-      >
-        <div style={{ marginBottom: 40 }}>{renderLabel()}</div>
-        <div style={{ marginBottom: 32 }}>{renderHighlight()}</div>
-        <div style={{ marginBottom: 36 }}>{renderHeadline()}</div>
-        <div style={{ maxWidth: width * 0.6 }}>{renderBody()}</div>
-        {!isLast && <div style={{ marginTop: 50 }}>{renderBadge()}</div>}
-      </div>
-    </div>
-  );
-
-  // ═════════════════════════════════════════
-  // 9. 이미지 오버레이
-  // ═════════════════════════════════════════
-  const renderFullOverlay = () => (
-    <>
-      {/* 전체 배경 이미지 */}
-      {hasImage && renderImage('full', 0)}
-
-      {/* 하단 그라데이션 (배경색으로 진해짐) */}
-      {hasImage && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background}22 40%, ${color.background}cc 70%, ${color.background} 100%)`,
-            zIndex: 1,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
-      {/* 콘텐츠 - 하단 정렬 */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          zIndex: 2,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ marginBottom: 24 }}>{renderBadge()}</div>
-
-        {slide.type === 'data' && slide.highlight && (
-          <div style={{ marginBottom: 24 }}>
-            {renderHighlight({
-              fontSize: 160,
-              fontWeight: 900,
-              color: color.accent,
-              lineHeight: 0.9,
-            })}
-          </div>
-        )}
-
-        <div style={{ marginBottom: 24 }}>{renderHeadline({ color: color.text })}</div>
-        <div style={{ maxWidth: width * 0.85 }}>{renderBody({ color: color.textMuted })}</div>
-      </div>
-    </>
-  );
-
-  // ═════════════════════════════════════════
-  // 10. 매거진
-  // ═════════════════════════════════════════
-  const renderMagazine = () => (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        padding: `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 2,
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* 상단: 카테고리 + 라인 */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 20,
-          paddingBottom: 24,
-          marginBottom: 60,
-          borderBottom: `2px solid ${color.text}`,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 24,
-            fontWeight: 900,
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            color: color.accent,
-          }}
-        >
-          MAGAZINE
-        </div>
-        <div style={{ flex: 1 }} />
-        {renderLabel()}
-      </div>
-
-      {/* 중앙: 큰 제목 + 부제 */}
-      <div style={{ marginBottom: 60 }}>
-        <div style={{ marginBottom: 24 }}>
-          {renderHeadline({
-            fontSize: Math.min(140, typography.headlineSize * 1.5),
-            fontWeight: 900,
-            lineHeight: 1.05,
-            letterSpacing: '-0.04em',
-          })}
-        </div>
-
-        {/* 굵은 구분선 */}
-        <div
-          style={{
-            width: 100,
-            height: 6,
-            backgroundColor: color.accent,
-            marginBottom: 32,
-          }}
-        />
-      </div>
-
-      {/* 하단: 컬럼 레이아웃 (이미지 + 본문) */}
-      <div style={{ flex: 1, display: 'flex', gap: 40 }}>
-        {/* 좌측 이미지 */}
-        {hasImage && (
-          <div
-            style={{
-              flex: '0 0 40%',
-              borderRadius: decoration.cornerRadius || 12,
-              overflow: 'hidden',
-            }}
-          >
-            {renderImage('custom', decoration.cornerRadius || 12, {
-              position: 'relative',
-              width: '100%',
-              height: '100%',
-            })}
-          </div>
-        )}
-
-        {/* 우측 본문 */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 24,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 20,
-              fontWeight: 800,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              color: color.accent,
-            }}
-          >
-            —
-          </div>
-
-          <div>{renderBody({ lineHeight: 1.7 })}</div>
-
-          {slide.type === 'data' && slide.highlight && (
-            <div style={{ marginTop: 'auto' }}>
-              {renderHighlight({
-                fontSize: 72,
-                fontWeight: 900,
-                color: color.accent,
-                letterSpacing: '-0.03em',
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  // ─────────────────────────────────────
-  // 레이아웃 분기
-  // ─────────────────────────────────────
-  const renderContent = () => {
-    switch (layout) {
-      case 'centered':
-        return renderCentered();
-      case 'bottom-focus':
-        return renderBottomFocus();
-      case 'left-bold':
-        return renderLeftBold();
-      case 'top-label':
-        return renderTopLabel();
-      case 'number-focus':
-        return renderNumberFocus();
-      case 'quote-style':
-        return renderQuoteStyle();
-      case 'card-grid':
-        return renderCardGrid();
-      case 'side-bar':
-        return renderSideBar();
-      case 'full-overlay':
-        return renderFullOverlay();
-      case 'magazine':
-        return renderMagazine();
-      default:
-        return renderCentered();
-    }
-  };
-
-  // 배경 이미지 표시 여부 (레이아웃별로 다름)
-  const showImageAsBackground =
-    hasImage &&
-    (layout === 'centered' ||
-      layout === 'left-bold' ||
-      layout === 'top-label' ||
-      layout === 'number-focus' ||
-      layout === 'side-bar') &&
-    imgLayout === 'full-bleed';
+      override={slide.labelStyle}
+      position={labelPos}
+      editable={editable}
+      elementKey="label"
+      selectedElement={selectedElement}
+      onElementClick={onElementClick}
+      onElementDrag={onElementDrag}
+      accent={color.accent}
+    />
+  ) : null;
 
   return (
     <div
@@ -1291,65 +804,45 @@ export function CardSlide({
         overflow: 'hidden',
       }}
     >
-      {/* 배경 패턴 */}
       <BackgroundLayer color={color} pattern={decoration.backgroundPattern} />
+      {renderImage()}
 
-      {/* 배경 이미지 (특정 레이아웃만) */}
-      {showImageAsBackground && renderImage('full', decoration.cornerRadius)}
-
-      {/* 상단 이미지 (일반 레이아웃) */}
-      {hasImage &&
-        imgLayout === 'top-image' &&
-        layout !== 'bottom-focus' &&
-        layout !== 'card-grid' && (
-          <>
-            {renderImage('top', decoration.cornerRadius)}
-            <div
-              style={{
-                position: 'absolute',
-                top: height * 0.45,
-                left: 0,
-                right: 0,
-                height: height * 0.25,
-                background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background}cc 60%, ${color.background} 100%)`,
-                zIndex: 1,
-                pointerEvents: 'none',
-              }}
-            />
-          </>
-        )}
-
-      {/* 좌우 분할 이미지 */}
-      {hasImage && imgLayout === 'split' && (
+      {bottomBlack && (
         <div
           style={{
             position: 'absolute',
-            top: 0,
+            left: 0,
             right: 0,
-            width: width * 0.5,
-            height: '100%',
-            zIndex: 0,
+            bottom: 0,
+            height: '22%',
+            background: `linear-gradient(180deg, ${color.background}00 0%, #000000 100%)`,
+            zIndex: 2,
+            pointerEvents: 'none',
           }}
-        >
-          {renderImage('right', decoration.cornerRadius)}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: '35%',
-              background: `linear-gradient(90deg, ${color.background} 0%, ${color.background}00 100%)`,
-              zIndex: 1,
-            }}
-          />
-        </div>
+        />
       )}
 
-      {/* 콘텐츠 */}
-      {renderContent()}
+      {hasImage && imgLayout === 'top-image' && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: height * 0.4,
+            height: height * 0.2,
+            background: `linear-gradient(180deg, ${color.background}00 0%, ${color.background}cc 60%, ${color.background} 100%)`,
+            zIndex: 1,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
 
-      {/* 푸터 */}
+      {labelEl}
+      {renderBadge()}
+      {highlightEl}
+      {headlineEl}
+      {bodyEl}
+
       <div
         style={{
           position: 'absolute',
@@ -1362,7 +855,7 @@ export function CardSlide({
         <CardFooter
           brand={brand}
           isLast={isLast}
-          textMuted={color.textMuted}
+          textMuted={bottomBlack ? '#ffffffaa' : color.textMuted}
           accent={color.accent}
         />
       </div>
