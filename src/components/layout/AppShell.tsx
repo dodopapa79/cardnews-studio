@@ -16,12 +16,14 @@ export function AppShell({
   onChange,
   hasSlides,
   projectName,
+  onCreateNew,
   children,
 }: {
   active: ViewId;
   onChange: (v: ViewId) => void;
   hasSlides: boolean;
   projectName?: string;
+  onCreateNew?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -31,6 +33,7 @@ export function AppShell({
         onChange={onChange}
         hasSlides={hasSlides}
         projectName={projectName}
+        onCreateNew={onCreateNew}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <Header title={TITLES[active]} />

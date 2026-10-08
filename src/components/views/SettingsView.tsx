@@ -5,11 +5,18 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { BrandInfoForm } from '@/components/BrandInfoForm';
-import type { Settings } from '@/lib/types';
+import type { Settings, CardSize } from '@/lib/types';
 import { EMPTY_BRAND } from '@/lib/types';
 import { saveSettings } from '@/lib/storage';
 import { clearAllImages, getStorageUsage } from '@/lib/imageStore';
-import { ExternalLink, Check, AlertCircle, RotateCcw, HardDrive } from 'lucide-react';
+import {
+  ExternalLink,
+  Check,
+  AlertCircle,
+  RotateCcw,
+  HardDrive,
+  Layout,
+} from 'lucide-react';
 
 export function SettingsView({
   settings,
@@ -32,7 +39,9 @@ export function SettingsView({
   }, [settings]);
 
   useEffect(() => {
-    getStorageUsage().then(setUsage).catch(() => {});
+    getStorageUsage()
+      .then(setUsage)
+      .catch(() => {});
   }, []);
 
   const update = (patch: Partial<Settings>) => {
@@ -49,7 +58,6 @@ export function SettingsView({
 
   const geminiOk = !!local.geminiApiKey;
   const cfOk = !!local.cfAccountId && !!local.cfApiToken;
-
   const usageMB = (usage.bytes / 1024 / 1024).toFixed(2);
 
   async function handleReset() {
@@ -71,7 +79,7 @@ export function SettingsView({
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-5">
       <Card>
         <CardHeader
           title="Gemini API"
@@ -142,6 +150,57 @@ export function SettingsView({
         </div>
       </Card>
 
+      {/* 카드 사이즈 */}
+      <Card>
+        <CardHeader
+          title="기본 카드 사이즈"
+          subtitle="새 카드뉴스 만들 때 기본으로 적용됩니다"
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => update({ defaultCardSize: 'instagram' })}
+            className={`p-4 rounded-xl border-2 transition text-left ${
+              local.defaultCardSize === 'instagram'
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-surface-border hover:border-primary-300'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Layout size={16} className="text-primary-600" />
+              <span className="font-semibold text-sm">인스타그램 4:5</span>
+            </div>
+            <div
+              className="mx-auto bg-gradient-to-br from-primary-500 to-primary-700 rounded"
+              style={{ width: 40, height: 50 }}
+            />
+            <div className="text-[10px] text-ink-muted text-center mt-2">
+              1080 × 1350
+            </div>
+          </button>
+
+          <button
+            onClick={() => update({ defaultCardSize: 'square' })}
+            className={`p-4 rounded-xl border-2 transition text-left ${
+              local.defaultCardSize === 'square'
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-surface-border hover:border-primary-300'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Layout size={16} className="text-primary-600" />
+              <span className="font-semibold text-sm">정사각형 1:1</span>
+            </div>
+            <div
+              className="mx-auto bg-gradient-to-br from-primary-500 to-primary-700 rounded"
+              style={{ width: 50, height: 50 }}
+            />
+            <div className="text-[10px] text-ink-muted text-center mt-2">
+              1080 × 1080
+            </div>
+          </button>
+        </div>
+      </Card>
+
       <BrandInfoForm
         brand={local.brand || EMPTY_BRAND}
         onChange={(b) => update({ brand: b })}
@@ -161,7 +220,7 @@ export function SettingsView({
         </div>
       </Card>
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center pt-2">
         <Button variant="danger" icon={<RotateCcw size={16} />} onClick={handleReset}>
           데이터 초기화
         </Button>

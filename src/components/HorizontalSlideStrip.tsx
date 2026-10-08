@@ -2,13 +2,15 @@
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useRef } from 'react';
 import { CardSlide } from '@/templates';
-import type { Slide, Preset, BrandInfo } from '@/lib/types';
+import type { Slide, Preset, BrandInfo, CardSize } from '@/lib/types';
+import { CARD_SIZE_DIMENSIONS } from '@/lib/types';
 
 export function HorizontalSlideStrip({
   slides,
   preset,
   colorId,
   brand,
+  cardSize = 'instagram',
   selectedIdx,
   onSelect,
   onAdd,
@@ -17,11 +19,13 @@ export function HorizontalSlideStrip({
   preset: Preset;
   colorId?: string;
   brand?: BrandInfo;
+  cardSize?: CardSize;
   selectedIdx: number;
   onSelect: (i: number) => void;
   onAdd?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dim = CARD_SIZE_DIMENSIONS[cardSize];
 
   function scrollBy(dx: number) {
     scrollRef.current?.scrollBy({ left: dx, behavior: 'smooth' });
@@ -56,13 +60,16 @@ export function HorizontalSlideStrip({
                 ? 'ring-2 ring-primary-500 ring-offset-2'
                 : 'border border-surface-border hover:border-primary-300'
             }`}
-            style={{ width: 112, aspectRatio: '4 / 5' }}
+            style={{
+              width: 100,
+              aspectRatio: `${dim.width} / ${dim.height}`,
+            }}
           >
             <div
               style={{
-                width: 1080,
-                height: 1350,
-                transform: `scale(${112 / 1080})`,
+                width: dim.width,
+                height: dim.height,
+                transform: `scale(${100 / dim.width})`,
                 transformOrigin: 'top left',
                 position: 'absolute',
                 top: 0,
@@ -74,6 +81,8 @@ export function HorizontalSlideStrip({
                 preset={preset}
                 colorId={colorId}
                 brand={brand}
+                width={dim.width}
+                height={dim.height}
                 isLast={i === slides.length - 1}
               />
             </div>
@@ -93,7 +102,7 @@ export function HorizontalSlideStrip({
           <button
             onClick={onAdd}
             className="shrink-0 rounded-lg border-2 border-dashed border-surface-border hover:border-primary-400 flex flex-col items-center justify-center gap-1 text-ink-muted hover:text-primary-600 transition-colors"
-            style={{ width: 112, aspectRatio: '4 / 5' }}
+            style={{ width: 100, aspectRatio: `${dim.width} / ${dim.height}` }}
           >
             <Plus size={20} />
             <span className="text-[10px]">추가</span>

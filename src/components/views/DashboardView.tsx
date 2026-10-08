@@ -10,7 +10,6 @@ import { CardSlide } from '@/templates';
 import {
   PencilRuler,
   Film,
-  Settings as SettingsIcon,
   CheckCircle2,
   AlertCircle,
   Layers,
@@ -18,6 +17,7 @@ import {
   Plus,
   FolderOpen,
   FileText,
+  Palette,
 } from 'lucide-react';
 
 export function DashboardView({
@@ -41,48 +41,59 @@ export function DashboardView({
   const slidesWithImages = slides.filter((s) => s.imageUrl).length;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-5">
       {/* 환영 */}
-      <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl p-8 text-white">
-        <div className="text-xs font-medium opacity-80 mb-1">WELCOME BACK</div>
-        <h2 className="text-2xl font-bold mb-2">카드뉴스와 숏츠를 자동으로 만들어보세요</h2>
-        <p className="text-sm opacity-90 mb-5">
-          키워드나 블로그 URL 하나로 인스타 카드뉴스와 유튜브 숏츠를 완성합니다.
-        </p>
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            onClick={onNewProject}
-            variant="secondary"
-            className="!bg-white !text-primary-700 !border-transparent hover:!bg-primary-50"
-            icon={<Plus size={16} />}
-          >
-            새 카드뉴스
-          </Button>
-          {hasSlides && (
-            <>
-              <Button
-                onClick={() => onNavigate('create')}
-                variant="ghost"
-                className="!text-white hover:!bg-white/10"
-                icon={<PencilRuler size={16} />}
-              >
-                편집 계속
-              </Button>
-              <Button
-                onClick={() => onNavigate('video')}
-                variant="ghost"
-                className="!text-white hover:!bg-white/10"
-                icon={<Film size={16} />}
-              >
-                영상 만들기
-              </Button>
-            </>
-          )}
+      <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl p-8 text-white relative overflow-hidden">
+        {/* 배경 장식 */}
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-32 translate-x-32" />
+        <div className="absolute bottom-0 right-20 w-40 h-40 rounded-full bg-white/5 translate-y-20" />
+
+        <div className="relative z-10">
+          <div className="text-xs font-medium opacity-80 mb-1 tracking-widest">
+            WELCOME BACK
+          </div>
+          <h2 className="text-2xl font-bold mb-2">
+            카드뉴스와 숏츠를 자동으로 만들어보세요
+          </h2>
+          <p className="text-sm opacity-90 mb-5 max-w-lg">
+            키워드나 블로그 URL 하나로 인스타 카드뉴스와 유튜브 숏츠를 완성합니다.
+          </p>
+
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={onNewProject}
+              size="lg"
+              icon={<Plus size={18} />}
+              className="!bg-white !text-primary-700 !border-transparent hover:!bg-primary-50"
+            >
+              새 카드뉴스 만들기
+            </Button>
+            {hasSlides && (
+              <>
+                <Button
+                  onClick={() => onNavigate('create')}
+                  variant="ghost"
+                  className="!text-white hover:!bg-white/10"
+                  icon={<PencilRuler size={16} />}
+                >
+                  편집 계속하기
+                </Button>
+                <Button
+                  onClick={() => onNavigate('video')}
+                  variant="ghost"
+                  className="!text-white hover:!bg-white/10"
+                  icon={<Film size={16} />}
+                >
+                  영상 만들기
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 현황 카드 4개 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 현황 카드 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={<CheckCircle2 size={20} />}
           label="Gemini API"
@@ -102,7 +113,7 @@ export function DashboardView({
           label="저장된 카드뉴스"
           value={`${projects.length}개`}
           status={projects.length > 0 ? 'success' : 'default'}
-          onClick={() => onNavigate('create')}
+          onClick={() => projects.length > 0 && onNavigate('create')}
         />
         <StatCard
           icon={<ImageIcon size={20} />}
@@ -120,7 +131,12 @@ export function DashboardView({
             title={`내 카드뉴스 (${projects.length})`}
             subtitle="최근 수정 순"
             action={
-              <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={onNewProject}>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Plus size={13} />}
+                onClick={onNewProject}
+              >
                 새로
               </Button>
             }
@@ -150,13 +166,18 @@ export function DashboardView({
                   >
                     <div
                       className="shrink-0 rounded-lg overflow-hidden border bg-white"
-                      style={{ width: 40, aspectRatio: '4 / 5' }}
+                      style={{
+                        width: 40,
+                        aspectRatio: p.cardSize === 'square' ? '1 / 1' : '4 / 5',
+                      }}
                     >
                       <div
                         style={{
                           width: 1080,
-                          height: 1350,
-                          transform: 'scale(0.037)',
+                          height: p.cardSize === 'square' ? 1080 : 1350,
+                          transform: `scale(${
+                            40 / 1080
+                          })`,
                           transformOrigin: 'top left',
                         }}
                       >
@@ -166,6 +187,8 @@ export function DashboardView({
                             preset={preset}
                             colorId={p.presetColorId}
                             brand={p.brand}
+                            width={1080}
+                            height={p.cardSize === 'square' ? 1080 : 1350}
                             isLast={false}
                           />
                         )}
@@ -201,15 +224,34 @@ export function DashboardView({
               title="카드뉴스 생성"
               desc="키워드 또는 블로그 URL 입력"
               done={projects.length > 0}
-              onClick={() => onNavigate('create')}
+              onClick={onNewProject}
             />
             <Step
               n={3}
               title="영상 만들기"
               desc="숏츠 WebM 다운로드"
               done={false}
-              onClick={() => (hasSlides ? onNavigate('video') : onNavigate('create'))}
+              onClick={() => (hasSlides ? onNavigate('video') : onNewProject())}
             />
+          </div>
+
+          {/* 프리셋 미리보기 */}
+          <div className="mt-4 pt-4 border-t border-surface-border">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
+                <Palette size={12} />
+                프리셋
+              </div>
+              <button
+                onClick={() => onNavigate('presets')}
+                className="text-xs text-primary-600 hover:text-primary-700"
+              >
+                전체 보기 →
+              </button>
+            </div>
+            <div className="text-[11px] text-ink-muted">
+              10가지 스타일 + 업종별 6가지 프리셋 제공
+            </div>
           </div>
         </Card>
       </div>
@@ -274,7 +316,7 @@ function Step({
     >
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-          done ? 'bg-primary-100 text-primary-600' : 'bg-primary-100 text-primary-700'
+          done ? 'bg-primary-600 text-white' : 'bg-primary-100 text-primary-700'
         }`}
       >
         {done ? <CheckCircle2 size={14} /> : n}

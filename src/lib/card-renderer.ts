@@ -2,10 +2,14 @@ import { toPng } from 'html-to-image';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-export async function renderNodeToPng(node: HTMLElement): Promise<Blob> {
+export async function renderNodeToPng(
+  node: HTMLElement,
+  width = 1080,
+  height = 1350
+): Promise<Blob> {
   const dataUrl = await toPng(node, {
-    width: 1080,
-    height: 1350,
+    width,
+    height,
     pixelRatio: 1,
     cacheBust: true,
     skipFonts: false,
@@ -14,10 +18,14 @@ export async function renderNodeToPng(node: HTMLElement): Promise<Blob> {
   return res.blob();
 }
 
-export async function renderNodeToDataUrl(node: HTMLElement): Promise<string> {
+export async function renderNodeToDataUrl(
+  node: HTMLElement,
+  width = 1080,
+  height = 1350
+): Promise<string> {
   return await toPng(node, {
-    width: 1080,
-    height: 1350,
+    width,
+    height,
     pixelRatio: 1,
     cacheBust: true,
   });

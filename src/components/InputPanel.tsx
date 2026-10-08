@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Tabs } from '@/components/ui/Tabs';
@@ -11,9 +10,11 @@ import { Sparkles, AlertCircle, Link2, Search, PencilRuler } from 'lucide-react'
 export function InputPanel({
   settings,
   onSlides,
+  compact = false,
 }: {
   settings: Settings;
   onSlides: (s: Slide[]) => void;
+  compact?: boolean;
 }) {
   const [mode, setMode] = useState<'keyword' | 'blog' | 'manual'>('keyword');
   const [keyword, setKeyword] = useState('');
@@ -45,7 +46,6 @@ export function InputPanel({
         if (!manual.trim()) throw new Error('내용을 입력하세요.');
         source = manual;
       }
-
       const slides = await generateCardNews(settings.geminiApiKey, source, { slideCount });
       onSlides(slides);
     } catch (e: any) {
@@ -56,10 +56,8 @@ export function InputPanel({
   }
 
   return (
-    <Card>
-      <CardHeader title="카드뉴스 소스" subtitle="AI가 자동으로 슬라이드로 변환" />
-
-      <div className="mb-4">
+    <div className="space-y-4">
+      <div>
         <Tabs
           tabs={[
             { id: 'keyword', label: '키워드', icon: <Search size={13} /> },
@@ -92,7 +90,7 @@ export function InputPanel({
             placeholder="카드뉴스로 만들 텍스트를 붙여넣으세요"
             value={manual}
             onChange={(e) => setManual(e.target.value)}
-            rows={6}
+            rows={compact ? 4 : 6}
           />
         )}
 
@@ -120,7 +118,7 @@ export function InputPanel({
         </Button>
 
         {!ready && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-orange-50 border border-orange-200 text-xs text-orange-700">
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-primary-50 border border-primary-200 text-xs text-primary-700">
             <AlertCircle size={14} className="mt-0.5 shrink-0" />
             <span>설정에서 Gemini API 키를 먼저 입력하세요</span>
           </div>
@@ -133,6 +131,6 @@ export function InputPanel({
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

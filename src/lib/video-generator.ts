@@ -1,4 +1,4 @@
-import type { VideoLayout } from './types';
+import type { VideoStyle, VideoTransition } from './types';
 
 export interface BgmOption {
   file: File;
@@ -15,16 +15,10 @@ export interface LogoOption {
   opacity: number;
 }
 
-export interface VideoOptions {
+export interface VideoOptions extends VideoStyle {
   width?: number;
   height?: number;
   fps?: number;
-  slideDurationMs?: number;
-  transitionMs?: number;
-  transition?: 'fade' | 'slide' | 'zoom';
-  layout?: VideoLayout;
-  showProgressBar?: boolean;
-  showSubtitle?: boolean;
   subtitleTexts?: string[];
   bgm?: BgmOption;
   logo?: LogoOption;
@@ -34,18 +28,27 @@ export interface VideoOptions {
 
 export async function generateShorts(
   cardImageUrls: string[],
-  options: VideoOptions = {}
+  options: VideoOptions
 ): Promise<Blob> {
   const {
     width = 1080,
     height = 1920,
     fps = 30,
-    slideDurationMs = 2500,
-    transitionMs = 400,
+    backgroundType = 'gradient',
+    backgroundColor = '#000000',
+    backgroundColorEnd = '#1a1a1a',
+    cardPosition = 'center',
+    cardScale = 0.85,
     transition = 'fade',
-    layout = 'split-news',
-    showProgressBar = true,
+    transitionMs = 400,
+    slideDurationMs = 2500,
     showSubtitle = false,
+    subtitleColor = '#ffffff',
+    subtitleBg = 'rgba(0,0,0,0.7)',
+    showProgressBar = true,
+    progressBarColor = '#8b5cf6',
+    cardRadius = 32,
+    cardShadow = true,
     subtitleTexts = [],
     bgm,
     logo,
@@ -72,9 +75,7 @@ export async function generateShorts(
     )
   );
 
-  // ─────────────────────────────────────────
-  // 오디오 세팅
-  // ─────────────────────────────────────────
+  // 오디오
   const audioCtx = new AudioContext();
   const audioDest = audioCtx.createMediaStreamDestination();
   const masterGain = audioCtx.createGain();
@@ -87,11 +88,9 @@ export async function generateShorts(
     try {
       const arrayBuffer = await bgm.file.arrayBuffer();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
       bgmGain = audioCtx.createGain();
       bgmGain.gain.value = bgm.volume;
       bgmGain.connect(masterGain);
-
       bgmSource = audioCtx.createBufferSource();
       bgmSource.buffer = audioBuffer;
       bgmSource.loop = true;
@@ -101,9 +100,7 @@ export async function generateShorts(
     }
   }
 
-  // ─────────────────────────────────────────
   // MediaRecorder
-  // ─────────────────────────────────────────
   const canvasStream = canvas.captureStream(fps);
   const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
   tracks.push(...audioDest.stream.getAudioTracks());
@@ -117,20 +114,16 @@ export async function generateShorts(
 
   const recorder = new MediaRecorder(mixedStream, {
     mimeType,
-    videoBitsPerSecond: 5_000_000,
+    videoBitsPerSecond: 6_000_000,
     audioBitsPerSecond: 128_000,
   });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
 
-  const TOP_RATIO = 0.42;
-  const BOTTOM_RATIO = 0.58;
   const totalMs = images.length * slideDurationMs;
   const totalSec = totalMs / 1000;
 
-  // ─────────────────────────────────────────
-  // 로고 프리로드
-  // ─────────────────────────────────────────
+  // 로고
   let logoImg: HTMLImageElement | null = null;
   if (logo?.imageUrl) {
     try {
@@ -146,81 +139,114 @@ export async function generateShorts(
     }
   }
 
-  // ─────────────────────────────────────────
-  // 그리기 헬퍼
-  // ─────────────────────────────────────────
-  function drawFullScreenCard(img: HTMLImageElement, alpha: number, scale = 1, offsetX = 0) {
-    const cardH = height * 0.82;
-    const scaleFit = Math.min(cardH / img.height, (width * 0.9) / img.width) * scale;
-    const w = img.width * scaleFit;
-    const h = img.height * scaleFit;
-    const x = (width - w) / 2 + offsetX;
-    const y = (height - h) / 2;
+  // ─────────────────────────────────
+  // 배경
+  // ─────────────────────────────────
+  function drawBackground() {
+    if (backgroundType === 'gradient') {
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, backgroundColor);
+      grad.addColorStop(1, backgroundColorEnd);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+    } else if (backgroundType === 'mesh') {
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, width, height);
+      const r1 = ctx.createRadialGradient(
+        width * 0.2, height * 0.2, 0,
+        width * 0.2, height * 0.2, width * 0.7
+      );
+      r1.addColorStop(0, backgroundColorEnd + 'cc');
+      r1.addColorStop(1, 'transparent');
+      ctx.fillStyle = r1;
+      ctx.fillRect(0, 0, width, height);
+      const r2 = ctx.createRadialGradient(
+        width * 0.8, height * 0.7, 0,
+        width * 0.8, height * 0.7, width * 0.8
+      );
+      r2.addColorStop(0, backgroundColorEnd + '99');
+      r2.addColorStop(1, 'transparent');
+      ctx.fillStyle = r2;
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
 
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = 40;
-    ctx.shadowOffsetY = 20;
+  function getCardRect(img: HTMLImageElement, scale: number = 1) {
+    const targetH = height * cardScale * scale;
+    const ratio = img.width / img.height;
+    let w = targetH * ratio;
+    let h = targetH;
+    const maxW = width * 0.92;
+    if (w > maxW) {
+      w = maxW;
+      h = w / ratio;
+    }
+    let y = 0;
+    if (cardPosition === 'top') y = height * 0.08;
+    else if (cardPosition === 'bottom') y = height - h - height * 0.08;
+    else y = (height - h) / 2;
+    const x = (width - w) / 2;
+    return { x, y, w, h };
+  }
+
+  function drawCard(
+    img: HTMLImageElement,
+    alpha: number = 1,
+    offsetX: number = 0,
+    offsetY: number = 0,
+    scale: number = 1,
+    blurPx: number = 0
+  ) {
+    const rect = getCardRect(img, scale);
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+    const sw = rect.w * scale;
+    const sh = rect.h * scale;
+
     ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(offsetX, offsetY);
+    if (blurPx > 0) ctx.filter = `blur(${blurPx}px)`;
+
+    if (cardShadow) {
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowBlur = 60;
+      ctx.shadowOffsetY = 30;
+    }
+
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 32);
+    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, cardRadius);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
-    ctx.clip();
+
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.drawImage(img, x, y, w, h);
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  }
+    if (blurPx > 0) ctx.filter = 'none';
 
-  function drawTopCard(img: HTMLImageElement, alpha = 1) {
-    const topH = height * TOP_RATIO;
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, width, topH);
-
-    const scale = Math.max(width / img.width, topH / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    const x = (width - w) / 2;
-    const y = (topH - h) / 2;
-    ctx.drawImage(img, x, y, w, h);
-
-    const grad = ctx.createLinearGradient(0, topH - 150, 0, topH);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.95)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, topH - 150, width, 150);
+    ctx.beginPath();
+    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, cardRadius);
+    ctx.clip();
+    ctx.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh);
+    ctx.restore();
     ctx.restore();
   }
 
-  function drawBottomArea(alpha = 1) {
-    const topH = height * TOP_RATIO;
-    const botH = height * BOTTOM_RATIO;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    const grad = ctx.createLinearGradient(0, topH, 0, height);
-    grad.addColorStop(0, '#0f172a');
-    grad.addColorStop(1, '#1e293b');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, topH, width, botH);
-    ctx.restore();
-  }
-
-  function drawSubtitle(text: string, slideProgress: number) {
-    if (!text) return;
-    const topH = height * TOP_RATIO;
-    const botH = height * BOTTOM_RATIO;
-    const centerY = topH + botH * 0.82;
+  function drawSubtitle(text: string, progress: number) {
+    if (!text || !showSubtitle) return;
+    const rect = getCardRect(images[0]);
+    const centerY = rect.y + rect.h + 80;
+    const finalY = Math.min(centerY, height - 140);
 
     ctx.save();
     ctx.font = '700 52px Pretendard, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const alpha = Math.min(1, Math.sin(Math.min(slideProgress, 1) * Math.PI) * 1.5);
+    const alpha = Math.min(1, Math.sin(Math.min(progress, 1) * Math.PI) * 1.5);
     ctx.globalAlpha = alpha;
 
     const metrics = ctx.measureText(text);
@@ -229,14 +255,57 @@ export async function generateShorts(
     const boxW = Math.min(metrics.width + padX * 2, width - 80);
     const boxH = 52 + padY * 2;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillStyle = subtitleBg;
     ctx.beginPath();
-    ctx.roundRect((width - boxW) / 2, centerY - boxH / 2, boxW, boxH, 16);
+    ctx.roundRect((width - boxW) / 2, finalY - boxH / 2, boxW, boxH, 16);
     ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, width / 2, centerY);
+    ctx.fillStyle = subtitleColor;
+    ctx.fillText(text, width / 2, finalY);
     ctx.restore();
+  }
+
+  function renderTransition(
+    fromImg: HTMLImageElement,
+    toImg: HTMLImageElement,
+    t: number,
+    type: VideoTransition
+  ) {
+    if (type === 'fade') {
+      drawCard(fromImg, 1 - t);
+      drawCard(toImg, t);
+    } else if (type === 'slide') {
+      drawCard(fromImg, 1, -t * width, 0);
+      drawCard(toImg, 1, (1 - t) * width, 0);
+    } else if (type === 'slide-up') {
+      drawCard(fromImg, 1, 0, -t * height * 0.3);
+      drawCard(toImg, 1, 0, (1 - t) * height * 0.3);
+    } else if (type === 'zoom') {
+      drawCard(fromImg, 1 - t, 0, 0, 1 - t * 0.15);
+      drawCard(toImg, t, 0, 0, 0.85 + t * 0.15);
+    } else if (type === 'blur') {
+      drawCard(fromImg, 1 - t, 0, 0, 1, t * 15);
+      drawCard(toImg, t, 0, 0, 1, (1 - t) * 15);
+    }
+  }
+
+  function drawProgressBar(elapsed: number, slideIdx: number) {
+    if (!showProgressBar) return;
+    const progress = elapsed / totalMs;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(0, 0, width, 6);
+    ctx.fillStyle = progressBarColor;
+    ctx.fillRect(0, 0, width * progress, 6);
+
+    const dotY = 34;
+    const dotSpacing = 18;
+    const startX = (width - (images.length - 1) * dotSpacing) / 2;
+    for (let i = 0; i < images.length; i++) {
+      ctx.beginPath();
+      ctx.arc(startX + i * dotSpacing, dotY, i === slideIdx ? 5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = i <= slideIdx ? progressBarColor : 'rgba(255,255,255,0.3)';
+      ctx.fill();
+    }
   }
 
   function drawLogo() {
@@ -244,33 +313,15 @@ export async function generateShorts(
     const pad = 60;
     const logoW = logo.size;
     const logoH = (logoImg.height / logoImg.width) * logoW;
-
     let x = 0;
     let y = 0;
-
     switch (logo.position) {
-      case 'bottom-left':
-        x = pad;
-        y = height - pad - logoH;
-        break;
-      case 'bottom-right':
-        x = width - pad - logoW;
-        y = height - pad - logoH;
-        break;
-      case 'top-left':
-        x = pad;
-        y = pad;
-        break;
-      case 'top-right':
-        x = width - pad - logoW;
-        y = pad;
-        break;
-      case 'center':
-        x = (width - logoW) / 2;
-        y = (height - logoH) / 2;
-        break;
+      case 'bottom-left': x = pad; y = height - pad - logoH; break;
+      case 'bottom-right': x = width - pad - logoW; y = height - pad - logoH; break;
+      case 'top-left': x = pad; y = pad; break;
+      case 'top-right': x = width - pad - logoW; y = pad; break;
+      case 'center': x = (width - logoW) / 2; y = (height - logoH) / 2; break;
     }
-
     ctx.save();
     ctx.globalAlpha = logo.opacity;
     ctx.drawImage(logoImg, x, y, logoW, logoH);
@@ -286,17 +337,13 @@ export async function generateShorts(
     return false;
   };
 
-  // ─────────────────────────────────────────
   // 렌더 루프
-  // ─────────────────────────────────────────
   onStatus?.('영상 녹화 중...');
   await audioCtx.resume();
 
   if (bgmSource) {
     const startAt = audioCtx.currentTime;
     bgmSource.start(startAt);
-
-    // 페이드 인/아웃
     if (bgmGain && bgm) {
       const fadeIn = Math.min(bgm.fadeIn, totalSec / 2);
       const fadeOut = Math.min(bgm.fadeOut, totalSec / 2);
@@ -325,71 +372,20 @@ export async function generateShorts(
         slideElapsed > slideDurationMs - transitionMs && slideIdx < images.length - 1;
       const nextIdx = Math.min(slideIdx + 1, images.length - 1);
 
-      if (layout === 'split-news') {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, width, height);
+      drawBackground();
 
-        if (isTransition) {
-          const t = (slideElapsed - (slideDurationMs - transitionMs)) / transitionMs;
-          drawTopCard(images[slideIdx], 1 - t);
-          drawTopCard(images[nextIdx], t);
-          drawBottomArea(1);
-        } else {
-          drawTopCard(images[slideIdx], 1);
-          drawBottomArea(1);
-        }
-
-        if (showSubtitle && subtitleTexts[slideIdx]) {
-          drawSubtitle(subtitleTexts[slideIdx], slideProgress);
-        }
+      if (isTransition) {
+        const t = (slideElapsed - (slideDurationMs - transitionMs)) / transitionMs;
+        renderTransition(images[slideIdx], images[nextIdx], t, transition);
       } else {
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#0f172a');
-        bgGrad.addColorStop(1, '#1e293b');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        if (isTransition) {
-          const t = (slideElapsed - (slideDurationMs - transitionMs)) / transitionMs;
-          if (transition === 'fade') {
-            drawFullScreenCard(images[slideIdx], 1 - t);
-            drawFullScreenCard(images[nextIdx], t);
-          } else if (transition === 'slide') {
-            drawFullScreenCard(images[slideIdx], 1, 1, -t * width);
-            drawFullScreenCard(images[nextIdx], 1, 1, (1 - t) * width);
-          } else {
-            drawFullScreenCard(images[slideIdx], 1 - t, 1 - t * 0.15);
-            drawFullScreenCard(images[nextIdx], t, 0.85 + t * 0.15);
-          }
-        } else {
-          const zoom = 1 + slideProgress * 0.04;
-          drawFullScreenCard(images[slideIdx], 1, zoom);
-        }
+        drawCard(images[slideIdx], 1);
       }
 
-      // 로고
-      if (shouldShowLogoAt(elapsed)) {
-        drawLogo();
-      }
+      drawSubtitle(subtitleTexts[slideIdx] || '', slideProgress);
 
-      // 진행 바
-      if (showProgressBar) {
-        const progress = elapsed / totalMs;
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(0, 0, width, 6);
-        ctx.fillStyle = '#8b5cf6';
-        ctx.fillRect(0, 0, width * progress, 6);
+      if (shouldShowLogoAt(elapsed)) drawLogo();
 
-        const dotY = 34;
-        const dotSpacing = 18;
-        const startX = (width - (images.length - 1) * dotSpacing) / 2;
-        for (let i = 0; i < images.length; i++) {
-          ctx.beginPath();
-          ctx.arc(startX + i * dotSpacing, dotY, i === slideIdx ? 5 : 3, 0, Math.PI * 2);
-          ctx.fillStyle = i <= slideIdx ? '#8b5cf6' : 'rgba(255,255,255,0.3)';
-          ctx.fill();
-        }
-      }
+      drawProgressBar(elapsed, slideIdx);
 
       onProgress?.(Math.min(100, Math.round((elapsed / totalMs) * 100)));
       requestAnimationFrame(tick);

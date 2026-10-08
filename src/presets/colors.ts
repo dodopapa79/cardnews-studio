@@ -1,14 +1,160 @@
 import type { ColorVariant } from '@/lib/types';
 
-// ─────────────────────────────────────────────
-// 1. 다크 볼드 (검정 + 네온) — 8색
-// ─────────────────────────────────────────────
-export const DARK_BOLD_COLORS: ColorVariant[] = [
+// 1. 센터드 클래식 — 미니멀 (흰 배경 + 검정)
+export const CENTERED_COLORS: ColorVariant[] = [
+  {
+    id: 'white-black', name: '화이트 블랙',
+    background: '#ffffff', surface: '#fafafa',
+    text: '#0a0a0a', textMuted: '#525252',
+    accent: '#171717', accentSoft: '#e5e5e5',
+  },
+  {
+    id: 'warm-cream', name: '웜 크림',
+    background: '#faf7f2', surface: '#f0ebe1',
+    text: '#1c1917', textMuted: '#78716c',
+    accent: '#9a3412', accentSoft: '#fed7aa',
+  },
+  {
+    id: 'cool-slate', name: '쿨 슬레이트',
+    background: '#f8fafc', surface: '#f1f5f9',
+    text: '#0f172a', textMuted: '#64748b',
+    accent: '#334155', accentSoft: '#e2e8f0',
+  },
+  {
+    id: 'soft-rose', name: '소프트 로즈',
+    background: '#fff5f8', surface: '#ffe4ec',
+    text: '#831843', textMuted: '#be185d',
+    accent: '#f43f5e', accentSoft: '#ffe4e6',
+  },
+  {
+    id: 'pure-black', name: '퓨어 블랙',
+    background: '#0a0a0a', surface: '#171717',
+    text: '#ffffff', textMuted: '#a3a3a3',
+    accent: '#fafafa', accentSoft: '#262626',
+  },
+];
+
+// 2. 하단 집중 — 사진 배경 + 하단 텍스트
+export const BOTTOM_FOCUS_COLORS: ColorVariant[] = [
+  {
+    id: 'warm-brown', name: '웜 브라운',
+    background: '#292018', surface: '#3d2f22',
+    text: '#ffffff', textMuted: '#d6c9b8',
+    accent: '#d97706', accentSoft: '#78350f',
+  },
+  {
+    id: 'deep-navy', name: '딥 네이비',
+    background: '#0f172a', surface: '#1e293b',
+    text: '#ffffff', textMuted: '#cbd5e1',
+    accent: '#38bdf8', accentSoft: '#075985',
+  },
+  {
+    id: 'forest-dark', name: '포레스트',
+    background: '#051a0f', surface: '#0a2a1a',
+    text: '#ffffff', textMuted: '#6ee7b7',
+    accent: '#10b981', accentSoft: '#064e3b',
+  },
+  {
+    id: 'sunset', name: '선셋',
+    background: '#7c2d12', surface: '#9a3412',
+    text: '#ffffff', textMuted: '#fed7aa',
+    accent: '#fbbf24', accentSoft: '#451a03',
+  },
+  {
+    id: 'mono-dark', name: '모노 다크',
+    background: '#0a0a0a', surface: '#171717',
+    text: '#ffffff', textMuted: '#a3a3a3',
+    accent: '#fafafa', accentSoft: '#262626',
+  },
+];
+
+// 3. 좌측 정렬 볼드 — 큰 제목 좌측, 하단 설명
+export const LEFT_BOLD_COLORS: ColorVariant[] = [
   {
     id: 'neon-green', name: '네온 그린',
     background: '#0a0f0a', surface: '#141f14',
     text: '#ffffff', textMuted: '#a3e635',
     accent: '#84cc16', accentSoft: '#1a2e05',
+  },
+  {
+    id: 'hot-pink', name: '핫 핑크',
+    background: '#1a0510', surface: '#2a0a1f',
+    text: '#ffffff', textMuted: '#fbcfe8',
+    accent: '#ec4899', accentSoft: '#500724',
+  },
+  {
+    id: 'electric-blue', name: '일렉트릭 블루',
+    background: '#050b1a', surface: '#0f172a',
+    text: '#ffffff', textMuted: '#7dd3fc',
+    accent: '#0ea5e9', accentSoft: '#082f49',
+  },
+  {
+    id: 'bright-orange', name: '브라이트 오렌지',
+    background: '#1a0a05', surface: '#2a1410',
+    text: '#ffffff', textMuted: '#fdba74',
+    accent: '#f97316', accentSoft: '#431407',
+  },
+  {
+    id: 'pure-white', name: '퓨어 화이트',
+    background: '#ffffff', surface: '#fafafa',
+    text: '#0a0a0a', textMuted: '#525252',
+    accent: '#171717', accentSoft: '#e5e5e5',
+  },
+];
+
+// 4. 상단 라벨 — 상단 라벨 + 중앙 제목
+export const TOP_LABEL_COLORS: ColorVariant[] = [
+  {
+    id: 'cream', name: '크림',
+    background: '#fffbf5', surface: '#fef3c7',
+    text: '#431407', textMuted: '#92400e',
+    accent: '#b45309', accentSoft: '#fde68a',
+  },
+  {
+    id: 'pastel-pink', name: '파스텔 핑크',
+    background: '#fef6fb', surface: '#fce7f3',
+    text: '#4c1d3d', textMuted: '#9d174d',
+    accent: '#ec4899', accentSoft: '#fce7f3',
+  },
+  {
+    id: 'mint', name: '민트',
+    background: '#f0fdfa', surface: '#ccfbf1',
+    text: '#134e4a', textMuted: '#0d9488',
+    accent: '#14b8a6', accentSoft: '#99f6e4',
+  },
+  {
+    id: 'charcoal', name: '차콜',
+    background: '#0a0a0a', surface: '#171717',
+    text: '#ffffff', textMuted: '#a3a3a3',
+    accent: '#fafafa', accentSoft: '#262626',
+  },
+  {
+    id: 'deep-purple', name: '딥 퍼플',
+    background: '#0f051a', surface: '#1a0a2a',
+    text: '#ffffff', textMuted: '#c4b5fd',
+    accent: '#8b5cf6', accentSoft: '#2e1065',
+  },
+];
+
+// 5. 숫자 강조 — 좌측 큰 숫자 + 우측 텍스트
+export const NUMBER_FOCUS_COLORS: ColorVariant[] = [
+  {
+    id: 'deep-green', name: '딥 그린',
+    background: '#ffffff', surface: '#f0fdf4',
+    text: '#0f172a', textMuted: '#64748b',
+    accent: '#059669', accentSoft: '#d1fae5',
+  },
+  {
+    id: 'royal-blue', name: '로열 블루',
+    background: '#ffffff', surface: '#eff6ff',
+    text: '#0f172a', textMuted: '#64748b',
+    accent: '#1e40af', accentSoft: '#dbeafe',
+  },
+  {
+    id: 'burgundy', name: '버건디',
+    background: '#ffffff', surface: '#fef2f2',
+    text: '#1c1917', textMuted: '#78716c',
+    accent: '#991b1b', accentSoft: '#fee2e2',
   },
   {
     id: 'neon-cyan', name: '네온 시안',
@@ -17,118 +163,38 @@ export const DARK_BOLD_COLORS: ColorVariant[] = [
     accent: '#06b6d4', accentSoft: '#083344',
   },
   {
-    id: 'neon-magenta', name: '네온 마젠타',
-    background: '#0f050a', surface: '#1f0f1a',
-    text: '#ffffff', textMuted: '#f0abfc',
-    accent: '#d946ef', accentSoft: '#4a044e',
-  },
-  {
-    id: 'neon-orange', name: '네온 오렌지',
-    background: '#0f0805', surface: '#1f1410',
-    text: '#ffffff', textMuted: '#fdba74',
-    accent: '#f97316', accentSoft: '#431407',
-  },
-  {
-    id: 'neon-purple', name: '네온 퍼플',
-    background: '#0a051a', surface: '#14082a',
-    text: '#ffffff', textMuted: '#c4b5fd',
-    accent: '#8b5cf6', accentSoft: '#2e1065',
-  },
-  {
-    id: 'neon-red', name: '네온 레드',
-    background: '#1a0505', surface: '#2a0a0a',
-    text: '#ffffff', textMuted: '#fca5a5',
-    accent: '#ef4444', accentSoft: '#450a0a',
-  },
-  {
-    id: 'neon-yellow', name: '네온 옐로우',
-    background: '#0f0d05', surface: '#1f1a0a',
-    text: '#ffffff', textMuted: '#fde047',
-    accent: '#eab308', accentSoft: '#422006',
-  },
-  {
-    id: 'neon-white', name: '네온 화이트',
-    background: '#0a0a0a', surface: '#171717',
-    text: '#ffffff', textMuted: '#e5e5e5',
-    accent: '#fafafa', accentSoft: '#262626',
+    id: 'gold', name: '골드',
+    background: '#0f0a05', surface: '#1a140f',
+    text: '#ffffff', textMuted: '#fcd34d',
+    accent: '#f59e0b', accentSoft: '#451a03',
   },
 ];
 
-// ─────────────────────────────────────────────
-// 2. 다크 블루 (네이비 + 시안) — 6색
-// ─────────────────────────────────────────────
-export const DARK_BLUE_COLORS: ColorVariant[] = [
+// 6. 인용구 — 큰 따옴표
+export const QUOTE_STYLE_COLORS: ColorVariant[] = [
   {
-    id: 'deep-navy', name: '딥 네이비',
-    background: '#050b1a', surface: '#0f172a',
-    text: '#ffffff', textMuted: '#7dd3fc',
-    accent: '#0ea5e9', accentSoft: '#082f49',
+    id: 'dark-charcoal', name: '차콜',
+    background: '#0a0a0a', surface: '#171717',
+    text: '#ffffff', textMuted: '#a3a3a3',
+    accent: '#fafafa', accentSoft: '#262626',
   },
   {
-    id: 'midnight', name: '미드나이트',
+    id: 'paper-white', name: '페이퍼',
+    background: '#faf7f2', surface: '#f0ebe1',
+    text: '#1c1917', textMuted: '#78716c',
+    accent: '#9a3412', accentSoft: '#fed7aa',
+  },
+  {
+    id: 'midnight-blue', name: '미드나이트',
     background: '#0a0a1a', surface: '#141428',
     text: '#ffffff', textMuted: '#c4b5fd',
     accent: '#8b5cf6', accentSoft: '#1e1b4b',
   },
   {
-    id: 'ocean', name: '오션',
-    background: '#031b26', surface: '#0c3040',
-    text: '#ffffff', textMuted: '#67e8f9',
-    accent: '#22d3ee', accentSoft: '#083344',
-  },
-  {
-    id: 'royal-navy', name: '로열 네이비',
-    background: '#0a0f2e', surface: '#141a3d',
-    text: '#ffffff', textMuted: '#a5b4fc',
-    accent: '#6366f1', accentSoft: '#1e1b4b',
-  },
-  {
-    id: 'teal', name: '틸',
-    background: '#031a1a', surface: '#062a2a',
-    text: '#ffffff', textMuted: '#5eead4',
-    accent: '#14b8a6', accentSoft: '#134e4a',
-  },
-  {
-    id: 'sky', name: '스카이',
-    background: '#031a2e', surface: '#0a2a3d',
-    text: '#ffffff', textMuted: '#bae6fd',
-    accent: '#38bdf8', accentSoft: '#0c4a6e',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 3. 다크 레드 (버건디 + 오렌지) — 6색
-// ─────────────────────────────────────────────
-export const DARK_RED_COLORS: ColorVariant[] = [
-  {
-    id: 'burgundy', name: '버건디',
-    background: '#1a0505', surface: '#2a0a0a',
-    text: '#ffffff', textMuted: '#fca5a5',
-    accent: '#dc2626', accentSoft: '#450a0a',
-  },
-  {
-    id: 'crimson', name: '크림슨',
-    background: '#1a0510', surface: '#2a0a1f',
-    text: '#ffffff', textMuted: '#fda4af',
-    accent: '#e11d48', accentSoft: '#4c0519',
-  },
-  {
-    id: 'ember', name: '엠버',
-    background: '#1a0a05', surface: '#2a1410',
-    text: '#ffffff', textMuted: '#fdba74',
-    accent: '#f97316', accentSoft: '#431407',
-  },
-  {
-    id: 'rose', name: '로즈',
-    background: '#1a0510', surface: '#2a0a20',
-    text: '#ffffff', textMuted: '#fbcfe8',
-    accent: '#ec4899', accentSoft: '#500724',
-  },
-  {
-    id: 'rust', name: '러스트',
-    background: '#1a0d05', surface: '#2a180a',
-    text: '#ffffff', textMuted: '#fcd34d',
-    accent: '#f59e0b', accentSoft: '#451a03',
+    id: 'forest', name: '포레스트',
+    background: '#051a0f', surface: '#0a2a1a',
+    text: '#ffffff', textMuted: '#6ee7b7',
+    accent: '#10b981', accentSoft: '#064e3b',
   },
   {
     id: 'wine', name: '와인',
@@ -138,410 +204,138 @@ export const DARK_RED_COLORS: ColorVariant[] = [
   },
 ];
 
-// ─────────────────────────────────────────────
-// 4. 다크 그린 (포레스트 + 라임) — 6색
-// ─────────────────────────────────────────────
-export const DARK_GREEN_COLORS: ColorVariant[] = [
+// 7. 그리드 카드 — 상단 이미지 + 하단 정보 박스
+export const CARD_GRID_COLORS: ColorVariant[] = [
   {
-    id: 'forest', name: '포레스트',
-    background: '#051a0f', surface: '#0a2a1a',
-    text: '#ffffff', textMuted: '#6ee7b7',
-    accent: '#10b981', accentSoft: '#064e3b',
+    id: 'clean-blue', name: '클린 블루',
+    background: '#f8fafc', surface: '#ffffff',
+    text: '#0f172a', textMuted: '#64748b',
+    accent: '#2563eb', accentSoft: '#dbeafe',
   },
   {
-    id: 'lime', name: '라임',
-    background: '#0f1a05', surface: '#1f2a0a',
-    text: '#ffffff', textMuted: '#bef264',
-    accent: '#84cc16', accentSoft: '#1a2e05',
+    id: 'warm-white', name: '웜 화이트',
+    background: '#fafaf9', surface: '#ffffff',
+    text: '#1c1917', textMuted: '#78716c',
+    accent: '#c2410c', accentSoft: '#fed7aa',
   },
   {
-    id: 'emerald', name: '에메랄드',
-    background: '#031a1a', surface: '#062a2a',
-    text: '#ffffff', textMuted: '#5eead4',
-    accent: '#14b8a6', accentSoft: '#134e4a',
-  },
-  {
-    id: 'moss', name: '모스',
-    background: '#0a1405', surface: '#142008',
-    text: '#ffffff', textMuted: '#a3e635',
-    accent: '#65a30d', accentSoft: '#1a2e05',
-  },
-  {
-    id: 'jade', name: '제이드',
-    background: '#041a12', surface: '#082a1f',
-    text: '#ffffff', textMuted: '#6ee7b7',
-    accent: '#059669', accentSoft: '#064e3b',
-  },
-  {
-    id: 'mint-dark', name: '민트 다크',
-    background: '#031a18', surface: '#062a26',
-    text: '#ffffff', textMuted: '#99f6e4',
-    accent: '#2dd4bf', accentSoft: '#115e59',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 5. 다크 퍼플 (보라 + 핑크) — 6색
-// ─────────────────────────────────────────────
-export const DARK_PURPLE_COLORS: ColorVariant[] = [
-  {
-    id: 'royal-purple', name: '로열 퍼플',
-    background: '#0f051a', surface: '#1a0a2a',
-    text: '#ffffff', textMuted: '#c4b5fd',
-    accent: '#8b5cf6', accentSoft: '#2e1065',
-  },
-  {
-    id: 'hot-pink', name: '핫 핑크',
-    background: '#1a0510', surface: '#2a0a1f',
-    text: '#ffffff', textMuted: '#fbcfe8',
-    accent: '#ec4899', accentSoft: '#500724',
-  },
-  {
-    id: 'indigo', name: '인디고',
-    background: '#0a051a', surface: '#14082a',
-    text: '#ffffff', textMuted: '#a5b4fc',
-    accent: '#6366f1', accentSoft: '#1e1b4b',
-  },
-  {
-    id: 'fuchsia', name: '푸시아',
-    background: '#1a0515', surface: '#2a0a22',
-    text: '#ffffff', textMuted: '#f0abfc',
-    accent: '#d946ef', accentSoft: '#4a044e',
-  },
-  {
-    id: 'lavender', name: '라벤더',
-    background: '#0f0a1a', surface: '#1a142a',
-    text: '#ffffff', textMuted: '#ddd6fe',
-    accent: '#a78bfa', accentSoft: '#4c1d95',
-  },
-  {
-    id: 'violet', name: '바이올렛',
-    background: '#0d0518', surface: '#180a2a',
-    text: '#ffffff', textMuted: '#c4b5fd',
-    accent: '#7c3aed', accentSoft: '#3b0764',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 6. 메시 다크 — 6색
-// ─────────────────────────────────────────────
-export const MESH_DARK_COLORS: ColorVariant[] = [
-  {
-    id: 'mesh-purple', name: '퍼플 메시',
-    background: '#1a0a2e', backgroundEnd: '#3b0764',
-    surface: '#2a1040',
-    text: '#ffffff', textMuted: '#e9d5ff',
-    accent: '#c084fc', accentSoft: '#581c87',
-  },
-  {
-    id: 'mesh-blue', name: '블루 메시',
-    background: '#0a1a3b', backgroundEnd: '#1e3a8a',
-    surface: '#102a52',
-    text: '#ffffff', textMuted: '#bfdbfe',
-    accent: '#60a5fa', accentSoft: '#1e40af',
-  },
-  {
-    id: 'mesh-red', name: '레드 메시',
-    background: '#2e0a1a', backgroundEnd: '#831843',
-    surface: '#3d0f24',
-    text: '#ffffff', textMuted: '#fbcfe8',
-    accent: '#f472b6', accentSoft: '#831843',
-  },
-  {
-    id: 'mesh-green', name: '그린 메시',
-    background: '#052a1f', backgroundEnd: '#065f46',
-    surface: '#0a3a2a',
-    text: '#ffffff', textMuted: '#6ee7b7',
-    accent: '#34d399', accentSoft: '#064e3b',
-  },
-  {
-    id: 'mesh-sunset', name: '선셋 메시',
-    background: '#3a0f0a', backgroundEnd: '#9a3412',
-    surface: '#4a1812',
-    text: '#ffffff', textMuted: '#fed7aa',
-    accent: '#fb923c', accentSoft: '#7c2d12',
-  },
-  {
-    id: 'mesh-ocean', name: '오션 메시',
-    background: '#031a2e', backgroundEnd: '#075985',
-    surface: '#0a2a3d',
-    text: '#ffffff', textMuted: '#bae6fd',
-    accent: '#38bdf8', accentSoft: '#0c4a6e',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 7. 다크 미니멀 (차콜 + 화이트) — 5색
-// ─────────────────────────────────────────────
-export const DARK_MINIMAL_COLORS: ColorVariant[] = [
-  {
-    id: 'charcoal', name: '차콜',
+    id: 'charcoal-grid', name: '차콜',
     background: '#0a0a0a', surface: '#171717',
     text: '#ffffff', textMuted: '#a3a3a3',
     accent: '#fafafa', accentSoft: '#262626',
   },
   {
-    id: 'graphite', name: '그래파이트',
-    background: '#0f0f0f', surface: '#1f1f1f',
-    text: '#ffffff', textMuted: '#d4d4d4',
-    accent: '#e5e5e5', accentSoft: '#2a2a2a',
+    id: 'dark-purple', name: '다크 퍼플',
+    background: '#0f051a', surface: '#1a0a2a',
+    text: '#ffffff', textMuted: '#c4b5fd',
+    accent: '#8b5cf6', accentSoft: '#2e1065',
   },
   {
-    id: 'slate-dark', name: '슬레이트',
-    background: '#0f1419', surface: '#1a2027',
-    text: '#ffffff', textMuted: '#94a3b8',
-    accent: '#cbd5e1', accentSoft: '#1e293b',
-  },
-  {
-    id: 'warm-black', name: '웜 블랙',
-    background: '#0f0c08', surface: '#1f1a12',
-    text: '#ffffff', textMuted: '#d6d3d1',
-    accent: '#f5f5f4', accentSoft: '#292524',
-  },
-  {
-    id: 'blue-black', name: '블루 블랙',
-    background: '#080a0f', surface: '#12161f',
-    text: '#ffffff', textMuted: '#94a3b8',
-    accent: '#e2e8f0', accentSoft: '#1e293b',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 8. 라이트 미니멀 — 5색
-// ─────────────────────────────────────────────
-export const LIGHT_MINIMAL_COLORS: ColorVariant[] = [
-  {
-    id: 'classic', name: '클래식',
-    background: '#ffffff', surface: '#fafafa',
-    text: '#0a0a0a', textMuted: '#737373',
-    accent: '#171717', accentSoft: '#e5e5e5',
-  },
-  {
-    id: 'navy', name: '네이비',
-    background: '#ffffff', surface: '#f8fafc',
-    text: '#0f172a', textMuted: '#64748b',
-    accent: '#1e3a8a', accentSoft: '#dbeafe',
-  },
-  {
-    id: 'forest', name: '포레스트',
-    background: '#ffffff', surface: '#f0fdf4',
-    text: '#0f172a', textMuted: '#64748b',
-    accent: '#059669', accentSoft: '#d1fae5',
-  },
-  {
-    id: 'crimson', name: '크림슨',
-    background: '#ffffff', surface: '#fef2f2',
-    text: '#1c1917', textMuted: '#78716c',
-    accent: '#991b1b', accentSoft: '#fee2e2',
-  },
-  {
-    id: 'royal', name: '로열',
-    background: '#ffffff', surface: '#faf5ff',
-    text: '#0f172a', textMuted: '#64748b',
-    accent: '#7c3aed', accentSoft: '#ede9fe',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 9. 라이트 그레이 — 5색
-// ─────────────────────────────────────────────
-export const LIGHT_GRAY_COLORS: ColorVariant[] = [
-  {
-    id: 'slate-gray', name: '슬레이트',
-    background: '#f8fafc', surface: '#f1f5f9',
-    text: '#0f172a', textMuted: '#64748b',
-    accent: '#334155', accentSoft: '#e2e8f0',
-  },
-  {
-    id: 'cool-gray', name: '쿨 그레이',
-    background: '#f4f4f5', surface: '#e4e4e7',
-    text: '#18181b', textMuted: '#71717a',
-    accent: '#52525b', accentSoft: '#d4d4d8',
-  },
-  {
-    id: 'warm-gray', name: '웜 그레이',
-    background: '#fafaf9', surface: '#f5f5f4',
-    text: '#1c1917', textMuted: '#78716c',
-    accent: '#44403c', accentSoft: '#e7e5e4',
-  },
-  {
-    id: 'blue-gray', name: '블루 그레이',
-    background: '#f1f5f9', surface: '#e2e8f0',
-    text: '#0f172a', textMuted: '#64748b',
-    accent: '#1e40af', accentSoft: '#dbeafe',
-  },
-  {
-    id: 'green-gray', name: '그린 그레이',
-    background: '#f0fdf4', surface: '#dcfce7',
-    text: '#052e16', textMuted: '#166534',
-    accent: '#059669', accentSoft: '#d1fae5',
-  },
-];
-
-// ─────────────────────────────────────────────
-// 10. 라이트 크림 — 5색
-// ─────────────────────────────────────────────
-export const LIGHT_CREAM_COLORS: ColorVariant[] = [
-  {
-    id: 'cream', name: '크림',
-    background: '#fffbf5', surface: '#fef3c7',
-    text: '#431407', textMuted: '#92400e',
-    accent: '#b45309', accentSoft: '#fde68a',
-  },
-  {
-    id: 'sand', name: '샌드',
-    background: '#faf7f2', surface: '#f0ebe1',
-    text: '#1c1917', textMuted: '#78716c',
-    accent: '#9a3412', accentSoft: '#fed7aa',
-  },
-  {
-    id: 'rose-light', name: '로즈',
-    background: '#fff5f8', surface: '#ffe4ec',
-    text: '#831843', textMuted: '#be185d',
-    accent: '#f43f5e', accentSoft: '#ffe4e6',
-  },
-  {
-    id: 'pink-light', name: '핑크',
-    background: '#fef6fb', surface: '#fce7f3',
+    id: 'pink-grid', name: '핑크',
+    background: '#fef6fb', surface: '#ffffff',
     text: '#4c1d3d', textMuted: '#9d174d',
     accent: '#ec4899', accentSoft: '#fce7f3',
   },
-  {
-    id: 'peach', name: '피치',
-    background: '#fff7ed', surface: '#ffedd5',
-    text: '#431407', textMuted: '#c2410c',
-    accent: '#ea580c', accentSoft: '#fed7aa',
-  },
 ];
 
-// ─────────────────────────────────────────────
-// 업종 프리셋용
-// ─────────────────────────────────────────────
-export const GOV_COLORS: ColorVariant[] = [
+// 8. 사이드 바 — 좌측 색상 바
+export const SIDE_BAR_COLORS: ColorVariant[] = [
   {
-    id: 'gov-blue', name: '정부 블루',
+    id: 'white-blue', name: '화이트 블루',
     background: '#ffffff', surface: '#eff6ff',
     text: '#0f172a', textMuted: '#64748b',
     accent: '#1d4ed8', accentSoft: '#dbeafe',
   },
   {
-    id: 'gov-navy', name: '정부 네이비',
-    background: '#f8fafc', surface: '#e2e8f0',
+    id: 'white-green', name: '화이트 그린',
+    background: '#ffffff', surface: '#f0fdf4',
     text: '#0f172a', textMuted: '#64748b',
-    accent: '#0f172a', accentSoft: '#e2e8f0',
+    accent: '#059669', accentSoft: '#d1fae5',
   },
   {
-    id: 'gov-green', name: '정부 그린',
-    background: '#ffffff', surface: '#ecfdf5',
-    text: '#064e3b', textMuted: '#059669',
-    accent: '#10b981', accentSoft: '#d1fae5',
-  },
-];
-
-export const YOUTH_COLORS: ColorVariant[] = [
-  {
-    id: 'youth-green', name: '청년 그린',
-    background: '#ffffff', surface: '#ecfdf5',
-    text: '#064e3b', textMuted: '#059669',
-    accent: '#10b981', accentSoft: '#d1fae5',
-  },
-  {
-    id: 'youth-mint', name: '민트',
-    background: '#f0fdfa', surface: '#ccfbf1',
-    text: '#134e4a', textMuted: '#0d9488',
-    accent: '#14b8a6', accentSoft: '#99f6e4',
-  },
-  {
-    id: 'youth-blue', name: '청년 블루',
-    background: '#ffffff', surface: '#eff6ff',
+    id: 'white-red', name: '화이트 레드',
+    background: '#ffffff', surface: '#fef2f2',
     text: '#0f172a', textMuted: '#64748b',
-    accent: '#2563eb', accentSoft: '#dbeafe',
-  },
-];
-
-export const FINANCE_COLORS: ColorVariant[] = [
-  {
-    id: 'finance-gold', name: '골드',
-    background: '#0f0a05', surface: '#1a140f',
-    text: '#ffffff', textMuted: '#fcd34d',
-    accent: '#f59e0b', accentSoft: '#451a03',
+    accent: '#dc2626', accentSoft: '#fee2e2',
   },
   {
-    id: 'finance-emerald', name: '에메랄드',
-    background: '#051a0f', surface: '#0a2a1a',
-    text: '#ffffff', textMuted: '#6ee7b7',
-    accent: '#10b981', accentSoft: '#064e3b',
-  },
-  {
-    id: 'finance-navy', name: '네이비',
-    background: '#050b1a', surface: '#0f172a',
-    text: '#ffffff', textMuted: '#7dd3fc',
-    accent: '#0ea5e9', accentSoft: '#082f49',
-  },
-];
-
-export const BEAUTY_COLORS: ColorVariant[] = [
-  {
-    id: 'beauty-pink', name: '소프트 핑크',
-    background: '#2a1020', surface: '#3d1a30',
-    text: '#ffffff', textMuted: '#fbcfe8',
-    accent: '#ec4899', accentSoft: '#831843',
-  },
-  {
-    id: 'beauty-rose', name: '로즈',
-    background: '#2a1015', surface: '#3d1a22',
-    text: '#ffffff', textMuted: '#fecdd3',
-    accent: '#f43f5e', accentSoft: '#881337',
-  },
-  {
-    id: 'beauty-coral', name: '코랄',
-    background: '#2a1510', surface: '#3d1f1a',
-    text: '#ffffff', textMuted: '#fed7aa',
-    accent: '#fb7185', accentSoft: '#881337',
-  },
-];
-
-export const TECH_COLORS: ColorVariant[] = [
-  {
-    id: 'tech-cyan', name: '테크 시안',
+    id: 'dark-cyan', name: '다크 시안',
     background: '#020617', surface: '#0f172a',
     text: '#ffffff', textMuted: '#67e8f9',
     accent: '#06b6d4', accentSoft: '#164e63',
   },
   {
-    id: 'tech-purple', name: '테크 퍼플',
-    background: '#0a051a', surface: '#14082a',
+    id: 'dark-purple-bar', name: '다크 퍼플',
+    background: '#0f051a', surface: '#1a0a2a',
     text: '#ffffff', textMuted: '#c4b5fd',
     accent: '#8b5cf6', accentSoft: '#2e1065',
   },
-  {
-    id: 'tech-green', name: '테크 그린',
-    background: '#021a0f', surface: '#052a1a',
-    text: '#ffffff', textMuted: '#6ee7b7',
-    accent: '#10b981', accentSoft: '#064e3b',
-  },
 ];
 
-export const FOOD_COLORS: ColorVariant[] = [
+// 9. 이미지 오버레이 — 전체 이미지 + 하단 그라데이션
+export const FULL_OVERLAY_COLORS: ColorVariant[] = [
   {
-    id: 'food-orange', name: '웜 오렌지',
-    background: '#ea580c', backgroundEnd: '#7c2d12',
-    surface: '#c2410c',
-    text: '#ffffff', textMuted: '#fed7aa',
-    accent: '#ffffff', accentSoft: '#7c2d12',
+    id: 'black-overlay', name: '블랙',
+    background: '#000000', surface: '#171717',
+    text: '#ffffff', textMuted: '#d4d4d4',
+    accent: '#fafafa', accentSoft: '#262626',
   },
   {
-    id: 'food-red', name: '딥 레드',
-    background: '#7f1d1d', backgroundEnd: '#450a0a',
-    surface: '#991b1b',
+    id: 'navy-overlay', name: '네이비',
+    background: '#0f172a', surface: '#1e293b',
+    text: '#ffffff', textMuted: '#cbd5e1',
+    accent: '#38bdf8', accentSoft: '#075985',
+  },
+  {
+    id: 'wine-overlay', name: '와인',
+    background: '#450a0a', surface: '#7f1d1d',
     text: '#ffffff', textMuted: '#fecaca',
     accent: '#fbbf24', accentSoft: '#450a0a',
   },
   {
-    id: 'food-yellow', name: '옐로우',
-    background: '#ca8a04', backgroundEnd: '#713f12',
-    surface: '#a16207',
-    text: '#ffffff', textMuted: '#fef08a',
-    accent: '#ffffff', accentSoft: '#713f12',
+    id: 'forest-overlay', name: '포레스트',
+    background: '#052e16', surface: '#064e3b',
+    text: '#ffffff', textMuted: '#6ee7b7',
+    accent: '#34d399', accentSoft: '#064e3b',
+  },
+  {
+    id: 'purple-overlay', name: '퍼플',
+    background: '#3b0764', surface: '#581c87',
+    text: '#ffffff', textMuted: '#ddd6fe',
+    accent: '#c084fc', accentSoft: '#4c1d95',
+  },
+];
+
+// 10. 매거진 — 카테고리 + 큰 제목 + 컬럼
+export const MAGAZINE_COLORS: ColorVariant[] = [
+  {
+    id: 'paper', name: '페이퍼',
+    background: '#faf7f2', surface: '#f0ebe1',
+    text: '#1c1917', textMuted: '#78716c',
+    accent: '#9a3412', accentSoft: '#fed7aa',
+  },
+  {
+    id: 'bright-white', name: '브라이트 화이트',
+    background: '#ffffff', surface: '#f8fafc',
+    text: '#0a0a0a', textMuted: '#525252',
+    accent: '#dc2626', accentSoft: '#fee2e2',
+  },
+  {
+    id: 'dark-magazine', name: '다크 매거진',
+    background: '#0a0a0a', surface: '#171717',
+    text: '#ffffff', textMuted: '#a3a3a3',
+    accent: '#fbbf24', accentSoft: '#262626',
+  },
+  {
+    id: 'deep-navy-mag', name: '딥 네이비',
+    background: '#0f172a', surface: '#1e293b',
+    text: '#ffffff', textMuted: '#cbd5e1',
+    accent: '#f59e0b', accentSoft: '#78350f',
+  },
+  {
+    id: 'cream-mag', name: '크림',
+    background: '#fffbf5', surface: '#fef3c7',
+    text: '#431407', textMuted: '#92400e',
+    accent: '#b45309', accentSoft: '#fde68a',
   },
 ];

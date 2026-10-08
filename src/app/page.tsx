@@ -32,6 +32,7 @@ import {
   type Settings,
   type Slide,
   type CardNewsProject,
+  type CardSize,
 } from '@/lib/types';
 import { STYLE_PRESETS, getPresetById } from '@/presets';
 import { generateProjectName } from '@/lib/utils';
@@ -47,12 +48,11 @@ export default function Page() {
   const [presetColorId, setPresetColorId] = useState<string>(
     STYLE_PRESETS[0].colorVariants[0].id
   );
+  const [cardSize, setCardSize] = useState<CardSize>('instagram');
   const [customPresets, setCustomPresets] = useState<Preset[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  // 자동 저장 잠금 ref
   const skipAutoSaveRef = useRef(false);
   const batchLockRef = useRef(false);
 
@@ -61,6 +61,7 @@ export default function Page() {
       setMounted(true);
       const s = loadSettings();
       setSettings(s);
+      setCardSize(s.defaultCardSize || 'instagram');
 
       const cp = loadCustomPresets();
       setCustomPresets(cp);
@@ -77,11 +78,9 @@ export default function Page() {
       const savedId = loadCurrentProjectId();
       if (savedId) {
         const proj = loadedProjects.find((p) => p.id === savedId);
-        if (proj) {
-          await loadProjectToEditor(proj, cp);
-        } else if (loadedProjects.length > 0) {
+        if (proj) await loadProjectToEditor(proj, cp);
+        else if (loadedProjects.length > 0)
           await loadProjectToEditor(loadedProjects[0], cp);
-        }
       } else if (loadedProjects.length > 0) {
         await loadProjectToEditor(loadedProjects[0], cp);
       }
@@ -98,12 +97,11 @@ export default function Page() {
       setSlides(restored.slides);
       setCurrentProjectId(restored.id);
       saveCurrentProjectId(restored.id);
+      setCardSize(restored.cardSize || 'instagram');
 
       const p = getPresetById(restored.presetId, customPresetsArg);
       setPreset(p);
-      setPresetColorId(
-        restored.presetColorId || p.colorVariants[0]?.id || 'neon-green'
-      );
+      setPresetColorId(restored.presetColorId || p.colorVariants[0]?.id || '');
     } finally {
       setTimeout(() => {
         skipAutoSaveRef.current = false;
@@ -160,7 +158,7 @@ export default function Page() {
     const updated = [...customPresets, ...imported];
     setCustomPresets(updated);
     saveCustomPresets(updated);
-    alert(`${imported.length}개의 프리셋을 가져왔습니다.`);
+    alert(`${imported.length}개 프리셋을 가져왔습니다.`);
   }
 
   async function handleSaveProject() {
@@ -168,10 +166,8 @@ export default function Page() {
       alert('저장할 카드뉴스가 없습니다.');
       return;
     }
-
     try {
       let project: CardNewsProject;
-
       if (currentProjectId) {
         const existing = projects.find((p) => p.id === currentProjectId);
         if (existing) {
@@ -180,6 +176,7 @@ export default function Page() {
             slides,
             presetId: preset.id,
             presetColorId,
+            cardSize,
             brand: settings.brand,
             updatedAt: Date.now(),
           };
@@ -189,7 +186,8 @@ export default function Page() {
             slides,
             preset.id,
             presetColorId,
-            settings.brand
+            settings.brand,
+            cardSize
           );
         }
       } else {
@@ -198,16 +196,16 @@ export default function Page() {
           slides,
           preset.id,
           presetColorId,
-          settings.brand
+          settings.brand,
+          cardSize
         );
       }
-
       const next = await saveProjectWithImages(projects, project);
       setProjects(next);
       setCurrentProjectId(project.id);
       saveCurrentProjectId(project.id);
     } catch (e: any) {
-      alert(`저장 실패: ${e.message}\n\n(브라우저 저장 공간을 확인하세요)`);
+      alert(`저장 실패: ${e.message}`);
     }
   }
 
@@ -216,9 +214,8 @@ export default function Page() {
       const next = await deleteProjectWithImages(projects, id);
       setProjects(next);
       if (currentProjectId === id) {
-        if (next.length > 0) {
-          await loadProjectToEditor(next[0], customPresets);
-        } else {
+        if (next.length > 0) await loadProjectToEditor(next[0], customPresets);
+        else {
           setSlides([]);
           setCurrentProjectId(null);
           saveCurrentProjectId(null);
@@ -239,14 +236,9 @@ export default function Page() {
 
   async function handleSelectProject(proj: CardNewsProject) {
     if (slides.length > 0 && currentProjectId && currentProjectId !== proj.id) {
-      const ok = confirm(
-        '현재 편집 중인 카드뉴스를 자동 저장하고 다른 카드뉴스를 열까요?'
-      );
-      if (ok) {
-        await handleSaveProject();
-      } else {
-        return;
-      }
+      const ok = confirm('현재 카드뉴스를 자동 저장하고 다른 카드뉴스를 열까요?');
+      if (ok) await handleSaveProject();
+      else return;
     }
     await loadProjectToEditor(proj, customPresets);
     setView('create');
@@ -254,12 +246,9 @@ export default function Page() {
 
   async function handleCreateNew() {
     if (slides.length > 0) {
-      const ok = confirm('현재 편집 중인 카드뉴스를 자동 저장하고 새로 만들까요?');
-      if (ok) {
-        await handleSaveProject();
-      } else {
-        return;
-      }
+      const ok = confirm('현재 카드뉴스를 자동 저장하고 새로 만들까요?');
+      if (ok) await handleSaveProject();
+      else return;
     }
     skipAutoSaveRef.current = true;
     setSlides([]);
@@ -271,13 +260,10 @@ export default function Page() {
     }, 800);
   }
 
-  // ─────────────────────────────────────────
-  // 자동 저장 (배치 잠금 + 스킵 플래그 적용)
-  // ─────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
     if (skipAutoSaveRef.current) return;
-    if (batchLockRef.current) return; // ← 일괄 생성 중이면 스킵
+    if (batchLockRef.current) return;
     if (!currentProjectId) return;
     if (slides.length === 0) return;
 
@@ -290,7 +276,7 @@ export default function Page() {
       }
     }, 2500);
     return () => clearTimeout(timer);
-  }, [slides, presetColorId, mounted, currentProjectId]);
+  }, [slides, presetColorId, cardSize, mounted, currentProjectId]);
 
   if (!mounted) return null;
 
@@ -304,6 +290,7 @@ export default function Page() {
       onChange={setView}
       hasSlides={slides.length > 0}
       projectName={currentProjectName}
+      onCreateNew={handleCreateNew}
     >
       {view === 'dashboard' && (
         <DashboardView
@@ -333,6 +320,8 @@ export default function Page() {
           cardRefs={cardRefs}
           projects={projects}
           currentProjectId={currentProjectId}
+          cardSize={cardSize}
+          onCardSizeChange={setCardSize}
           onSelectProject={handleSelectProject}
           onDeleteProject={handleDeleteProject}
           onRenameProject={handleRenameProject}

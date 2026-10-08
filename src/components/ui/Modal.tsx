@@ -14,7 +14,7 @@ export function Modal({
   onClose: () => void;
   title: string;
   children: ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }) {
   useEffect(() => {
     if (!open) return;
@@ -22,10 +22,11 @@ export function Modal({
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEsc);
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', handleEsc);
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevOverflow;
     };
   }, [open, onClose]);
 
@@ -36,6 +37,7 @@ export function Modal({
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
+    '2xl': 'max-w-6xl',
   };
 
   return (

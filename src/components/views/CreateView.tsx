@@ -14,7 +14,9 @@ import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { ProjectList } from '@/components/ProjectList';
 import { SlideStyleEditor } from '@/components/SlideStyleEditor';
 import { generateImage } from '@/lib/imagegen';
-import type { Preset, Settings, Slide, CardNewsProject } from '@/lib/types';
+import { exportCardsAsZip } from '@/lib/card-renderer';
+import type { Preset, Settings, Slide, CardNewsProject, CardSize } from '@/lib/types';
+import { CARD_SIZE_DIMENSIONS } from '@/lib/types';
 import {
   Sparkles,
   Image as ImageIcon,
@@ -23,13 +25,13 @@ import {
   ArrowDown,
   X,
   Palette,
-  PencilRuler,
   Loader2,
-  MapPin,
   Save,
   FolderOpen,
   Plus,
-  Type,
+  ChevronDown,
+  Download,
+  FilePlus,
 } from 'lucide-react';
 
 export function CreateView({
@@ -49,6 +51,8 @@ export function CreateView({
   cardRefs,
   projects,
   currentProjectId,
+  cardSize,
+  onCardSizeChange,
   onSelectProject,
   onDeleteProject,
   onRenameProject,
@@ -72,6 +76,8 @@ export function CreateView({
   cardRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
   projects: CardNewsProject[];
   currentProjectId: string | null;
+  cardSize: CardSize;
+  onCardSizeChange: (s: CardSize) => void;
   onSelectProject: (p: CardNewsProject) => void;
   onDeleteProject: (id: string) => void;
   onRenameProject: (id: string, name: string) => void;
@@ -83,13 +89,14 @@ export function CreateView({
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
-  const [presetModalOpen, setPresetModalOpen] = useState(false);
-  const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [colorId, setColorId] = useState(presetColorId || preset.colorVariants[0]?.id);
+  const [rightTab, setRightTab] = useState<'content' | 'style' | 'preset'>('content');
+  const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [projectListOpen, setProjectListOpen] = useState(false);
-  const [colorId, setColorId] = useState(presetColorId || preset.colorVariants[0]?.id);
-  const [rightTab, setRightTab] = useState<'content' | 'style'>('content');
-
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState('');
+  const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const autoGenRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -102,16 +109,13 @@ export function CreateView({
     }
   }, [slides.length, selectedIdx]);
 
-  // 첫 카드 자동 이미지
   useEffect(() => {
     if (slides.length === 0) return;
     const first = slides[0];
     if (!first.imageUrl && first.imagePrompt && !autoGenRef.current.has(first.id)) {
       if (settings.cfAccountId && settings.cfApiToken) {
         autoGenRef.current.add(first.id);
-        setTimeout(() => {
-          genImgInternal(0);
-        }, 800);
+        setTimeout(() => genImgInternal(0), 800);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,6 +124,7 @@ export function CreateView({
   const selected = slides[selectedIdx];
   const isLast = selectedIdx === slides.length - 1;
   const currentProject = projects.find((p) => p.id === currentProjectId);
+  const dim = CARD_SIZE_DIMENSIONS[cardSize];
 
   const update = (i: number, patch: Partial<Slide>) => {
     onSlidesChange(slides.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -145,7 +150,6 @@ export function CreateView({
     const s = slides[i];
     if (!s.imagePrompt.trim()) return;
     if (!settings.cfAccountId || !settings.cfApiToken) return;
-
     setGeneratingIdx(i);
     try {
       const url = await generateImage(
@@ -156,7 +160,7 @@ export function CreateView({
       );
       update(i, { imageUrl: url });
     } catch (e: any) {
-      console.error(`슬라이드 ${i + 1} 이미지 실패:`, e);
+      console.error(`슬라이드 ${i + 1} 실패:`, e);
     } finally {
       setGeneratingIdx(null);
     }
@@ -184,14 +188,12 @@ export function CreateView({
       alert('모든 슬라이드에 이미지가 이미 있습니다.');
       return;
     }
-    if (!confirm(`이미지가 없는 ${targets.length}개 슬라이드의 이미지를 순차 생성할까요?`))
-      return;
+    if (!confirm(`${targets.length}개 슬라이드의 이미지를 순차 생성할까요?`)) return;
 
     onBatchLockChange?.(true);
     setBatchLoading(true);
     setBatchProgress({ current: 0, total: targets.length });
-
-    const workingSlides = [...slides];
+    const working = [...slides];
 
     for (let k = 0; k < targets.length; k++) {
       const { s, i } = targets[k];
@@ -204,8 +206,8 @@ export function CreateView({
           s.imagePrompt,
           { workerUrl: settings.workerUrl }
         );
-        workingSlides[i] = { ...workingSlides[i], imageUrl: url };
-        onSlidesChange([...workingSlides]);
+        working[i] = { ...working[i], imageUrl: url };
+        onSlidesChange([...working]);
         await new Promise((r) => setTimeout(r, 1200));
       } catch (e) {
         console.error(`슬라이드 ${i + 1} 실패:`, e);
@@ -215,10 +217,24 @@ export function CreateView({
     setBatchLoading(false);
     setBatchProgress({ current: 0, total: 0 });
     onBatchLockChange?.(false);
+    setTimeout(() => onSaveProject?.(), 500);
+  }
 
-    setTimeout(() => {
-      onSaveProject?.();
-    }, 500);
+  async function handleExport(size: CardSize) {
+    const nodes = cardRefs.current.filter(Boolean) as HTMLDivElement[];
+    if (!nodes.length) {
+      alert('카드가 없습니다.');
+      return;
+    }
+    setExporting(size);
+    setExportMenuOpen(false);
+    try {
+      await exportCardsAsZip(nodes, `cardnews-${size}-${Date.now()}.zip`, (i, total) =>
+        setExporting(`${i}/${total}`)
+      );
+    } finally {
+      setExporting('');
+    }
   }
 
   if (slides.length === 0) {
@@ -232,15 +248,15 @@ export function CreateView({
               </div>
               <div className="text-lg font-semibold mb-1">카드뉴스를 시작해보세요</div>
               <div className="text-sm text-ink-secondary mb-6">
-                키워드, 블로그 URL, 또는 직접 텍스트로 생성할 수 있습니다
+                키워드, 블로그 URL, 또는 직접 텍스트로 생성
               </div>
               <div className="flex gap-2 justify-center flex-wrap">
                 <Button
                   size="lg"
-                  icon={<Sparkles size={18} />}
-                  onClick={() => setSourceModalOpen(true)}
+                  icon={<Plus size={18} />}
+                  onClick={() => setSourcePanelOpen(true)}
                 >
-                  카드뉴스 소스 입력
+                  새 카드뉴스 만들기
                 </Button>
                 {projects.length > 0 && (
                   <Button
@@ -255,24 +271,32 @@ export function CreateView({
               </div>
             </div>
           </Card>
-        </div>
 
-        <Modal
-          open={sourceModalOpen}
-          onClose={() => setSourceModalOpen(false)}
-          title="카드뉴스 소스"
-          maxWidth="lg"
-        >
-          <InputPanel
-            settings={settings}
-            onSlides={(s) => {
-              autoGenRef.current.clear();
-              onSlidesChange(s);
-              setSelectedIdx(0);
-              setSourceModalOpen(false);
-            }}
-          />
-        </Modal>
+          {sourcePanelOpen && (
+            <Card>
+              <CardHeader
+                title="카드뉴스 소스 입력"
+                action={
+                  <button
+                    onClick={() => setSourcePanelOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-surface-hover text-ink-secondary"
+                  >
+                    <X size={16} />
+                  </button>
+                }
+              />
+              <InputPanel
+                settings={settings}
+                onSlides={(s) => {
+                  autoGenRef.current.clear();
+                  onSlidesChange(s);
+                  setSelectedIdx(0);
+                  setSourcePanelOpen(false);
+                }}
+              />
+            </Card>
+          )}
+        </div>
 
         <ProjectList
           open={projectListOpen}
@@ -296,17 +320,77 @@ export function CreateView({
     <>
       <div className="flex flex-col gap-4">
         {/* 상단 툴바 */}
-        <Card padding={false} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <Badge variant="primary">
-              {currentProject ? currentProject.name.slice(0, 15) : '새 카드뉴스'}
-            </Badge>
-            <span className="text-xs text-ink-muted hidden md:inline">
-              {slides.length}장
-            </span>
+        <Card padding={false} className="px-4 py-2.5 flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<FilePlus size={14} />}
+            onClick={onCreateNew}
+          >
+            새로 제작
+          </Button>
+
+          <div className="h-6 w-px bg-surface-border mx-1" />
+
+          <Badge variant="primary">
+            {currentProject ? currentProject.name.slice(0, 12) : '새 카드뉴스'}
+          </Badge>
+          <span className="text-xs text-ink-muted hidden md:inline">
+            {slides.length}장
+          </span>
+
+          <div className="flex items-center gap-1 ml-2 pl-3 border-l border-surface-border">
+            <span className="text-xs text-ink-muted hidden lg:inline">사이즈:</span>
+            <button
+              onClick={() => onCardSizeChange('instagram')}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+                cardSize === 'instagram'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              인스타 4:5
+            </button>
+            <button
+              onClick={() => onCardSizeChange('square')}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+                cardSize === 'square'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              정사각형 1:1
+            </button>
           </div>
 
-          <div className="flex gap-1">
+          <div className="ml-auto flex gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1 pr-2 border-r border-surface-border">
+              {preset.colorVariants.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setColorId(c.id);
+                    onPresetChange(preset, c.id);
+                  }}
+                  className={`w-5 h-5 rounded-full border-2 transition-all ${
+                    colorId === c.id
+                      ? 'border-primary-500 scale-110'
+                      : 'border-white shadow-sm hover:scale-110'
+                  }`}
+                  style={{ background: c.accent }}
+                  title={c.name}
+                />
+              ))}
+            </div>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Palette size={14} />}
+              onClick={() => setRightTab('preset')}
+            >
+              {preset.name}
+            </Button>
             <Button
               size="sm"
               variant="secondary"
@@ -321,54 +405,39 @@ export function CreateView({
               icon={<FolderOpen size={14} />}
               onClick={() => setProjectListOpen(true)}
             >
-              내 카드뉴스 ({projects.length})
+              목록
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<Plus size={14} />}
-              onClick={onCreateNew}
-              title="새 카드뉴스"
-            />
-          </div>
 
-          <div className="flex items-center gap-1.5 ml-2 pl-3 border-l border-surface-border">
-            <span className="text-xs text-ink-muted mr-1 hidden lg:inline">색상:</span>
-            {preset.colorVariants.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => {
-                  setColorId(c.id);
-                  onPresetChange(preset, c.id);
-                }}
-                className={`w-5 h-5 rounded-full border-2 transition-all ${
-                  colorId === c.id
-                    ? 'border-primary-500 scale-110'
-                    : 'border-white shadow-sm hover:scale-110'
-                }`}
-                style={{ background: c.accent }}
-                title={c.name}
-              />
-            ))}
-          </div>
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Download size={14} />}
+                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                loading={!!exporting}
+              >
+                {exporting ? exporting : 'PNG'}
+              </Button>
+              {exportMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-surface-border p-1 z-30 min-w-[200px]">
+                  <button
+                    onClick={() => handleExport('instagram')}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover rounded flex items-center justify-between"
+                  >
+                    <span>인스타 4:5</span>
+                    <span className="text-ink-muted">1080 × 1350</span>
+                  </button>
+                  <button
+                    onClick={() => handleExport('square')}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-hover rounded flex items-center justify-between"
+                  >
+                    <span>정사각형 1:1</span>
+                    <span className="text-ink-muted">1080 × 1080</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
-          <div className="ml-auto flex gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<Palette size={14} />}
-              onClick={() => setPresetModalOpen(true)}
-            >
-              {preset.name}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={<PencilRuler size={14} />}
-              onClick={() => setSourceModalOpen(true)}
-            >
-              소스 재입력
-            </Button>
             <Button
               size="sm"
               icon={
@@ -382,25 +451,50 @@ export function CreateView({
               disabled={batchLoading}
             >
               {batchLoading
-                ? `생성 중 ${batchProgress.current}/${batchProgress.total}`
-                : '모든 이미지 생성'}
+                ? `${batchProgress.current}/${batchProgress.total}`
+                : '모든 이미지'}
             </Button>
           </div>
         </Card>
 
-        {/* 상단 가로 슬라이드 스트립 */}
+        {sourcePanelOpen && (
+          <Card>
+            <CardHeader
+              title="카드뉴스 소스 재입력"
+              subtitle="새로 생성하면 현재 슬라이드가 대체됩니다"
+              action={
+                <button
+                  onClick={() => setSourcePanelOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-surface-hover text-ink-secondary"
+                >
+                  <X size={16} />
+                </button>
+              }
+            />
+            <InputPanel
+              settings={settings}
+              onSlides={(s) => {
+                autoGenRef.current.clear();
+                onSlidesChange(s);
+                setSelectedIdx(0);
+                setSourcePanelOpen(false);
+              }}
+            />
+          </Card>
+        )}
+
         <Card padding={false} className="py-3">
           <HorizontalSlideStrip
             slides={slides}
             preset={preset}
             colorId={colorId}
             brand={settings.brand}
+            cardSize={cardSize}
             selectedIdx={selectedIdx}
             onSelect={setSelectedIdx}
           />
         </Card>
 
-        {/* 2컬럼 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7">
             {selected && (
@@ -410,8 +504,13 @@ export function CreateView({
                 colorId={colorId}
                 brand={settings.brand}
                 isLast={isLast}
+                cardSize={cardSize}
                 onSlideChange={(s) => update(selectedIdx, s)}
                 onOpenPhoneMockup={() => setPhoneModalOpen(true)}
+                onElementSelect={(el) => {
+                  setSelectedElement(el);
+                  if (el) setRightTab('style');
+                }}
               />
             )}
           </div>
@@ -453,8 +552,9 @@ export function CreateView({
                 <div className="space-y-3">
                   <Tabs
                     tabs={[
-                      { id: 'content', label: '내용', icon: <PencilRuler size={12} /> },
-                      { id: 'style', label: '스타일', icon: <Type size={12} /> },
+                      { id: 'content', label: '내용' },
+                      { id: 'style', label: '스타일' },
+                      { id: 'preset', label: '프리셋' },
                     ]}
                     active={rightTab}
                     onChange={(v) => setRightTab(v as any)}
@@ -463,6 +563,14 @@ export function CreateView({
                   <div className="max-h-[calc(100vh-380px)] overflow-y-auto pr-1">
                     {rightTab === 'content' && (
                       <div className="space-y-3">
+                        <Input
+                          label="라벨 (선택)"
+                          value={selected.label}
+                          onChange={(e) =>
+                            update(selectedIdx, { label: e.target.value })
+                          }
+                          placeholder="예: TRAVEL, NEWS"
+                        />
                         <Input
                           label="헤드라인"
                           value={selected.headline}
@@ -558,13 +666,6 @@ export function CreateView({
                             </div>
                           )}
                         </div>
-
-                        <div className="border-t pt-3">
-                          <div className="flex items-center gap-2 text-xs text-ink-secondary mb-2">
-                            <MapPin size={12} />
-                            <span>미리보기에서 드래그로 위치 조정</span>
-                          </div>
-                        </div>
                       </div>
                     )}
 
@@ -573,6 +674,31 @@ export function CreateView({
                         slide={selected}
                         preset={preset}
                         onChange={(patch) => update(selectedIdx, patch)}
+                        selectedElement={selectedElement}
+                      />
+                    )}
+
+                    {rightTab === 'preset' && (
+                      <PresetPicker
+                        current={preset}
+                        currentColorId={colorId}
+                        customPresets={customPresets}
+                        favorites={favorites}
+                        stats={stats}
+                        brand={settings.brand}
+                        onSelect={(p, cid) => {
+                          onPresetChange(p, cid);
+                          if (cid) setColorId(cid);
+                        }}
+                        onColorChange={(cid) => {
+                          setColorId(cid);
+                          onPresetChange(preset, cid);
+                        }}
+                        onSaveCustom={onSaveCustom}
+                        onDeleteCustom={onDeleteCustom}
+                        onImport={onImportPresets}
+                        onToggleFavorite={onToggleFavorite}
+                        inline
                       />
                     )}
                   </div>
@@ -582,52 +708,6 @@ export function CreateView({
           </div>
         </div>
       </div>
-
-      {/* 모달들 */}
-      <Modal
-        open={presetModalOpen}
-        onClose={() => setPresetModalOpen(false)}
-        title="프리셋 선택"
-        maxWidth="xl"
-      >
-        <PresetPicker
-          current={preset}
-          currentColorId={colorId}
-          customPresets={customPresets}
-          favorites={favorites}
-          stats={stats}
-          brand={settings.brand}
-          onSelect={(p, cid) => {
-            onPresetChange(p, cid);
-            if (cid) setColorId(cid);
-          }}
-          onColorChange={(cid) => {
-            setColorId(cid);
-            onPresetChange(preset, cid);
-          }}
-          onSaveCustom={onSaveCustom}
-          onDeleteCustom={onDeleteCustom}
-          onImport={onImportPresets}
-          onToggleFavorite={onToggleFavorite}
-        />
-      </Modal>
-
-      <Modal
-        open={sourceModalOpen}
-        onClose={() => setSourceModalOpen(false)}
-        title="카드뉴스 소스"
-        maxWidth="lg"
-      >
-        <InputPanel
-          settings={settings}
-          onSlides={(s) => {
-            autoGenRef.current.clear();
-            onSlidesChange(s);
-            setSelectedIdx(0);
-            setSourceModalOpen(false);
-          }}
-        />
-      </Modal>
 
       <Modal
         open={phoneModalOpen}

@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { CardSlide } from '@/templates';
-import type { Slide, Preset, ElementPosition, BrandInfo } from '@/lib/types';
+import type { Slide, Preset, ElementPosition, BrandInfo, CardSize } from '@/lib/types';
+import { CARD_SIZE_DIMENSIONS } from '@/lib/types';
 import { RotateCcw, Grid3x3, Smartphone } from 'lucide-react';
 
 export function DraggableCardPreview({
@@ -12,19 +13,24 @@ export function DraggableCardPreview({
   colorId,
   brand,
   isLast,
+  cardSize = 'instagram',
   onSlideChange,
   onOpenPhoneMockup,
+  onElementSelect,
 }: {
   slide: Slide;
   preset: Preset;
   colorId?: string;
   brand?: BrandInfo;
   isLast?: boolean;
+  cardSize?: CardSize;
   onSlideChange: (slide: Slide) => void;
   onOpenPhoneMockup: () => void;
+  onElementSelect?: (el: string | null) => void;
 }) {
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(false);
+  const dim = CARD_SIZE_DIMENSIONS[cardSize];
 
   function handleElementDrag(element: string, pos: ElementPosition) {
     const positions = { ...(slide.positions || {}) };
@@ -32,13 +38,20 @@ export function DraggableCardPreview({
     else if (element === 'body') positions.body = pos;
     else if (element === 'highlight') positions.highlight = pos;
     else if (element === 'badge') positions.badge = pos;
+    else if (element === 'label') positions.label = pos;
     onSlideChange({ ...slide, positions });
+  }
+
+  function handleElementClick(el: string) {
+    setSelectedElement(el);
+    onElementSelect?.(el);
   }
 
   function resetPositions() {
     if (!confirm('이 슬라이드의 위치 조정을 초기화할까요?')) return;
     onSlideChange({ ...slide, positions: undefined });
     setSelectedElement(null);
+    onElementSelect?.(null);
   }
 
   function resetElement() {
@@ -48,15 +61,17 @@ export function DraggableCardPreview({
     else if (selectedElement === 'body') delete positions.body;
     else if (selectedElement === 'highlight') delete positions.highlight;
     else if (selectedElement === 'badge') delete positions.badge;
+    else if (selectedElement === 'label') delete positions.label;
     onSlideChange({ ...slide, positions });
     setSelectedElement(null);
+    onElementSelect?.(null);
   }
 
   return (
     <Card padding={false} className="p-3">
       <div className="flex items-center justify-between mb-3 px-1 flex-wrap gap-2">
         <div className="text-sm font-semibold">
-          미리보기 — <span className="text-primary-600">드래그로 위치 조정</span>
+          미리보기 — <span className="text-primary-600">요소 클릭 후 드래그</span>
         </div>
         <div className="flex gap-1">
           <button
@@ -66,7 +81,7 @@ export function DraggableCardPreview({
                 ? 'bg-primary-100 text-primary-700'
                 : 'hover:bg-surface-hover text-ink-secondary'
             }`}
-            title="그리드 표시"
+            title="그리드"
           >
             <Grid3x3 size={16} />
           </button>
@@ -84,18 +99,18 @@ export function DraggableCardPreview({
             icon={<Smartphone size={14} />}
             onClick={onOpenPhoneMockup}
           >
-            폰으로 보기
+            폰
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6">
+      <div className="flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-4">
         <div
           className="relative"
           style={{
             width: '100%',
-            maxWidth: 420,
-            aspectRatio: '1080 / 1350',
+            maxWidth: cardSize === 'square' ? 420 : 400,
+            aspectRatio: `${dim.width} / ${dim.height}`,
           }}
         >
           {showGrid && (
@@ -132,9 +147,9 @@ export function DraggableCardPreview({
           <div className="rounded-xl overflow-hidden border-2 border-white shadow-xl bg-white w-full h-full">
             <div
               style={{
-                width: 1080,
-                height: 1350,
-                transform: `scale(${420 / 1080})`,
+                width: dim.width,
+                height: dim.height,
+                transform: `scale(${(cardSize === 'square' ? 420 : 400) / dim.width})`,
                 transformOrigin: 'top left',
               }}
             >
@@ -143,10 +158,12 @@ export function DraggableCardPreview({
                 preset={preset}
                 colorId={colorId}
                 brand={brand}
+                width={dim.width}
+                height={dim.height}
                 isLast={isLast}
                 editable
                 selectedElement={selectedElement}
-                onElementClick={setSelectedElement}
+                onElementClick={handleElementClick}
                 onElementDrag={handleElementDrag}
               />
             </div>
@@ -156,7 +173,7 @@ export function DraggableCardPreview({
 
       {selectedElement && (
         <div className="mt-3 text-xs text-center text-primary-700 bg-primary-50 rounded-lg py-2">
-          선택됨: <strong>{selectedElement}</strong> — 드래그로 이동하세요
+          선택됨: <strong>{selectedElement}</strong> — 드래그 또는 오른쪽 스타일 탭에서 편집
         </div>
       )}
     </Card>

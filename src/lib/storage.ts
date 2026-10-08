@@ -1,6 +1,7 @@
 import type {
   BrandInfo,
   CardNewsProject,
+  CardSize,
   Preset,
   Settings,
   Slide,
@@ -12,16 +13,13 @@ import {
   deleteProjectImages,
 } from './projectStore';
 
-const SETTINGS_KEY = 'cardnews.settings.v3';
-const PROJECTS_KEY = 'cardnews.projects.v3';
-const PRESETS_KEY = 'cardnews.customPresets.v3';
-const PRESET_STATS_KEY = 'cardnews.presetStats.v3';
-const FAVORITES_KEY = 'cardnews.favorites.v3';
-const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v3';
+const SETTINGS_KEY = 'cardnews.settings.v4';
+const PROJECTS_KEY = 'cardnews.projects.v4';
+const PRESETS_KEY = 'cardnews.customPresets.v4';
+const PRESET_STATS_KEY = 'cardnews.presetStats.v4';
+const FAVORITES_KEY = 'cardnews.favorites.v4';
+const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v4';
 
-// ─────────────────────────────────────────────
-// 설정
-// ─────────────────────────────────────────────
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return EMPTY_SETTINGS;
   try {
@@ -43,9 +41,6 @@ export function saveSettings(s: Settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
 
-// ─────────────────────────────────────────────
-// 카드뉴스 프로젝트 (localStorage)
-// ─────────────────────────────────────────────
 export function loadProjects(): CardNewsProject[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -73,7 +68,8 @@ export function createProject(
   slides: Slide[],
   presetId: string,
   presetColorId: string,
-  brand: BrandInfo
+  brand: BrandInfo,
+  cardSize: CardSize = 'instagram'
 ): CardNewsProject {
   const now = Date.now();
   return {
@@ -82,23 +78,19 @@ export function createProject(
     slides,
     presetId,
     presetColorId,
+    cardSize,
     brand,
     createdAt: now,
     updatedAt: now,
   };
 }
 
-/**
- * 프로젝트 저장 (이미지는 IndexedDB로 분리)
- */
 export async function saveProjectWithImages(
   projects: CardNewsProject[],
   project: CardNewsProject
 ): Promise<CardNewsProject[]> {
-  // 이미지 분리 저장 (IndexedDB)
   const cleaned = await extractAndSaveImages(project);
   const updated = { ...cleaned, updatedAt: Date.now() };
-
   const existing = projects.findIndex((p) => p.id === updated.id);
   let next: CardNewsProject[];
   if (existing >= 0) {
@@ -112,18 +104,12 @@ export async function saveProjectWithImages(
   return next;
 }
 
-/**
- * 프로젝트 로드 시 이미지 복원
- */
 export async function loadProjectWithImages(
   project: CardNewsProject
 ): Promise<CardNewsProject> {
   return await restoreImages(project);
 }
 
-/**
- * 프로젝트 삭제 (이미지도 함께)
- */
 export async function deleteProjectWithImages(
   projects: CardNewsProject[],
   id: string
@@ -134,7 +120,6 @@ export async function deleteProjectWithImages(
   return next;
 }
 
-/** 동기 버전 (레거시) — 이미지 없이 프로젝트 목록만 저장 */
 export function upsertProject(
   projects: CardNewsProject[],
   project: CardNewsProject
@@ -162,9 +147,6 @@ export function deleteProject(
   return next;
 }
 
-// ─────────────────────────────────────────────
-// 현재 프로젝트 ID
-// ─────────────────────────────────────────────
 export function loadCurrentProjectId(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(CURRENT_PROJECT_KEY);
@@ -176,9 +158,6 @@ export function saveCurrentProjectId(id: string | null) {
   else localStorage.removeItem(CURRENT_PROJECT_KEY);
 }
 
-// ─────────────────────────────────────────────
-// 커스텀 프리셋
-// ─────────────────────────────────────────────
 export function loadCustomPresets(): Preset[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -194,9 +173,6 @@ export function saveCustomPresets(presets: Preset[]) {
   localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
 }
 
-// ─────────────────────────────────────────────
-// 프리셋 사용 통계
-// ─────────────────────────────────────────────
 export function loadPresetStats(): Record<string, number> {
   if (typeof window === 'undefined') return {};
   try {
@@ -216,9 +192,6 @@ export function incrementPresetStat(presetId: string): Record<string, number> {
   return stats;
 }
 
-// ─────────────────────────────────────────────
-// 즐겨찾기
-// ─────────────────────────────────────────────
 export function loadFavorites(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -240,9 +213,6 @@ export function toggleFavorite(presetId: string): string[] {
   return next;
 }
 
-// ─────────────────────────────────────────────
-// 레거시 마이그레이션
-// ─────────────────────────────────────────────
 export function migrateLegacySlides(settings: Settings): CardNewsProject | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -253,9 +223,10 @@ export function migrateLegacySlides(settings: Settings): CardNewsProject | null 
     const project = createProject(
       '이전 카드뉴스',
       slides,
-      'preset-dark-bold',
-      'neon-green',
-      settings.brand
+      'preset-centered',
+      'white-black',
+      settings.brand,
+      'instagram'
     );
     localStorage.removeItem('cardnews.slides.v2');
     return project;
