@@ -22,7 +22,6 @@ import {
   loadFavorites,
   toggleFavorite as toggleFavoriteStorage,
   upsertProject,
-  createBlankSlide,
 } from '@/lib/storage';
 import {
   EMPTY_SETTINGS,
@@ -32,7 +31,7 @@ import {
   type CardNewsProject,
   type CardSize,
 } from '@/lib/types';
-import { BLANK_PRESET, getPresetById } from '@/presets';
+import { STYLE_PRESETS, getPresetById } from '@/lib/presets';
 import { generateProjectName } from '@/lib/utils';
 
 export default function Page() {
@@ -42,7 +41,7 @@ export default function Page() {
   const [projects, setProjects] = useState<CardNewsProject[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [slides, setSlides] = useState<Slide[]>([]);
-  const [preset, setPreset] = useState<Preset>(BLANK_PRESET);
+  const [preset, setPreset] = useState<Preset>(STYLE_PRESETS[0]);
   const [cardSize, setCardSize] = useState<CardSize>('instagram');
   const [customPresets, setCustomPresets] = useState<Preset[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -82,7 +81,7 @@ export default function Page() {
   }, []);
 
   // ─────────────────────────────────
-  // 프로젝트 → 편집기 로드
+  // 프로젝트 → 편집기
   // ─────────────────────────────────
   async function loadProjectToEditor(
     project: CardNewsProject,
@@ -106,7 +105,7 @@ export default function Page() {
   }
 
   // ─────────────────────────────────
-  // 설정 자동 저장
+  // 설정 저장
   // ─────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
@@ -144,15 +143,13 @@ export default function Page() {
     const updated = customPresets.filter((p) => p.id !== id);
     setCustomPresets(updated);
     saveCustomPresets(updated);
-    if (preset.id === id) setPreset(BLANK_PRESET);
+    if (preset.id === id) setPreset(STYLE_PRESETS[0]);
   }
 
-  /** AI가 생성한 프리셋 하나 추가 */
   function handleImportCustom(presetArg: Preset) {
     const updated = [...customPresets, presetArg];
     setCustomPresets(updated);
     saveCustomPresets(updated);
-    // 즉시 적용
     setPreset(presetArg);
   }
 
@@ -227,9 +224,6 @@ export default function Page() {
     }
   }
 
-  // ─────────────────────────────────
-  // 프로젝트 이름 변경
-  // ─────────────────────────────────
   function handleRenameProject(id: string, name: string) {
     const proj = projects.find((p) => p.id === id);
     if (!proj) return;
@@ -239,7 +233,7 @@ export default function Page() {
   }
 
   // ─────────────────────────────────
-  // 프로젝트 선택 (편집기로 로드)
+  // 프로젝트 선택
   // ─────────────────────────────────
   async function handleSelectProject(proj: CardNewsProject) {
     if (slides.length > 0 && currentProjectId && currentProjectId !== proj.id) {
@@ -272,8 +266,7 @@ export default function Page() {
     setSlides([]);
     setCurrentProjectId(null);
     saveCurrentProjectId(null);
-    // 빈 프리셋으로 초기화
-    setPreset(BLANK_PRESET);
+    setPreset(STYLE_PRESETS[0]);
     setView('create');
     setTimeout(() => {
       skipAutoSaveRef.current = false;
@@ -281,7 +274,7 @@ export default function Page() {
   }
 
   // ─────────────────────────────────
-  // 자동 저장 (디바운스)
+  // 자동 저장
   // ─────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
@@ -358,6 +351,7 @@ export default function Page() {
           current={preset}
           customPresets={customPresets}
           favorites={favorites}
+          brand={settings.brand}
           onSelect={handlePresetChange}
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
