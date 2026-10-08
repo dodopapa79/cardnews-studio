@@ -12,8 +12,13 @@ export const CARD_SIZE_DIMENSIONS: Record<CardSize, { width: number; height: num
 // 배경
 // ─────────────────────────────────────────────
 export type BackgroundType = 'color' | 'gradient' | 'pattern' | 'image';
-
 export type BackgroundPattern = 'none' | 'grid' | 'dots' | 'noise' | 'mesh';
+
+export type ImageLayout =
+  | 'full-bleed'
+  | 'top-image'
+  | 'split'
+  | 'none';
 
 export interface BackgroundConfig {
   type: BackgroundType;
@@ -23,6 +28,8 @@ export interface BackgroundConfig {
   /** AI 생성 이미지 */
   imageUrl?: string;
   imageId?: string;
+  /** 이미지 배치 방식 */
+  imageLayout?: ImageLayout;
   /** 이미지 필터/효과 */
   imageBrightness?: number;
   imageContrast?: number;
@@ -35,9 +42,9 @@ export interface BackgroundConfig {
   /** 이미지 위 오버레이 (배경 어둡게/밝게) */
   overlayColor?: string;
   overlayOpacity?: number;
-  /** 하단 검정 그라데이션 (어두운 배경) */
+  /** 하단 검정 그라데이션 */
   bottomFade?: boolean;
-  /** 상단 이미지 하단 그라데이션 (배경색으로 이어짐) */
+  /** 상단 이미지 하단 그라데이션 */
   topImageFade?: boolean;
 }
 
@@ -45,6 +52,7 @@ export const DEFAULT_BACKGROUND: BackgroundConfig = {
   type: 'color',
   color: '#ffffff',
   pattern: 'none',
+  imageLayout: 'full-bleed',
   bottomFade: false,
   topImageFade: false,
 };
@@ -53,7 +61,6 @@ export const DEFAULT_BACKGROUND: BackgroundConfig = {
 // 텍스트 요소
 // ─────────────────────────────────────────────
 export type TextElementKey = 'label' | 'headline' | 'body' | 'highlight' | 'footer';
-
 export type TextAlign = 'left' | 'center' | 'right';
 
 export type TextAnimation =
@@ -67,7 +74,7 @@ export type TextAnimation =
 
 export interface TextElementConfig {
   content: string;
-  /** 위치 (0~1, 카드 기준 비율) */
+  /** 위치 (0~1) */
   x: number;
   y: number;
   /** 스타일 */
@@ -84,9 +91,9 @@ export interface TextElementConfig {
   backgroundOpacity?: number;
   padding?: number;
   borderRadius?: number;
-  /** 최대 너비 (0~1, 카드 기준 비율) */
+  /** 최대 너비 (0~1) */
   maxWidth?: number;
-  /** 영상용 애니메이션 */
+  /** 영상 애니메이션 */
   animation?: TextAnimation;
   /** 표시 여부 */
   visible?: boolean;
@@ -97,7 +104,7 @@ export const createDefaultText = (
   overrides: Partial<TextElementConfig> = {}
 ): TextElementConfig => ({
   content,
-  x: 0.1,
+  x: 0.08,
   y: 0.5,
   fontSize: 40,
   fontWeight: 700,
@@ -107,21 +114,21 @@ export const createDefaultText = (
   underline: false,
   lineHeight: 1.3,
   letterSpacing: 0,
-  maxWidth: 0.8,
+  maxWidth: 0.84,
   animation: 'fade-in',
   visible: true,
   ...overrides,
 });
 
 // ─────────────────────────────────────────────
-// 슬라이드 (배경 + 텍스트 분리)
+// 슬라이드
 // ─────────────────────────────────────────────
+export type SlideType = 'cover' | 'point' | 'data' | 'quote' | 'cta';
+
 export interface Slide {
   id: string;
-  type: 'cover' | 'point' | 'data' | 'quote' | 'cta';
-  /** 배경 (색상/이미지) */
+  type: SlideType;
   background: BackgroundConfig;
-  /** 텍스트 요소들 */
   texts: {
     label?: TextElementConfig;
     headline?: TextElementConfig;
@@ -129,28 +136,22 @@ export interface Slide {
     highlight?: TextElementConfig;
     footer?: TextElementConfig;
   };
-  /** 이미지 프롬프트 */
   imagePrompt: string;
   imagePromptKo: string;
-  /** 마지막 카드 여부 */
   isLast?: boolean;
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 (빈 프리셋이 기본)
+// 프리셋
 // ─────────────────────────────────────────────
 export interface Preset {
   id: string;
   name: string;
   category: 'style' | 'industry' | 'custom';
   description?: string;
-  /** 빈 프리셋 여부 */
   isBlank?: boolean;
-  /** 폰트 패밀리 */
   fontFamily: string;
-  /** 배경 기본값 (슬라이드별 override 가능) */
   defaultBackground?: Partial<BackgroundConfig>;
-  /** 텍스트 기본 스타일 (슬라이드별 override 가능) */
   defaultHeadlineStyle?: Partial<TextElementConfig>;
   defaultBodyStyle?: Partial<TextElementConfig>;
   defaultLabelStyle?: Partial<TextElementConfig>;
@@ -160,7 +161,6 @@ export interface Preset {
   version?: number;
 }
 
-// JSON 가져오기 스키마
 export interface PresetImportJSON {
   name: string;
   description?: string;
@@ -180,6 +180,7 @@ export interface PresetImportJSON {
     letterSpacing?: number;
     x?: number;
     y?: number;
+    maxWidth?: number;
   };
   defaultBodyStyle?: {
     fontSize?: number;
@@ -188,6 +189,7 @@ export interface PresetImportJSON {
     lineHeight?: number;
     x?: number;
     y?: number;
+    maxWidth?: number;
   };
   defaultLabelStyle?: {
     fontSize?: number;
@@ -249,7 +251,6 @@ export interface VideoStyle {
   transition: VideoTransition;
   transitionMs: number;
   slideDurationMs: number;
-  /** 텍스트 요소별 애니메이션 간격 (ms) */
   textStaggerMs: number;
 }
 
@@ -269,9 +270,6 @@ export interface UploadedBgm {
   fadeOut: number;
 }
 
-// ─────────────────────────────────────────────
-// BGM 사이트
-// ─────────────────────────────────────────────
 export interface BgmTrack {
   id: string;
   name: string;

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input, Textarea, Select } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputPanel } from '@/components/InputPanel';
@@ -12,8 +12,14 @@ import { DraggableCardPreview } from '@/components/DraggableCardPreview';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { ProjectList } from '@/components/ProjectList';
 import { SlideStyleEditor } from '@/components/SlideStyleEditor';
+import { BackgroundEditor } from '@/components/BackgroundEditor';
 import { generateImage } from '@/lib/imagegen';
-import { exportCardsAsZip, exportFullPackZip, downloadBlob, renderCardToPng } from '@/lib/card-renderer';
+import {
+  exportCardsAsZip,
+  renderCardToPng,
+  downloadBlob,
+} from '@/lib/card-renderer';
+import { applyPresetToAllSlides } from '@/lib/presets';
 import { CardRenderer, BackgroundOnlyRenderer } from '@/templates/CardRenderer';
 import type {
   Preset,
@@ -38,8 +44,9 @@ import {
   Plus,
   Download,
   FilePlus,
-  Layers,
-  FileImage,
+  List,
+  ImageDown,
+  Wand2,
 } from 'lucide-react';
 
 type TextKey = 'label' | 'headline' | 'body' | 'highlight' | 'footer';
@@ -101,9 +108,7 @@ export function CreateView({
   const [exporting, setExporting] = useState('');
   const autoGenRef = useRef<Set<string>>(new Set());
 
-  // 카드(배경+텍스트) ref들
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  // 배경만 ref들 (영상용, PNG 배경 분리용)
   const bgRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const selected = slides[selectedIdx];
@@ -125,7 +130,11 @@ export function CreateView({
   useEffect(() => {
     if (slides.length === 0) return;
     const first = slides[0];
-    if (!first.background.imageUrl && first.imagePrompt && !autoGenRef.current.has(first.id)) {
+    if (
+      !first.background.imageUrl &&
+      first.imagePrompt &&
+      !autoGenRef.current.has(first.id)
+    ) {
       if (settings.cfAccountId && settings.cfApiToken) {
         autoGenRef.current.add(first.id);
         setTimeout(() => genImgInternal(0), 800);
@@ -135,7 +144,7 @@ export function CreateView({
   }, [slides.length, settings.cfAccountId, settings.cfApiToken]);
 
   // ─────────────────────────────────
-  // 슬라이드 업데이트 헬퍼
+  // 슬라이드 업데이트
   // ─────────────────────────────────
   const updateSlide = (i: number, patch: Partial<Slide>) => {
     onSlidesChange(slides.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -160,7 +169,6 @@ export function CreateView({
   const resetText = (key: TextKey) => {
     const s = slides[selectedIdx];
     const texts = { ...s.texts };
-    // 프리셋 기본값으로 초기화
     const presetDefault =
       key === 'headline'
         ? preset.defaultHeadlineStyle
@@ -173,10 +181,7 @@ export function CreateView({
         : preset.defaultFooterStyle;
 
     if (texts[key]) {
-      texts[key] = {
-        ...texts[key]!,
-        ...(presetDefault || {}),
-      };
+      texts[key] = { ...texts[key]!, ...(presetDefault || {}) };
     }
     updateSlide(selectedIdx, { texts });
   };
@@ -189,6 +194,17 @@ export function CreateView({
     }
     updateSlide(selectedIdx, { texts });
   };
+
+  // ─────────────────────────────────
+  // 프리셋 적용 (A안: 값 복사)
+  // ─────────────────────────────────
+  function handleApplyPreset(newPreset: Preset) {
+    onPresetChange(newPreset);
+    if (slides.length > 0) {
+      const updated = applyPresetToAllSlides(slides, newPreset);
+      onSlidesChange(updated);
+    }
+  }
 
   // ─────────────────────────────────
   // 이미지 생성
@@ -206,7 +222,12 @@ export function CreateView({
         { workerUrl: settings.workerUrl }
       );
       updateSlide(i, {
-        background: { ...s.background, imageUrl: url, type: 'image' },
+        background: {
+          ...s.background,
+          imageUrl: url,
+          type: 'image',
+          imageLayout: s.background.imageLayout || 'full-bleed',
+        },
       });
     } catch (e: any) {
       console.error(`슬라이드 ${i + 1} 실패:`, e);
@@ -259,7 +280,12 @@ export function CreateView({
         );
         working[i] = {
           ...working[i],
-          background: { ...working[i].background, imageUrl: url, type: 'image' },
+          background: {
+            ...working[i].background,
+            imageUrl: url,
+            type: 'image',
+            imageLayout: working[i].background.imageLayout || 'full-bleed',
+          },
         };
         onSlidesChange([...working]);
         await new Promise((r) => setTimeout(r, 1200));
@@ -276,22 +302,37 @@ export function CreateView({
   // ─────────────────────────────────
   // PNG 다운로드
   // ─────────────────────────────────
+  async function exportCurrentCard() {
+    const node = cardRefs.current[selectedIdx];
+    if (!node) {
+      alert('카드가 없습니다.');
+      return;
+    }
+    setExporting('단일 카드');
+    try {
+      const blob = await renderCardToPng(node, dim.width, dim.height);
+      downloadBlob(blob, `card-${selectedIdx + 1}-${Date.now()}.png`);
+    } finally {
+      setExporting('');
+    }
+  }
+
   async function exportCards(size: CardSize) {
     const nodes = cardRefs.current.filter(Boolean) as HTMLDivElement[];
     if (!nodes.length) {
       alert('카드가 없습니다.');
       return;
     }
-    setExporting('cards');
+    setExporting('카드 저장 중');
     setExportMenuOpen(false);
-    const dim = CARD_SIZE_DIMENSIONS[size];
+    const d = CARD_SIZE_DIMENSIONS[size];
     try {
       await exportCardsAsZip(
         nodes,
         `cardnews-${size}-${Date.now()}.zip`,
-        dim.width,
-        dim.height,
-        (i, total) => setExporting(`${i}/${total}`)
+        d.width,
+        d.height,
+        (i, total) => setExporting(`카드 ${i}/${total}`)
       );
     } finally {
       setExporting('');
@@ -304,56 +345,17 @@ export function CreateView({
       alert('배경이 없습니다.');
       return;
     }
-    setExporting('bg');
+    setExporting('배경 저장 중');
     setExportMenuOpen(false);
-    const dim = CARD_SIZE_DIMENSIONS[size];
+    const d = CARD_SIZE_DIMENSIONS[size];
     try {
       await exportCardsAsZip(
         nodes,
         `cardnews-bg-${size}-${Date.now()}.zip`,
-        dim.width,
-        dim.height,
-        (i, total) => setExporting(`${i}/${total}`)
+        d.width,
+        d.height,
+        (i, total) => setExporting(`배경 ${i}/${total}`)
       );
-    } finally {
-      setExporting('');
-    }
-  }
-
-  async function exportFullPack(size: CardSize) {
-    const cards = cardRefs.current.filter(Boolean) as HTMLDivElement[];
-    const bgs = bgRefs.current.filter(Boolean) as HTMLDivElement[];
-    if (!cards.length) {
-      alert('카드가 없습니다.');
-      return;
-    }
-    setExporting('pack');
-    setExportMenuOpen(false);
-    const dim = CARD_SIZE_DIMENSIONS[size];
-    try {
-      await exportFullPackZip(
-        cards,
-        bgs,
-        `cardnews-pack-${size}-${Date.now()}.zip`,
-        dim.width,
-        dim.height,
-        (msg) => setExporting(msg)
-      );
-    } finally {
-      setExporting('');
-    }
-  }
-
-  async function exportCurrentCard() {
-    const node = cardRefs.current[selectedIdx];
-    if (!node) {
-      alert('카드가 없습니다.');
-      return;
-    }
-    setExporting('single');
-    try {
-      const blob = await renderCardToPng(node, dim.width, dim.height);
-      downloadBlob(blob, `card-${selectedIdx + 1}-${Date.now()}.png`);
     } finally {
       setExporting('');
     }
@@ -366,7 +368,6 @@ export function CreateView({
     return (
       <>
         <div className="max-w-2xl mx-auto mt-8 space-y-4">
-          {/* 카드 사이즈 */}
           <Card>
             <CardHeader title="카드 사이즈 선택" subtitle="먼저 사이즈를 고르세요" />
             <div className="grid grid-cols-2 gap-3">
@@ -407,7 +408,6 @@ export function CreateView({
             </div>
           </Card>
 
-          {/* 새 카드뉴스 */}
           <Card>
             <div className="text-center py-8">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-3">
@@ -434,7 +434,7 @@ export function CreateView({
                     icon={<FolderOpen size={18} />}
                     onClick={() => setProjectListOpen(true)}
                   >
-                    목록에서 불러오기 ({projects.length})
+                    프로젝트 목록 ({projects.length})
                   </Button>
                 )}
               </div>
@@ -500,7 +500,7 @@ export function CreateView({
           <div className="h-6 w-px bg-surface-border" />
 
           <Badge variant="primary">
-            {currentProject ? currentProject.name.slice(0, 12) : '새 카드뉴스'}
+            {currentProject ? currentProject.name.slice(0, 14) : '새 카드뉴스'}
           </Badge>
           <span className="text-sm text-ink-muted hidden md:inline">
             {slides.length}장
@@ -530,16 +530,21 @@ export function CreateView({
           </div>
 
           <div className="ml-auto flex gap-1.5 flex-wrap">
-            <Button size="sm" variant="secondary" icon={<Save size={14} />} onClick={onSaveProject}>
-              저장
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Save size={14} />}
+              onClick={onSaveProject}
+            >
+              현재 프로젝트 저장
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              icon={<FolderOpen size={14} />}
+              icon={<List size={14} />}
               onClick={() => setProjectListOpen(true)}
             >
-              목록
+              프로젝트 목록
             </Button>
 
             {currentProjectId && (
@@ -561,79 +566,58 @@ export function CreateView({
               </Button>
             )}
 
-            {/* PNG 다운로드 메뉴 */}
             <div className="relative">
               <Button
                 size="sm"
                 variant="ghost"
-                icon={<Download size={14} />}
+                icon={<ImageDown size={14} />}
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}
                 loading={!!exporting}
               >
-                {exporting ? exporting : 'PNG'}
+                {exporting ? exporting : '카드를 이미지로 저장'}
               </Button>
               {exportMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-surface-border p-2 z-30 min-w-[260px]">
-                  <div className="text-[10px] font-semibold text-ink-muted px-2 py-1 uppercase">
-                    카드 사이즈
-                  </div>
                   <button
-                    onClick={() => exportCurrentCard()}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center gap-2"
+                    onClick={exportCurrentCard}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
                   >
-                    <FileImage size={14} className="text-primary-600" />
-                    <span className="flex-1">현재 카드만</span>
-                    <span className="text-ink-muted text-xs">
-                      {dim.width}×{dim.height}
-                    </span>
+                    <div className="font-medium">현재 카드만</div>
+                    <div className="text-xs text-ink-muted">
+                      {dim.width}×{dim.height} PNG 1장
+                    </div>
                   </button>
-
                   <div className="h-px bg-surface-border my-1" />
-                  <div className="text-[10px] font-semibold text-ink-muted px-2 py-1 uppercase">
-                    전체 (ZIP)
-                  </div>
-
                   <button
                     onClick={() => exportCards('instagram')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
                   >
-                    <Layers size={14} className="text-primary-600" />
-                    <span className="flex-1">카드 전체 (4:5)</span>
-                    <span className="text-ink-muted text-xs">1080×1350</span>
+                    <div className="font-medium">카드 전체 (4:5)</div>
+                    <div className="text-xs text-ink-muted">ZIP · 1080×1350</div>
                   </button>
                   <button
                     onClick={() => exportCards('square')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
                   >
-                    <Layers size={14} className="text-primary-600" />
-                    <span className="flex-1">카드 전체 (1:1)</span>
-                    <span className="text-ink-muted text-xs">1080×1080</span>
+                    <div className="font-medium">카드 전체 (1:1)</div>
+                    <div className="text-xs text-ink-muted">ZIP · 1080×1080</div>
                   </button>
-
                   <div className="h-px bg-surface-border my-1" />
-
                   <button
                     onClick={() => exportBackgrounds('instagram')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
                   >
-                    <FileImage size={14} className="text-ink-muted" />
-                    <span className="flex-1">배경만 (4:5)</span>
+                    <div className="font-medium">배경만 (4:5)</div>
+                    <div className="text-xs text-ink-muted">
+                      영상 편집용 ZIP
+                    </div>
                   </button>
                   <button
                     onClick={() => exportBackgrounds('square')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded"
                   >
-                    <FileImage size={14} className="text-ink-muted" />
-                    <span className="flex-1">배경만 (1:1)</span>
-                  </button>
-
-                  <div className="h-px bg-surface-border my-1" />
-                  <button
-                    onClick={() => exportFullPack('instagram')}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover rounded flex items-center gap-2 font-medium"
-                  >
-                    <Download size={14} className="text-primary-600" />
-                    <span className="flex-1">전체 팩 (카드+배경)</span>
+                    <div className="font-medium">배경만 (1:1)</div>
+                    <div className="text-xs text-ink-muted">ZIP</div>
                   </button>
                 </div>
               )}
@@ -641,13 +625,19 @@ export function CreateView({
 
             <Button
               size="sm"
-              icon={batchLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              icon={
+                batchLoading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Wand2 size={14} />
+                )
+              }
               onClick={genAllImages}
               disabled={batchLoading}
             >
               {batchLoading
                 ? `${batchProgress.current}/${batchProgress.total}`
-                : '이미지 생성'}
+                : '전체 카드 이미지 생성'}
             </Button>
           </div>
         </Card>
@@ -658,10 +648,14 @@ export function CreateView({
             current={preset}
             customPresets={customPresets}
             favorites={favorites}
-            onSelect={onPresetChange}
+            brand={settings.brand}
+            onSelect={handleApplyPreset}
             onSaveCustom={onSaveCustom}
             onDeleteCustom={onDeleteCustom}
-            onImportCustom={onImportCustom}
+            onImportCustom={(p) => {
+              onImportCustom(p);
+              handleApplyPreset(p);
+            }}
             onToggleFavorite={onToggleFavorite}
           />
         </Card>
@@ -680,7 +674,8 @@ export function CreateView({
 
         {/* 2컬럼 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 space-y-4">
+            {/* 미리보기 */}
             {selected && (
               <DraggableCardPreview
                 slide={selected}
@@ -692,6 +687,74 @@ export function CreateView({
                 onElementSelect={setSelectedElement}
               />
             )}
+
+            {/* 이미지 생성 (미리보기 아래) */}
+            <Card>
+              <CardHeader
+                title="🖼 배경 이미지 생성 (선택)"
+                subtitle="AI로 배경 이미지를 만들어 배경에 적용합니다"
+              />
+              <div className="space-y-3">
+                <Textarea
+                  label="프롬프트 (영어)"
+                  value={selected.imagePrompt}
+                  onChange={(e) =>
+                    updateSlide(selectedIdx, { imagePrompt: e.target.value })
+                  }
+                  placeholder="minimal illustration of..."
+                  rows={3}
+                  className="font-mono text-xs"
+                />
+
+                {selected.imagePromptKo && (
+                  <div className="text-xs text-ink-muted bg-surface-bg rounded-lg p-2.5 leading-relaxed">
+                    <span className="font-medium text-ink-secondary">
+                      참고:{' '}
+                    </span>
+                    {selected.imagePromptKo}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    icon={<ImageIcon size={14} />}
+                    loading={generatingIdx === selectedIdx}
+                    onClick={() => genImg(selectedIdx)}
+                    disabled={generatingIdx !== null || batchLoading}
+                    className="flex-1"
+                  >
+                    {generatingIdx === selectedIdx
+                      ? '생성 중...'
+                      : '이 슬라이드 배경 이미지 생성'}
+                  </Button>
+                </div>
+
+                {selected.background.imageUrl && (
+                  <div className="rounded-xl border-2 border-primary-200 overflow-hidden">
+                    <img
+                      src={selected.background.imageUrl}
+                      alt=""
+                      className="w-full max-h-72 object-contain bg-gray-100"
+                    />
+                    <div className="flex items-center gap-2 p-2 bg-primary-50">
+                      <div className="text-xs text-primary-700 flex-1">
+                        이미지 준비됨
+                      </div>
+                      <button
+                        onClick={() =>
+                          updateBackground({ imageUrl: '', type: 'color' })
+                        }
+                        className="p-1.5 rounded text-primary-700 hover:bg-primary-100"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
           </div>
 
           <div className="lg:col-span-5">
@@ -751,7 +814,6 @@ export function CreateView({
 
               {selected && (
                 <div className="space-y-3">
-                  {/* 텍스트 편집기 (선택된 요소만) */}
                   <SlideStyleEditor
                     slide={selected}
                     selectedElement={selectedElement}
@@ -760,71 +822,6 @@ export function CreateView({
                     onResetText={resetText}
                     onToggleVisible={toggleVisible}
                   />
-
-                  {/* 이미지 프롬프트 (하단) */}
-                  <div className="border-t pt-4 mt-4">
-                    <div className="text-xs font-semibold text-ink-secondary mb-2 flex items-center gap-1.5">
-                      <ImageIcon size={12} />
-                      배경 이미지 (선택사항)
-                    </div>
-
-                    <Textarea
-                      label="프롬프트 (영어)"
-                      value={selected.imagePrompt}
-                      onChange={(e) =>
-                        updateSlide(selectedIdx, { imagePrompt: e.target.value })
-                      }
-                      placeholder="minimal illustration of..."
-                      rows={3}
-                      className="font-mono text-xs"
-                    />
-
-                    {selected.imagePromptKo && (
-                      <div className="mt-2 text-xs text-ink-muted bg-surface-bg rounded-lg p-2.5">
-                        <span className="font-medium text-ink-secondary">
-                          참고:{' '}
-                        </span>
-                        {selected.imagePromptKo}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 mt-3">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<ImageIcon size={14} />}
-                        loading={generatingIdx === selectedIdx}
-                        onClick={() => genImg(selectedIdx)}
-                        disabled={generatingIdx !== null || batchLoading}
-                        className="flex-1"
-                      >
-                        {generatingIdx === selectedIdx ? '생성 중...' : '이미지 생성'}
-                      </Button>
-                    </div>
-
-                    {selected.background.imageUrl && (
-                      <div className="mt-3 rounded-xl border-2 border-primary-200 overflow-hidden">
-                        <img
-                          src={selected.background.imageUrl}
-                          alt=""
-                          className="w-full max-h-56 object-contain bg-gray-100"
-                        />
-                        <div className="flex items-center gap-2 p-2 bg-primary-50">
-                          <div className="text-xs text-primary-700 flex-1">
-                            이미지 준비됨
-                          </div>
-                          <button
-                            onClick={() =>
-                              updateBackground({ imageUrl: '', type: 'color' })
-                            }
-                            className="p-1 rounded text-primary-700 hover:bg-primary-100"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </Card>
@@ -832,7 +829,7 @@ export function CreateView({
         </div>
       </div>
 
-      {/* 숨겨진 렌더 DOM (PNG 다운로드용) */}
+      {/* 숨겨진 렌더 DOM */}
       <div
         style={{
           position: 'fixed',
@@ -843,7 +840,6 @@ export function CreateView({
         }}
         aria-hidden="true"
       >
-        {/* 카드 (배경+텍스트) */}
         {slides.map((s, i) => (
           <div
             key={`card-${s.id}`}
@@ -856,12 +852,9 @@ export function CreateView({
               brand={settings.brand}
               width={dim.width}
               height={dim.height}
-              isLast={i === slides.length - 1}
             />
           </div>
         ))}
-
-        {/* 배경만 */}
         {slides.map((s, i) => (
           <div
             key={`bg-${s.id}`}

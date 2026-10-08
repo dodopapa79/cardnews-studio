@@ -1,5 +1,6 @@
 'use client';
 import { ColorPicker } from '@/components/ColorPicker';
+import { BackgroundEditor } from '@/components/BackgroundEditor';
 import type {
   Slide,
   TextElementConfig,
@@ -14,9 +15,7 @@ import {
   Italic,
   Underline,
   Type,
-  Image as ImageIcon,
   MousePointerClick,
-  Palette,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -26,12 +25,6 @@ const COLOR_PRESETS = [
   '#ef4444', '#f97316', '#eab308', '#84cc16',
   '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6',
   '#d946ef', '#ec4899', '#f43f5e',
-];
-
-const BG_COLOR_PRESETS = [
-  '#ffffff', '#f8fafc', '#faf7f2', '#fffbf5',
-  '#0a0a0a', '#0f172a', '#3b0764', '#7f1d1d',
-  '#052e16', '#7c3aed', '#2563eb', '#ec4899',
 ];
 
 type TextKey = 'label' | 'headline' | 'body' | 'highlight' | 'footer';
@@ -51,6 +44,7 @@ interface SlideStyleEditorProps {
   onChangeBackground: (patch: Partial<BackgroundConfig>) => void;
   onResetText: (key: TextKey) => void;
   onToggleVisible: (key: TextKey) => void;
+  onRequestImage?: () => void;
 }
 
 export function SlideStyleEditor({
@@ -60,10 +54,9 @@ export function SlideStyleEditor({
   onChangeBackground,
   onResetText,
   onToggleVisible,
+  onRequestImage,
 }: SlideStyleEditorProps) {
-  // ─────────────────────────────────
   // 아무것도 선택 안 됨
-  // ─────────────────────────────────
   if (!selectedElement || selectedElement === 'none') {
     return (
       <div className="text-center py-10 px-4">
@@ -74,7 +67,7 @@ export function SlideStyleEditor({
           요소를 선택하세요
         </div>
         <div className="text-xs text-ink-muted leading-relaxed">
-          미리보기에서 배경, 텍스트, 이미지를 클릭하면
+          미리보기에서 배경, 텍스트를 클릭하면
           <br />
           해당 요소만 편집할 수 있습니다
         </div>
@@ -82,202 +75,18 @@ export function SlideStyleEditor({
     );
   }
 
-  // ─────────────────────────────────
-  // 배경 선택
-  // ─────────────────────────────────
+  // 배경
   if (selectedElement === 'background') {
-    const bg = slide.background;
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-2 border-b border-surface-border">
-          <Palette size={14} className="text-primary-600" />
-          <span className="text-sm font-bold">배경 설정</span>
-        </div>
-
-        {/* 배경 타입 */}
-        <div>
-          <div className="text-sm font-medium text-ink-secondary mb-1.5">
-            배경 종류
-          </div>
-          <div className="grid grid-cols-4 gap-1">
-            {(['color', 'gradient', 'pattern', 'image'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() =>
-                  onChangeBackground({
-                    type: t,
-                    // 이미지 타입으로 바꿀 때 imageUrl 없으면 유지
-                  })
-                }
-                className={`py-2 text-xs rounded border transition ${
-                  bg.type === t
-                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                    : 'border-surface-border'
-                }`}
-              >
-                {t === 'color' ? '단색' : t === 'gradient' ? '그라데이션' : t === 'pattern' ? '패턴' : '이미지'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 색상 */}
-        {bg.type !== 'image' && (
-          <ColorPicker
-            label="배경색"
-            value={bg.color}
-            onChange={(v) => onChangeBackground({ color: v })}
-            presets={BG_COLOR_PRESETS}
-          />
-        )}
-
-        {/* 그라데이션 끝 색상 */}
-        {(bg.type === 'gradient' || bg.pattern === 'mesh') && (
-          <ColorPicker
-            label="그라데이션 끝 색상"
-            value={bg.colorEnd || '#000000'}
-            onChange={(v) => onChangeBackground({ colorEnd: v })}
-            presets={BG_COLOR_PRESETS}
-          />
-        )}
-
-        {/* 패턴 */}
-        {(bg.type === 'pattern' || bg.type === 'color' || bg.type === 'gradient') && (
-          <div>
-            <div className="text-sm font-medium text-ink-secondary mb-1.5">
-              패턴
-            </div>
-            <div className="grid grid-cols-5 gap-1">
-              {(['none', 'grid', 'dots', 'noise', 'mesh'] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => onChangeBackground({ pattern: p })}
-                  className={`py-1.5 text-[10px] rounded border transition ${
-                    bg.pattern === p
-                      ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                      : 'border-surface-border'
-                  }`}
-                >
-                  {p === 'none' ? '없음' : p === 'grid' ? '격자' : p === 'dots' ? '점' : p === 'noise' ? '노이즈' : '메시'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 이미지 옵션 */}
-        {bg.type === 'image' && bg.imageUrl && (
-          <>
-            <div className="pt-3 border-t">
-              <div className="text-sm font-semibold mb-2">이미지 효과</div>
-              <SliderRow
-                label="밝기"
-                value={bg.imageBrightness ?? 100}
-                min={0}
-                max={200}
-                step={5}
-                unit="%"
-                onUpdate={(v) => onChangeBackground({ imageBrightness: v })}
-              />
-              <SliderRow
-                label="대비"
-                value={bg.imageContrast ?? 100}
-                min={0}
-                max={200}
-                step={5}
-                unit="%"
-                onUpdate={(v) => onChangeBackground({ imageContrast: v })}
-              />
-              <SliderRow
-                label="채도"
-                value={bg.imageSaturation ?? 100}
-                min={0}
-                max={200}
-                step={5}
-                unit="%"
-                onUpdate={(v) => onChangeBackground({ imageSaturation: v })}
-              />
-              <SliderRow
-                label="흐림"
-                value={bg.imageBlur ?? 0}
-                min={0}
-                max={20}
-                step={1}
-                unit="px"
-                onUpdate={(v) => onChangeBackground({ imageBlur: v })}
-              />
-              <SliderRow
-                label="회색조"
-                value={bg.imageGrayscale ?? 0}
-                min={0}
-                max={100}
-                step={5}
-                unit="%"
-                onUpdate={(v) => onChangeBackground({ imageGrayscale: v })}
-              />
-              <SliderRow
-                label="투명도"
-                value={Math.round((bg.imageOpacity ?? 1) * 100)}
-                min={0}
-                max={100}
-                step={5}
-                unit="%"
-                onUpdate={(v) => onChangeBackground({ imageOpacity: v / 100 })}
-              />
-            </div>
-
-            <div className="pt-3 border-t">
-              <ColorPicker
-                label="오버레이 색상"
-                value={bg.overlayColor || '#000000'}
-                onChange={(v) => onChangeBackground({ overlayColor: v })}
-                presets={COLOR_PRESETS}
-              />
-              {bg.overlayColor && (
-                <div className="mt-2">
-                  <SliderRow
-                    label="오버레이 강도"
-                    value={Math.round((bg.overlayOpacity ?? 0.4) * 100)}
-                    min={0}
-                    max={100}
-                    step={5}
-                    unit="%"
-                    onUpdate={(v) => onChangeBackground({ overlayOpacity: v / 100 })}
-                  />
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* 하단 페이드 */}
-        <div className="pt-3 border-t space-y-2">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={!!bg.bottomFade}
-              onChange={(e) => onChangeBackground({ bottomFade: e.target.checked })}
-            />
-            하단 검정 페이드
-          </label>
-          {bg.type === 'image' && (
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!bg.topImageFade}
-                onChange={(e) => onChangeBackground({ topImageFade: e.target.checked })}
-              />
-              이미지 하단 배경색 페이드
-            </label>
-          )}
-        </div>
-      </div>
+      <BackgroundEditor
+        background={slide.background}
+        onChange={onChangeBackground}
+        onChangeImage={onRequestImage || (() => {})}
+      />
     );
   }
 
-  // ─────────────────────────────────
-  // 텍스트 요소 선택
-  // ─────────────────────────────────
+  // 텍스트
   const textKey = selectedElement as TextKey;
   if (!['label', 'headline', 'body', 'highlight', 'footer'].includes(textKey)) {
     return null;
@@ -533,9 +342,6 @@ export function SlideStyleEditor({
   );
 }
 
-// ─────────────────────────────────────────────
-// 슬라이더 행
-// ─────────────────────────────────────────────
 function SliderRow({
   label,
   value,
@@ -555,7 +361,9 @@ function SliderRow({
   suffix?: string;
   onUpdate: (v: number) => void;
 }) {
-  const display = suffix ? `${value.toFixed(2)}${suffix}` : `${value}${unit || ''}`;
+  const display = suffix
+    ? `${value.toFixed(2)}${suffix}`
+    : `${value}${unit || ''}`;
   return (
     <div className="mb-3">
       <div className="flex items-center justify-between text-sm mb-1.5">

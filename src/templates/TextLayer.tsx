@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { TextElementConfig, TextAnimation } from '@/lib/types';
+import type { TextElementConfig } from '@/lib/types';
 
 // ─────────────────────────────────────────────
 // HEX + 투명도 → rgba
@@ -41,7 +41,12 @@ function TextElement({
   onChange,
 }: TextElementProps) {
   const [editing, setEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(config.content);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLocalValue(config.content);
+  }, [config.content]);
 
   useEffect(() => {
     if (editing && ref.current) {
@@ -58,7 +63,7 @@ function TextElement({
   if (config.visible === false) return null;
   if (!config.content) return null;
 
-  const maxW = (config.maxWidth ?? 0.8) * cardWidth;
+  const maxW = (config.maxWidth ?? 0.84) * cardWidth;
 
   // 배경 박스
   const hasBg = !!config.background;
@@ -66,7 +71,6 @@ function TextElement({
     ? hexToRgba(config.background!, config.backgroundOpacity ?? 1)
     : undefined;
 
-  // 드래그 핸들
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editable || editing) return;
     e.preventDefault();
@@ -111,20 +115,23 @@ function TextElement({
 
   const handleBlur = () => {
     setEditing(false);
+    if (localValue !== config.content) {
+      onChange({ content: localValue });
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
+      setLocalValue(config.content);
       setEditing(false);
       return;
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && elementKey !== 'body') {
       e.preventDefault();
       (e.currentTarget as HTMLElement).blur();
     }
   };
 
-  // 텍스트 스타일
   const textStyle: React.CSSProperties = {
     fontSize: config.fontSize,
     fontWeight: config.fontWeight,
@@ -140,7 +147,6 @@ function TextElement({
     margin: 0,
   };
 
-  // 배경 박스 스타일 (인라인)
   const boxStyle: React.CSSProperties = hasBg
     ? {
         background: bgColor,
@@ -188,7 +194,6 @@ function TextElement({
         }
       }}
     >
-      {/* 배경 박스 wrap */}
       <div style={boxStyle}>
         <div
           ref={ref}
@@ -196,12 +201,10 @@ function TextElement({
           suppressContentEditableWarning
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          onInput={(e) => {
-            // contentEditable 입력은 blur 시점에 반영
-          }}
+          onInput={(e) => setLocalValue(e.currentTarget.textContent || '')}
           style={textStyle}
         >
-          {config.content}
+          {editing ? localValue : config.content}
         </div>
       </div>
     </div>
@@ -209,7 +212,7 @@ function TextElement({
 }
 
 // ─────────────────────────────────────────────
-// 텍스트 레이어 (모든 텍스트 요소 관리)
+// 텍스트 레이어
 // ─────────────────────────────────────────────
 export interface TextLayerProps {
   texts: {

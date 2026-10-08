@@ -30,13 +30,23 @@ interface GenerateOptions {
   slideCount?: number;
   tone?: string;
   topic?: string;
-  /** 배경 설정 (프리셋에서) */
   backgroundDefaults?: Partial<BackgroundConfig>;
-  /** 텍스트 스타일 (프리셋에서) */
   headlineDefaults?: Partial<TextElementConfig>;
   bodyDefaults?: Partial<TextElementConfig>;
+  labelDefaults?: Partial<TextElementConfig>;
+  highlightDefaults?: Partial<TextElementConfig>;
+  footerDefaults?: Partial<TextElementConfig>;
 }
 
+/**
+ * 정보형 카드뉴스 스토리텔링 구조 (6장)
+ * 1. HOOK — 관심 끌기
+ * 2. WHY — 왜 봐야 하는지
+ * 3. KEY INFORMATION — 가장 중요한 정보
+ * 4. DETAIL — 헷갈리는 부분 정리
+ * 5. ACTION — 독자가 실제로 할 일
+ * 6. CTA — 마지막 행동 유도
+ */
 export async function generateCardNews(
   apiKey: string,
   source: string,
@@ -49,13 +59,14 @@ export async function generateCardNews(
     backgroundDefaults,
     headlineDefaults,
     bodyDefaults,
+    labelDefaults,
+    highlightDefaults,
+    footerDefaults,
   } = options;
-
-  const structure = buildStructure(slideCount);
 
   const prompt = `
 당신은 인스타그램 카드뉴스 콘텐츠 전문가입니다.
-아래 소스를 분석하여 ${slideCount}장짜리 카드뉴스를 만드세요.
+아래 소스를 분석하여 ${slideCount}장짜리 정보형 카드뉴스를 만드세요.
 
 ${topic ? `주제: ${topic}` : ''}
 
@@ -65,20 +76,57 @@ ${source.slice(0, 8000)}
 """
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 스토리텔링 구조
+📌 카드뉴스 스토리텔링 구조 (반드시 지킬 것)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${structure}
+정보형 카드뉴스는 다음 6단계 구조가 가장 안정적입니다.
+${slideCount === 6 ? '' : `(${slideCount}장으로 조정하여 아래 구조의 핵심을 유지하세요)`}
+
+**1장 — HOOK (관심 끌기)**
+- 강력한 후킹 문구로 시선을 사로잡기
+- 예: "65세 이상이라면 독감 접종 날짜를 확인하세요"
+
+**2장 — WHY (왜 봐야 하는지)**
+- 독자가 이 정보를 왜 알아야 하는지
+- 예: "올해 독감 무료접종은 모든 어르신이 같은 날 시작하지 않습니다"
+
+**3장 — KEY INFORMATION (가장 중요한 정보)**
+- 구체적인 숫자/일정/조건을 표 형태로
+- type은 반드시 "data"
+- 예: "75세 이상 10월 O일부터 / 70~74세 10월 O일부터 / 65~69세 10월 O일부터"
+
+**4장 — DETAIL (헷갈리는 부분)**
+- 독자가 자주 헷갈리는 부분 정리
+- 예: "코로나19 예방접종과 같은 날 맞아도 될까요?"
+
+**5장 — ACTION (독자가 실제로 할 일)**
+- 구체적인 행동 안내
+- 예: "가까운 지정 의료기관을 확인하고 방문 전 접종 가능 여부를 확인하세요"
+
+**6장 — CTA (마지막 행동 유도)**
+- type은 반드시 "cta"
+- 예: "우리 부모님 접종일도 확인해보세요. 자세한 일정과 접종기관은 프로필 링크에서 확인하세요"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 작성 규칙
+📌 슬라이드별 텍스트 규칙
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. **첫 슬라이드(cover)**: 강력한 훅. "이거 모르면 손해" 같은 호기심 유발
-2. **중간 슬라이드**: 구체적 정보. 숫자·통계·혜택·대상·신청방법
-3. **마지막 슬라이드(cta)**: 명확한 행동 유도
-4. **말투**: ${tone}
-5. **label**: 각 슬라이드에 어울리는 짧은 영문 라벨 (예: FEATURED, TIP, INFO, NEWS, HOWTO)
+각 슬라이드는 아래 5가지 텍스트를 가집니다:
+
+1. **label** (선택, 5~15자, 영문 또는 짧은 한글)
+   - 예: "FLU SHOT", "TIP", "INFO", "NOTICE", "CHECK"
+   
+2. **headline** (필수, 12자 이내)
+   - 핵심 메시지
+   
+3. **body** (선택, 40자 이내)
+   - 부연 설명
+   
+4. **highlight** (data 타입만, 큰 숫자/키워드)
+   - 예: "75세 이상", "10월 15일", "300만원"
+   
+5. **footer** (선택)
+   - 스와이프 안내용. 대부분 비워두고 6장 CTA에만 넣기
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 이미지 프롬프트
@@ -88,15 +136,21 @@ ${structure}
 1. **imagePrompt** (영어): 이미지 생성 AI용. "no text, no watermark, minimal, clean, high quality" 포함
 2. **imagePromptKo** (한글): 위 프롬프트가 어떤 이미지인지 20~35자 설명
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 톤
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${tone}
+
 반드시 아래 JSON 스키마로만 응답:
 {
   "slides": [
     {
       "type": "cover" | "point" | "data" | "quote" | "cta",
+      "label": "string (선택)",
       "headline": "string (12자 이내)",
-      "body": "string (60자 이내)",
+      "body": "string (40자 이내)",
       "highlight": "string (data 타입만)",
-      "label": "string (영문 라벨)",
       "imagePrompt": "string (영어)",
       "imagePromptKo": "string (한글 20~35자)"
     }
@@ -122,7 +176,6 @@ ${structure}
 
   const parsed = JSON.parse(text) as { slides: any[] };
 
-  // 새 Slide 구조로 변환
   return parsed.slides.map((s, i) => {
     const isLast = i === parsed.slides.length - 1;
     const type = s.type || 'point';
@@ -135,7 +188,7 @@ ${structure}
     const texts: Slide['texts'] = {
       label: s.label
         ? createDefaultText(s.label, {
-            ...(headlineDefaults || {}),
+            ...(labelDefaults || {}),
             fontSize: 22,
             fontWeight: 700,
             x: 0.08,
@@ -164,14 +217,15 @@ ${structure}
       highlight:
         type === 'data' && s.highlight
           ? createDefaultText(s.highlight, {
+              ...(highlightDefaults || {}),
               fontSize: 160,
               fontWeight: 900,
-              color: backgroundDefaults?.color === '#ffffff' ? '#8b5cf6' : '#ffffff',
               x: 0.08,
               y: 0.35,
               animation: 'zoom-in' as TextAnimation,
             })
           : undefined,
+      footer: undefined,
     };
 
     return {
@@ -184,31 +238,6 @@ ${structure}
       isLast,
     };
   });
-}
-
-function buildStructure(slideCount: number): string {
-  if (slideCount <= 4) {
-    return `1장 (cover): 훅 / 2-${slideCount - 1}장: 핵심 정보 / ${slideCount}장 (cta): 행동 유도`;
-  }
-  if (slideCount <= 6) {
-    return `
-1장 (cover): 강력한 훅
-2장 (point): 문제 제기
-3장 (data): 구체적 숫자·혜택
-4장 (point): 대상·자격
-5장 (point): 신청 방법
-6장 (cta): 행동 유도`.trim();
-  }
-  return `
-1장 (cover): 훅
-2장 (point): 문제 제기
-3장 (data): 핵심 통계
-4장 (point): 대상자
-5장 (point): 혜택 상세
-6장 (point): 신청 1단계
-7장 (point): 신청 2단계
-8장 (quote): 주의사항
-${slideCount}장 (cta): 행동 유도`.trim();
 }
 
 export async function expandKeyword(apiKey: string, keyword: string): Promise<string> {

@@ -5,25 +5,32 @@ import { BackgroundLayer } from './BackgroundLayer';
 import { TextLayer } from './TextLayer';
 
 // ─────────────────────────────────────────────
-// 카드 푸터 (마지막 카드 로고/브랜드)
+// 색상 밝기 판단
+// ─────────────────────────────────────────────
+function isDark(hex: string): boolean {
+  if (!hex || !hex.startsWith('#')) return false;
+  const h = hex.replace('#', '');
+  if (h.length < 6) return false;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+}
+
+// ─────────────────────────────────────────────
+// 마지막 카드 브랜드 정보
 // ─────────────────────────────────────────────
 function LastCardBrand({
   brand,
-  cardWidth,
-  cardHeight,
-  isDark,
+  isDark: dark,
 }: {
   brand?: BrandInfo;
-  cardWidth: number;
-  cardHeight: number;
   isDark: boolean;
 }) {
   if (!brand?.brandName && !brand?.website && !brand?.logoUrl) return null;
 
-  // 배경 어둡/밝기에 따라 자동 색상
-  const mainColor = isDark ? '#ffffff' : '#0a0a0a';
-  const mutedColor = isDark ? '#ffffffcc' : '#0a0a0acc';
-  const accentColor = isDark ? '#ffffff' : '#0a0a0a';
+  const mainColor = dark ? '#ffffff' : '#0a0a0a';
+  const mutedColor = dark ? 'rgba(255,255,255,0.8)' : 'rgba(10,10,10,0.7)';
 
   return (
     <div
@@ -50,7 +57,7 @@ function LastCardBrand({
             width: 100,
             height: 100,
             objectFit: 'contain',
-            filter: isDark ? 'brightness(0) invert(1)' : 'none',
+            filter: dark ? 'brightness(0) invert(1)' : 'none',
           }}
         />
       )}
@@ -59,7 +66,7 @@ function LastCardBrand({
           style={{
             fontSize: 40,
             fontWeight: 900,
-            color: accentColor,
+            color: mainColor,
             letterSpacing: '0.03em',
             lineHeight: 1.2,
           }}
@@ -96,20 +103,7 @@ function LastCardBrand({
 }
 
 // ─────────────────────────────────────────────
-// 색상 밝기 판단
-// ─────────────────────────────────────────────
-function isDark(hex: string): boolean {
-  const h = hex.replace('#', '');
-  if (h.length < 6) return false;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum < 0.5;
-}
-
-// ─────────────────────────────────────────────
-// CardRenderer — 배경 + 텍스트 합성
+// CardRenderer
 // ─────────────────────────────────────────────
 export interface CardRendererProps {
   slide: Slide;
@@ -117,9 +111,7 @@ export interface CardRendererProps {
   brand?: BrandInfo;
   width: number;
   height: number;
-  /** 편집 가능 */
   editable?: boolean;
-  /** 선택된 요소 ('background' | 'headline' | 'body' | ...) */
   selectedElement?: string | null;
   onSelectElement?: (key: string) => void;
   onChangeText?: (key: string, patch: any) => void;
@@ -142,7 +134,6 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
     },
     ref
   ) {
-    // 배경이 어두운지 판단 (텍스트 자동 색상용)
     const bgIsDark = isDark(slide.background.color);
 
     return (
@@ -156,6 +147,7 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
           position: 'relative',
           overflow: 'hidden',
           backgroundColor: slide.background.color,
+          fontFamily: preset?.fontFamily || 'Pretendard, system-ui, sans-serif',
         }}
       >
         {/* 배경 레이어 */}
@@ -178,15 +170,8 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
           />
         </div>
 
-        {/* 마지막 카드 브랜드 정보 */}
-        {slide.isLast && (
-          <LastCardBrand
-            brand={brand}
-            cardWidth={width}
-            cardHeight={height}
-            isDark={bgIsDark}
-          />
-        )}
+        {/* 마지막 카드 브랜드 */}
+        {slide.isLast && <LastCardBrand brand={brand} isDark={bgIsDark} />}
 
         {/* 텍스트 레이어 */}
         <TextLayer
@@ -205,7 +190,7 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
 );
 
 // ─────────────────────────────────────────────
-// BackgroundOnlyRenderer (영상용 — 텍스트 없이 배경만)
+// BackgroundOnlyRenderer (영상용)
 // ─────────────────────────────────────────────
 export const BackgroundOnlyRenderer = forwardRef<
   HTMLDivElement,
@@ -230,14 +215,7 @@ export const BackgroundOnlyRenderer = forwardRef<
         width={width}
         height={height}
       />
-      {slide.isLast && (
-        <LastCardBrand
-          brand={brand}
-          cardWidth={width}
-          cardHeight={height}
-          isDark={bgIsDark}
-        />
-      )}
+      {slide.isLast && <LastCardBrand brand={brand} isDark={bgIsDark} />}
     </div>
   );
 });

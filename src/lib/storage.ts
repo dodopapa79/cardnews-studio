@@ -8,16 +8,12 @@ import type {
 } from './types';
 import { EMPTY_SETTINGS, EMPTY_BRAND, DEFAULT_BACKGROUND, createDefaultText } from './types';
 
-// v5로 새로 시작 (기존 v4 데이터 무시)
 const SETTINGS_KEY = 'cardnews.settings.v5';
 const PROJECTS_KEY = 'cardnews.projects.v5';
 const PRESETS_KEY = 'cardnews.customPresets.v5';
 const FAVORITES_KEY = 'cardnews.favorites.v5';
 const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v5';
 
-// ─────────────────────────────────────────────
-// 설정
-// ─────────────────────────────────────────────
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return EMPTY_SETTINGS;
   try {
@@ -39,9 +35,6 @@ export function saveSettings(s: Settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
 
-// ─────────────────────────────────────────────
-// 프로젝트 (메타데이터만, 이미지 제외)
-// ─────────────────────────────────────────────
 export function loadProjects(): CardNewsProject[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -122,9 +115,6 @@ export function saveCurrentProjectId(id: string | null) {
   else localStorage.removeItem(CURRENT_PROJECT_KEY);
 }
 
-// ─────────────────────────────────────────────
-// 커스텀 프리셋
-// ─────────────────────────────────────────────
 export function loadCustomPresets(): Preset[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -140,9 +130,6 @@ export function saveCustomPresets(presets: Preset[]) {
   localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
 }
 
-// ─────────────────────────────────────────────
-// 즐겨찾기
-// ─────────────────────────────────────────────
 export function loadFavorites(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -165,7 +152,7 @@ export function toggleFavorite(presetId: string): string[] {
 }
 
 // ─────────────────────────────────────────────
-// 이미지 저장 (배경 이미지용)
+// 이미지 저장 (IndexedDB)
 // ─────────────────────────────────────────────
 const IMAGE_DB_NAME = 'cardnews-studio-v5';
 const IMAGE_STORE = 'backgrounds';
@@ -220,17 +207,6 @@ export async function saveBackgroundImages(images: StoredImage[]): Promise<void>
     images.forEach((img) => store.put(img));
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
-  });
-}
-
-export async function getBackgroundImage(id: string): Promise<StoredImage | null> {
-  const db = await openImageDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IMAGE_STORE, 'readonly');
-    const store = tx.objectStore(IMAGE_STORE);
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
   });
 }
 
@@ -291,20 +267,15 @@ export async function getStorageUsage(): Promise<{ count: number; bytes: number 
   });
 }
 
-// ─────────────────────────────────────────────
-// 프로젝트 저장 (이미지 분리)
-// ─────────────────────────────────────────────
 export async function saveProjectWithImages(
   projects: CardNewsProject[],
   project: CardNewsProject
 ): Promise<CardNewsProject[]> {
-  // 배경 이미지 분리 저장
   const storedImages: StoredImage[] = [];
   const cleanedSlides = project.slides.map((slide) => {
     const bg = slide.background;
     if (!bg.imageUrl) return slide;
 
-    // 이미지 URL이 있으면 IndexedDB에 저장
     const imageId = bg.imageId || `bg-${project.id}-${slide.id}`;
     storedImages.push({
       id: imageId,
@@ -316,11 +287,7 @@ export async function saveProjectWithImages(
 
     return {
       ...slide,
-      background: {
-        ...bg,
-        imageId,
-        imageUrl: '', // localStorage에는 저장 안 함
-      },
+      background: { ...bg, imageId, imageUrl: '' },
     };
   });
 
@@ -361,7 +328,7 @@ export async function deleteProjectWithImages(
 }
 
 // ─────────────────────────────────────────────
-// 기본 슬라이드 생성 (빈 프리셋용)
+// 빈 슬라이드 생성
 // ─────────────────────────────────────────────
 export function createBlankSlide(type: Slide['type'] = 'cover'): Slide {
   const id = `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

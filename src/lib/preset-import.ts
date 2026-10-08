@@ -11,7 +11,12 @@ function isValidHex(s: string | undefined): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(s);
 }
 
-function clamp(n: number | undefined, min: number, max: number, fallback: number): number {
+function clamp(
+  n: number | undefined,
+  min: number,
+  max: number,
+  fallback: number
+): number {
   if (typeof n !== 'number' || isNaN(n)) return fallback;
   return Math.max(min, Math.min(max, n));
 }
@@ -20,10 +25,7 @@ const VALID_BG_TYPES: BackgroundType[] = ['color', 'gradient', 'pattern', 'image
 const VALID_PATTERNS: BackgroundPattern[] = ['none', 'grid', 'dots', 'noise', 'mesh'];
 const VALID_ALIGNS: TextAlign[] = ['left', 'center', 'right'];
 
-/**
- * AI가 반환한 JSON을 Preset으로 변환
- */
-export function parsePresetJSON(jsonStr: string): Preset {
+export function parsePresetJSON(jsonStr: string, overrideName?: string): Preset {
   let data: any;
   try {
     let cleaned = jsonStr.trim();
@@ -31,19 +33,20 @@ export function parsePresetJSON(jsonStr: string): Preset {
     cleaned = cleaned.replace(/^```\s*/i, '');
     cleaned = cleaned.replace(/\s*```$/i, '');
     cleaned = cleaned.trim();
-
     data = JSON.parse(cleaned);
   } catch (e) {
     throw new Error('JSON 파싱 실패. 올바른 JSON 형식인지 확인하세요.');
   }
 
-  if (!data.name) throw new Error('name 필드가 없습니다.');
+  if (!data.name && !overrideName) {
+    throw new Error('name 필드가 없습니다.');
+  }
 
   const json: PresetImportJSON = data;
 
   const preset: Preset = {
     id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    name: String(json.name).slice(0, 30) || '커스텀 프리셋',
+    name: overrideName || String(json.name).slice(0, 30) || '커스텀 프리셋',
     category: 'custom',
     description: json.description || 'AI가 생성한 프리셋',
     fontFamily: json.fontFamily || 'Pretendard, system-ui, sans-serif',
@@ -72,9 +75,15 @@ export function parsePresetJSON(jsonStr: string): Preset {
             ? (json.defaultHeadlineStyle.align as TextAlign)
             : 'left',
           lineHeight: clamp(json.defaultHeadlineStyle.lineHeight, 0.9, 2.5, 1.15),
-          letterSpacing: clamp(json.defaultHeadlineStyle.letterSpacing, -0.1, 0.5, -0.03),
+          letterSpacing: clamp(
+            json.defaultHeadlineStyle.letterSpacing,
+            -0.1,
+            0.5,
+            -0.03
+          ),
           x: clamp(json.defaultHeadlineStyle.x, 0, 1, 0.08),
           y: clamp(json.defaultHeadlineStyle.y, 0, 1, 0.4),
+          maxWidth: clamp(json.defaultHeadlineStyle.maxWidth, 0.2, 1, 0.84),
         }
       : undefined,
     defaultBodyStyle: json.defaultBodyStyle
@@ -89,6 +98,7 @@ export function parsePresetJSON(jsonStr: string): Preset {
           lineHeight: clamp(json.defaultBodyStyle.lineHeight, 0.9, 2.5, 1.55),
           x: clamp(json.defaultBodyStyle.x, 0, 1, 0.08),
           y: clamp(json.defaultBodyStyle.y, 0, 1, 0.62),
+          maxWidth: clamp(json.defaultBodyStyle.maxWidth, 0.2, 1, 0.84),
         }
       : undefined,
     defaultLabelStyle: json.defaultLabelStyle
@@ -128,7 +138,6 @@ export function parsePresetJSON(jsonStr: string): Preset {
   return preset;
 }
 
-/** 프리셋을 JSON으로 내보내기 */
 export function presetToJSON(preset: Preset): PresetImportJSON {
   return {
     name: preset.name,
@@ -152,6 +161,7 @@ export function presetToJSON(preset: Preset): PresetImportJSON {
           letterSpacing: preset.defaultHeadlineStyle.letterSpacing,
           x: preset.defaultHeadlineStyle.x,
           y: preset.defaultHeadlineStyle.y,
+          maxWidth: preset.defaultHeadlineStyle.maxWidth,
         }
       : undefined,
     defaultBodyStyle: preset.defaultBodyStyle
@@ -162,6 +172,7 @@ export function presetToJSON(preset: Preset): PresetImportJSON {
           lineHeight: preset.defaultBodyStyle.lineHeight,
           x: preset.defaultBodyStyle.x,
           y: preset.defaultBodyStyle.y,
+          maxWidth: preset.defaultBodyStyle.maxWidth,
         }
       : undefined,
     defaultLabelStyle: preset.defaultLabelStyle
