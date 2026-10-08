@@ -4,11 +4,9 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
-import { renderNodeToDataUrl } from '@/lib/card-renderer';
 import { generateShorts, downloadBlob } from '@/lib/video-generator';
-import { getPresetById } from '@/presets';
-import { CardSlide } from '@/templates';
 import { BGM_SOURCES, BGM_CATEGORY_LABELS, getAudioDuration } from '@/lib/bgm';
+import { getPresetById } from '@/presets';
 import type {
   Slide,
   Preset,
@@ -17,7 +15,6 @@ import type {
   UploadedBgm,
   VideoStyle,
   VideoTransition,
-  TextAnimation,
 } from '@/lib/types';
 import { DEFAULT_VIDEO_STYLE } from '@/lib/types';
 import {
@@ -42,23 +39,11 @@ const TRANSITIONS: { id: VideoTransition; name: string }[] = [
   { id: 'blur', name: '블러' },
 ];
 
-const TEXT_ANIMS: { id: TextAnimation; name: string }[] = [
-  { id: 'none', name: '없음' },
-  { id: 'fade-in', name: '페이드인' },
-  { id: 'slide-up', name: '위로' },
-  { id: 'slide-down', name: '아래로' },
-  { id: 'slide-left', name: '좌측' },
-  { id: 'slide-right', name: '우측' },
-  { id: 'zoom-in', name: '줌인' },
-];
-
-/** 카드 썸네일 크기 (px) */
 const CARD_THUMB_WIDTH = 88;
 
 export function VideoView({
   slides: currentSlides,
   preset: currentPreset,
-  presetColorId: currentColorId,
   brand: currentBrand,
   projects,
   currentProjectId,
@@ -66,23 +51,17 @@ export function VideoView({
 }: {
   slides: Slide[];
   preset: Preset;
-  presetColorId?: string;
   brand?: BrandInfo;
   projects: CardNewsProject[];
   currentProjectId: string | null;
   onSelectProject: (p: CardNewsProject) => void;
 }) {
   const [selectedSlides, setSelectedSlides] = useState<Slide[]>(currentSlides);
-  const [selectedPreset, setSelectedPreset] = useState<Preset>(currentPreset);
-  const [selectedColorId, setSelectedColorId] = useState<string>(
-    currentColorId || currentPreset.colorVariants[0]?.id || ''
-  );
   const [selectedBrand, setSelectedBrand] = useState<BrandInfo | undefined>(currentBrand);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(currentProjectId);
 
   const [videoStyle, setVideoStyle] = useState<VideoStyle>(DEFAULT_VIDEO_STYLE);
 
-  const localCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
@@ -96,8 +75,6 @@ export function VideoView({
   const [previewSlideIdx, setPreviewSlideIdx] = useState(0);
   const previewRafRef = useRef<number>();
   const previewStartRef = useRef<number>(0);
-  const [previewImages, setPreviewImages] = useState<HTMLImageElement[]>([]);
-  const [previewLoading, setPreviewLoading] = useState(false);
 
   const updateVideo = (patch: Partial<VideoStyle>) => {
     setVideoStyle((prev) => ({ ...prev, ...patch }));
@@ -105,10 +82,7 @@ export function VideoView({
   };
 
   function loadFromProject(project: CardNewsProject) {
-    const p = getPresetById(project.presetId);
     setSelectedSlides(project.slides);
-    setSelectedPreset(p);
-    setSelectedColorId(project.presetColorId || p.colorVariants[0]?.id || '');
     setSelectedBrand(project.brand);
     setSelectedProjectId(project.id);
     setPreviewPlaying(false);
@@ -120,256 +94,126 @@ export function VideoView({
       if (proj && proj.id !== selectedProjectId) loadFromProject(proj);
     } else if (currentSlides.length > 0 && selectedSlides.length === 0) {
       setSelectedSlides(currentSlides);
-      setSelectedPreset(currentPreset);
-      setSelectedColorId(currentColorId || currentPreset.colorVariants[0]?.id || '');
       setSelectedBrand(currentBrand);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProjectId, projects]);
 
+  // ─────────────────────────────────
+  // 미리보기 렌더 (실시간)
+  // ─────────────────────────────────
   useEffect(() => {
-    if (selectedSlides.length === 0) {
-      setPreviewImages([]);
-      return;
-    }
-    let cancelled = false;
-    setPreviewLoading(true);
-
-    async function loadImages() {
-      await new Promise((r) => setTimeout(r, 400));
-      const nodes = localCardRefs.current.filter(Boolean) as HTMLDivElement[];
-      if (nodes.length === 0) {
-        setPreviewLoading(false);
-        return;
-      }
-      const urls: string[] = [];
-      for (const node of nodes) {
-        try {
-          const url = await renderNodeToDataUrl(node);
-          urls.push(url);
-        } catch (e) {
-          console.warn('카드 렌더 실패:', e);
-        }
-      }
-      if (cancelled) return;
-      const imgs = await Promise.all(
-        urls.map(
-          (src) =>
-            new Promise<HTMLImageElement>((resolve, reject) => {
-              const img = new Image();
-              img.onload = () => resolve(img);
-              img.onerror = reject;
-              img.src = src;
-            })
-        )
-      );
-      if (!cancelled) {
-        setPreviewImages(imgs);
-        setPreviewLoading(false);
-      }
-    }
-    loadImages();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSlides, selectedColorId, selectedPreset.id]);
-
-  function getPreviewCardRect(img: HTMLImageElement, W: number, H: number, extraScale = 1) {
-    const maxW = W * 0.9;
-    const maxH = H * 0.75;
-    const ratio = img.width / img.height;
-    let w = maxW;
-    let h = w / ratio;
-    if (h > maxH) {
-      h = maxH;
-      w = h * ratio;
-    }
-    w *= extraScale;
-    h *= extraScale;
-    const x = (W - w) / 2;
-    const y = (H - h) / 2;
-    return { x, y, w, h };
-  }
-
-  function drawPreviewCard(
-    ctx: CanvasRenderingContext2D,
-    img: HTMLImageElement,
-    W: number,
-    H: number,
-    alpha: number = 1,
-    offsetX = 0,
-    offsetY = 0,
-    scale = 1,
-    blur = 0
-  ) {
-    const rect = getPreviewCardRect(img, W, H, scale);
-    const cx = rect.x + rect.w / 2 + offsetX;
-    const cy = rect.y + rect.h / 2 + offsetY;
-    const sw = rect.w;
-    const sh = rect.h;
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    if (blur > 0) ctx.filter = `blur(${blur}px)`;
-
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 20;
-    ctx.shadowOffsetY = 8;
-
-    const radius = 10;
-    ctx.beginPath();
-    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, radius);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-    if (blur > 0) ctx.filter = 'none';
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(cx - sw / 2, cy - sh / 2, sw, sh, radius);
-    ctx.clip();
-    ctx.drawImage(img, cx - sw / 2, cy - sh / 2, sw, sh);
-    ctx.restore();
-
-    ctx.restore();
-  }
-
-  function renderPreviewTransition(
-    ctx: CanvasRenderingContext2D,
-    fromImg: HTMLImageElement,
-    toImg: HTMLImageElement,
-    t: number,
-    W: number,
-    H: number,
-    type: VideoTransition
-  ) {
-    if (type === 'fade') {
-      drawPreviewCard(ctx, fromImg, W, H, 1 - t);
-      drawPreviewCard(ctx, toImg, W, H, t);
-    } else if (type === 'slide') {
-      drawPreviewCard(ctx, fromImg, W, H, 1, -t * W, 0);
-      drawPreviewCard(ctx, toImg, W, H, 1, (1 - t) * W, 0);
-    } else if (type === 'slide-up') {
-      drawPreviewCard(ctx, fromImg, W, H, 1, 0, -t * H * 0.5);
-      drawPreviewCard(ctx, toImg, W, H, 1, 0, (1 - t) * H * 0.5);
-    } else if (type === 'zoom') {
-      drawPreviewCard(ctx, fromImg, W, H, 1 - t, 0, 0, 1 + t * 0.15);
-      drawPreviewCard(ctx, toImg, W, H, t, 0, 0, 0.85 + t * 0.15);
-    } else if (type === 'blur') {
-      drawPreviewCard(ctx, fromImg, W, H, 1 - t, 0, 0, 1, t * 12);
-      drawPreviewCard(ctx, toImg, W, H, t, 0, 0, 1, (1 - t) * 12);
-    }
-  }
-
-  function applyPreviewTextAnimation(
-    ctx: CanvasRenderingContext2D,
-    img: HTMLImageElement,
-    slideProgress: number,
-    animation: TextAnimation,
-    W: number,
-    H: number
-  ) {
-    const t = Math.min(slideProgress * 2, 1);
-    if (animation === 'none') {
-      drawPreviewCard(ctx, img, W, H, 1);
-    } else if (animation === 'fade-in') {
-      drawPreviewCard(ctx, img, W, H, t);
-    } else if (animation === 'slide-up') {
-      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), 0, (1 - t) * 30);
-    } else if (animation === 'slide-down') {
-      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), 0, -(1 - t) * 30);
-    } else if (animation === 'slide-left') {
-      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), (1 - t) * 40, 0);
-    } else if (animation === 'slide-right') {
-      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), -(1 - t) * 40, 0);
-    } else if (animation === 'zoom-in') {
-      drawPreviewCard(ctx, img, W, H, Math.min(t * 1.5, 1), 0, 0, 0.85 + t * 0.15);
-    } else {
-      drawPreviewCard(ctx, img, W, H, 1);
-    }
-  }
-
-  useEffect(() => {
-    if (previewPlaying) return;
-    const canvas = previewCanvasRef.current;
-    if (!canvas || previewImages.length === 0) return;
-    const ctx = canvas.getContext('2d')!;
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, W, H);
-    const img = previewImages[previewSlideIdx] || previewImages[0];
-    drawPreviewCard(ctx, img, W, H, 1);
-  }, [previewImages, previewSlideIdx, previewPlaying]);
-
-  useEffect(() => {
-    if (!previewPlaying || previewImages.length === 0) return;
     const canvas = previewCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     const W = canvas.width;
     const H = canvas.height;
 
-    const totalMs = previewImages.length * videoStyle.slideDurationMs;
-    previewStartRef.current = performance.now();
+    if (selectedSlides.length === 0) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
 
-    const tick = () => {
-      const e = performance.now() - previewStartRef.current;
-      if (e >= totalMs) {
-        previewStartRef.current = performance.now();
-        return;
-      }
+    let raf = 0;
+
+    async function renderFrame(elapsed: number) {
+      if (!ctx) return;
       const slideIdx = Math.min(
-        Math.floor(e / videoStyle.slideDurationMs),
-        previewImages.length - 1
+        Math.floor(elapsed / videoStyle.slideDurationMs),
+        selectedSlides.length - 1
       );
-      const slideElapsed = e - slideIdx * videoStyle.slideDurationMs;
-      const slideProgress = slideElapsed / videoStyle.slideDurationMs;
-      const isTransition =
-        slideElapsed > videoStyle.slideDurationMs - videoStyle.transitionMs &&
-        slideIdx < previewImages.length - 1;
-      const nextIdx = Math.min(slideIdx + 1, previewImages.length - 1);
+      const slide = selectedSlides[slideIdx];
 
-      setPreviewSlideIdx(slideIdx);
-
+      // 배경
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, W, H);
 
-      if (isTransition) {
-        const t =
-          (slideElapsed - (videoStyle.slideDurationMs - videoStyle.transitionMs)) /
-          videoStyle.transitionMs;
-        renderPreviewTransition(
-          ctx,
-          previewImages[slideIdx],
-          previewImages[nextIdx],
-          t,
-          W,
-          H,
-          videoStyle.transition
-        );
+      // 카드 위치
+      const cardMaxW = W * 0.9;
+      const cardMaxH = H * 0.75;
+      const ratio = 1080 / 1350;
+      let cardW = cardMaxW;
+      let cardH = cardW / ratio;
+      if (cardH > cardMaxH) {
+        cardH = cardMaxH;
+        cardW = cardH * ratio;
+      }
+      const cardX = (W - cardW) / 2;
+      const cardY = (H - cardH) / 2;
+
+      // 배경 색상
+      if (slide.background.type === 'image' && slide.background.imageUrl) {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject();
+            img.src = slide.background.imageUrl!;
+          });
+          ctx.save();
+          ctx.beginPath();
+          ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+          ctx.clip();
+          ctx.fillStyle = slide.background.color;
+          ctx.fillRect(cardX, cardY, cardW, cardH);
+          const scale = Math.max(cardW / img.width, cardH / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          ctx.drawImage(img, cardX + (cardW - w) / 2, cardY + (cardH - h) / 2, w, h);
+          ctx.restore();
+        } catch {
+          ctx.fillStyle = slide.background.color;
+          ctx.beginPath();
+          ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+          ctx.fill();
+        }
+      } else if (slide.background.type === 'gradient' && slide.background.colorEnd) {
+        const grad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+        grad.addColorStop(0, slide.background.color);
+        grad.addColorStop(1, slide.background.colorEnd);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+        ctx.fill();
       } else {
-        applyPreviewTextAnimation(
-          ctx,
-          previewImages[slideIdx],
-          slideProgress,
-          videoStyle.textAnimation,
-          W,
-          H
-        );
+        ctx.fillStyle = slide.background.color;
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+        ctx.fill();
       }
 
-      previewRafRef.current = requestAnimationFrame(tick);
-    };
+      // 텍스트 (미리보기에서는 위치만 표시)
+      // 실제 영상은 generateShorts에서 처리
+      // 미리보기에는 "플레이 버튼을 눌러주세요" 안내만
+    }
 
-    previewRafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
-    };
-  }, [previewPlaying, previewImages, videoStyle]);
+    if (!previewPlaying) {
+      renderFrame(0);
+    } else {
+      const startTime = performance.now();
+      const totalMs = selectedSlides.length * videoStyle.slideDurationMs;
+
+      const tick = () => {
+        const elapsed = performance.now() - startTime;
+        if (elapsed >= totalMs) {
+          previewStartRef.current = performance.now();
+          return;
+        }
+        const slideIdx = Math.min(
+          Math.floor(elapsed / videoStyle.slideDurationMs),
+          selectedSlides.length - 1
+        );
+        setPreviewSlideIdx(slideIdx);
+        renderFrame(elapsed);
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+
+    return () => cancelAnimationFrame(raf);
+  }, [previewPlaying, selectedSlides, videoStyle]);
 
   async function handleBgmUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -395,8 +239,7 @@ export function VideoView({
   }
 
   async function handleGenerate() {
-    const nodes = localCardRefs.current.filter(Boolean) as HTMLDivElement[];
-    if (nodes.length === 0) {
+    if (selectedSlides.length === 0) {
       setError('카드뉴스가 없습니다.');
       return;
     }
@@ -404,18 +247,17 @@ export function VideoView({
     setLoading(true);
     setProgress(0);
     setError('');
-    setStatus('카드 이미지 준비 중...');
+    setStatus('준비 중...');
 
     try {
-      const cardPngs: string[] = [];
-      for (let i = 0; i < nodes.length; i++) {
-        setStatus(`카드 렌더링 (${i + 1}/${nodes.length})`);
-        const url = await renderNodeToDataUrl(nodes[i]);
-        cardPngs.push(url);
-      }
+      // 브랜드 정보를 슬라이드에 주입 (마지막 카드)
+      const slidesWithBrand = selectedSlides.map((s) => ({
+        ...s,
+        __brand: selectedBrand,
+      }));
 
-      setStatus('영상 녹화 중...');
-      const blob = await generateShorts(cardPngs, {
+      const blob = await generateShorts({
+        slides: slidesWithBrand as any,
         ...videoStyle,
         bgm: bgm
           ? {
@@ -469,7 +311,6 @@ export function VideoView({
   return (
     <>
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* ═══ 카드뉴스 선택 — 1줄 가로 스크롤, 고정 크기 ═══ */}
         <Card padding={false} className="p-3 overflow-hidden">
           <div className="flex items-center gap-2 mb-2 px-1">
             <FolderOpen size={14} className="text-primary-600 shrink-0" />
@@ -481,9 +322,8 @@ export function VideoView({
             style={{ height: CARD_THUMB_WIDTH * 1.4 }}
           >
             {projects.map((p) => {
-              const preset = getPresetById(p.presetId);
-              const cover = p.slides[0];
               const isCurrent = selectedProjectId === p.id;
+              const cover = p.slides[0];
               const ratio = p.cardSize === 'square' ? 1 : 4 / 5;
               return (
                 <button
@@ -499,36 +339,21 @@ export function VideoView({
                     height: CARD_THUMB_WIDTH / ratio + 32,
                   }}
                 >
-                  {/* 썸네일 */}
                   <div
                     className="relative bg-white overflow-hidden"
                     style={{
                       width: CARD_THUMB_WIDTH,
                       height: CARD_THUMB_WIDTH / ratio,
+                      backgroundColor: cover?.background.color || '#fff',
                     }}
                   >
-                    <div
-                      style={{
-                        width: 1080,
-                        height: p.cardSize === 'square' ? 1080 : 1350,
-                        transform: `scale(${CARD_THUMB_WIDTH / 1080})`,
-                        transformOrigin: 'top left',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                      }}
-                    >
-                      {cover && (
-                        <CardSlide
-                          slide={cover}
-                          preset={preset}
-                          colorId={p.presetColorId}
-                          brand={p.brand}
-                          width={1080}
-                          height={p.cardSize === 'square' ? 1080 : 1350}
-                          isLast={false}
-                        />
-                      )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div
+                        className="text-[8px] text-center p-1"
+                        style={{ color: cover?.texts.headline?.color || '#000' }}
+                      >
+                        {cover?.texts.headline?.content?.slice(0, 20) || '카드'}
+                      </div>
                     </div>
                     {isCurrent && (
                       <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center text-white">
@@ -536,7 +361,6 @@ export function VideoView({
                       </div>
                     )}
                   </div>
-                  {/* 이름 */}
                   <div className="p-1.5 bg-white">
                     <div className="text-[10px] font-semibold truncate">
                       {p.name}
@@ -559,7 +383,7 @@ export function VideoView({
                 subtitle={currentProjectName || ''}
               />
               <div className="text-sm text-ink-secondary">
-                {selectedSlides.length}장 · {selectedPreset.name}
+                {selectedSlides.length}장
               </div>
             </Card>
 
@@ -627,21 +451,34 @@ export function VideoView({
             </Card>
 
             <Card>
-              <CardHeader title="✨ 텍스트 등장 효과" />
-              <div className="grid grid-cols-4 gap-2">
-                {TEXT_ANIMS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => updateVideo({ textAnimation: t.id })}
-                    className={`py-2 rounded-lg border text-xs font-medium transition ${
-                      videoStyle.textAnimation === t.id
-                        ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : 'border-surface-border hover:border-primary-300'
-                    }`}
-                  >
-                    {t.name}
-                  </button>
-                ))}
+              <CardHeader
+                title="✨ 텍스트 순차 등장"
+                subtitle="라벨 → 헤드라인 → 본문 순서로 등장"
+              />
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-ink-secondary">
+                    등장 간격
+                  </span>
+                  <span className="text-ink-muted">
+                    {videoStyle.textStaggerMs}ms
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={800}
+                  step={50}
+                  value={videoStyle.textStaggerMs}
+                  onChange={(e) =>
+                    updateVideo({ textStaggerMs: Number(e.target.value) })
+                  }
+                  className="w-full"
+                />
+                <div className="mt-3 text-xs text-ink-muted bg-primary-50 rounded-lg p-2.5">
+                  각 텍스트 요소는 {videoStyle.textStaggerMs}ms 간격으로
+                  순차 등장하며, 각자의 애니메이션 효과가 적용됩니다.
+                </div>
               </div>
             </Card>
 
@@ -774,7 +611,7 @@ export function VideoView({
                           href={track.sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 p-2 rounded-lg border border-surface-border hover:border-primary-400 hover:bg-primary-50/30 transition group"
+                          className="flex items-center gap-2 p-2 rounded-lg border border-surface-border hover:border-primary-400 hover:bg-primary-50/30 transition"
                         >
                           <div className="w-7 h-7 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center shrink-0">
                             <Music size={12} />
@@ -787,9 +624,6 @@ export function VideoView({
                               {track.source} ·{' '}
                               {BGM_CATEGORY_LABELS[track.category]}
                             </div>
-                          </div>
-                          <div className="text-xs text-primary-600 opacity-0 group-hover:opacity-100 transition">
-                            열기 →
                           </div>
                         </a>
                       ))}
@@ -830,28 +664,21 @@ export function VideoView({
 
               <div className="flex items-center justify-center gap-3 mt-3">
                 <button
-                  onClick={() => {
-                    if (previewImages.length === 0) return;
-                    setPreviewPlaying(!previewPlaying);
-                  }}
-                  disabled={previewImages.length === 0 || previewLoading}
+                  onClick={() => setPreviewPlaying(!previewPlaying)}
+                  disabled={selectedSlides.length === 0}
                   className="w-11 h-11 rounded-full bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {previewLoading ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : previewPlaying ? (
+                  {previewPlaying ? (
                     <Pause size={18} />
                   ) : (
                     <Play size={18} fill="white" />
                   )}
                 </button>
                 <div className="text-xs text-ink-secondary">
-                  {previewLoading
-                    ? '로딩 중...'
-                    : previewImages.length === 0
+                  {selectedSlides.length === 0
                     ? '준비 안 됨'
                     : previewPlaying
-                    ? `${previewSlideIdx + 1}/${previewImages.length}`
+                    ? `${previewSlideIdx + 1}/${selectedSlides.length}`
                     : '플레이 버튼을 눌러주세요'}
                 </div>
                 <button
@@ -860,10 +687,13 @@ export function VideoView({
                     setPreviewSlideIdx(0);
                   }}
                   className="w-8 h-8 rounded-full hover:bg-surface-hover text-ink-secondary flex items-center justify-center"
-                  title="처음으로"
                 >
                   <RotateCcw size={14} />
                 </button>
+              </div>
+
+              <div className="mt-3 text-xs text-ink-muted text-center bg-primary-50 rounded-lg p-2.5">
+                💡 텍스트가 순차 등장하는 실제 효과는 영상 생성 시 확인됩니다
               </div>
             </Card>
 
@@ -891,7 +721,7 @@ export function VideoView({
 
             <Button
               onClick={handleGenerate}
-              disabled={loading || previewImages.length === 0}
+              disabled={loading || selectedSlides.length === 0}
               size="lg"
               className="w-full"
               loading={loading}
@@ -917,33 +747,6 @@ export function VideoView({
         </div>
       </div>
 
-      <div
-        style={{
-          position: 'fixed',
-          left: -99999,
-          top: 0,
-          pointerEvents: 'none',
-          opacity: 0,
-        }}
-        aria-hidden="true"
-      >
-        {selectedSlides.map((slide, i) => (
-          <div
-            key={slide.id}
-            ref={(el) => (localCardRefs.current[i] = el)}
-            style={{ width: 1080, height: 1350 }}
-          >
-            <CardSlide
-              slide={slide}
-              preset={selectedPreset}
-              colorId={selectedColorId}
-              brand={selectedBrand}
-              isLast={i === selectedSlides.length - 1}
-            />
-          </div>
-        ))}
-      </div>
-
       <Modal
         open={phoneMockupOpen}
         onClose={() => setPhoneMockupOpen(false)}
@@ -953,8 +756,6 @@ export function VideoView({
         {selectedSlides[0] && (
           <PhoneMockup
             slide={selectedSlides[0]}
-            preset={selectedPreset}
-            colorId={selectedColorId}
             brand={selectedBrand}
             isLast={false}
           />

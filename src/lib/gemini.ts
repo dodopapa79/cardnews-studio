@@ -1,4 +1,5 @@
-import type { Slide, SlideType, ImageLayout } from './types';
+import type { Slide, BackgroundConfig, TextElementConfig, TextAnimation } from './types';
+import { DEFAULT_BACKGROUND, createDefaultText } from './types';
 
 const BASE =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
@@ -29,6 +30,11 @@ interface GenerateOptions {
   slideCount?: number;
   tone?: string;
   topic?: string;
+  /** 배경 설정 (프리셋에서) */
+  backgroundDefaults?: Partial<BackgroundConfig>;
+  /** 텍스트 스타일 (프리셋에서) */
+  headlineDefaults?: Partial<TextElementConfig>;
+  bodyDefaults?: Partial<TextElementConfig>;
 }
 
 export async function generateCardNews(
@@ -36,7 +42,14 @@ export async function generateCardNews(
   source: string,
   options: GenerateOptions = {}
 ): Promise<Slide[]> {
-  const { slideCount = 6, tone = '친근하고 정보성 있게', topic = '' } = options;
+  const {
+    slideCount = 6,
+    tone = '친근하고 정보성 있게',
+    topic = '',
+    backgroundDefaults,
+    headlineDefaults,
+    bodyDefaults,
+  } = options;
 
   const structure = buildStructure(slideCount);
 
@@ -52,7 +65,7 @@ ${source.slice(0, 8000)}
 """
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 카드뉴스 스토리텔링 구조
+📌 스토리텔링 구조
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${structure}
@@ -68,28 +81,12 @@ ${structure}
 5. **label**: 각 슬라이드에 어울리는 짧은 영문 라벨 (예: FEATURED, TIP, INFO, NEWS, HOWTO)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 이미지 프롬프트 (매우 중요)
+📌 이미지 프롬프트
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-각 슬라이드마다 아래 두 가지를 **반드시** 생성:
-
-1. **imagePrompt** (영어):
-   - 이미지 생성 AI에 전달할 영어 프롬프트
-   - 반드시 포함: "no text, no watermark, minimal, clean, high quality"
-   - 사람 얼굴 클로즈업 지양, 사물·추상 배경 위주
-
-2. **imagePromptKo** (한글):
-   - 위 영어 프롬프트가 **어떤 이미지인지** 사용자가 이해할 수 있도록 한글로 짧게 설명
-   - 20~35자 이내
-   - 예시: "의료용 주사기와 청진기의 미니멀 일러스트"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 imageLayout
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- cover → "full-bleed"
-- data / quote → "none"
-- point → "top-image" 또는 "split"
+각 슬라이드마다 두 가지:
+1. **imagePrompt** (영어): 이미지 생성 AI용. "no text, no watermark, minimal, clean, high quality" 포함
+2. **imagePromptKo** (한글): 위 프롬프트가 어떤 이미지인지 20~35자 설명
 
 반드시 아래 JSON 스키마로만 응답:
 {
@@ -98,11 +95,10 @@ ${structure}
       "type": "cover" | "point" | "data" | "quote" | "cta",
       "headline": "string (12자 이내)",
       "body": "string (60자 이내)",
-      "highlight": "string (data 타입만, 큰 숫자)",
+      "highlight": "string (data 타입만)",
       "label": "string (영문 라벨)",
-      "imagePrompt": "string (영어 이미지 프롬프트)",
-      "imagePromptKo": "string (한글 설명, 20~35자)",
-      "imageLayout": "full-bleed" | "top-image" | "split" | "none"
+      "imagePrompt": "string (영어)",
+      "imagePromptKo": "string (한글 20~35자)"
     }
   ]
 }
@@ -125,18 +121,69 @@ ${structure}
   if (!text) throw new Error('Gemini 응답이 비어 있습니다.');
 
   const parsed = JSON.parse(text) as { slides: any[] };
-  return parsed.slides.map((s, i) => ({
-    id: `slide-${Date.now()}-${i}`,
-    type: (s.type as SlideType) || 'point',
-    headline: s.headline || '',
-    body: s.body || '',
-    highlight: s.highlight || '',
-    label: s.label || '',
-    imageUrl: '',
-    imagePrompt: s.imagePrompt || '',
-    imagePromptKo: s.imagePromptKo || '',
-    imageLayout: (s.imageLayout as ImageLayout) || 'none',
-  }));
+
+  // 새 Slide 구조로 변환
+  return parsed.slides.map((s, i) => {
+    const isLast = i === parsed.slides.length - 1;
+    const type = s.type || 'point';
+
+    const background: BackgroundConfig = {
+      ...DEFAULT_BACKGROUND,
+      ...(backgroundDefaults || {}),
+    };
+
+    const texts: Slide['texts'] = {
+      label: s.label
+        ? createDefaultText(s.label, {
+            ...(headlineDefaults || {}),
+            fontSize: 22,
+            fontWeight: 700,
+            x: 0.08,
+            y: 0.1,
+            maxWidth: 0.5,
+          })
+        : undefined,
+      headline: s.headline
+        ? createDefaultText(s.headline, {
+            ...(headlineDefaults || {}),
+            x: 0.08,
+            y: type === 'cover' ? 0.4 : 0.35,
+            maxWidth: 0.84,
+            animation: 'slide-up' as TextAnimation,
+          })
+        : undefined,
+      body: s.body
+        ? createDefaultText(s.body, {
+            ...(bodyDefaults || {}),
+            x: 0.08,
+            y: type === 'cover' ? 0.62 : 0.6,
+            maxWidth: 0.84,
+            animation: 'fade-in' as TextAnimation,
+          })
+        : undefined,
+      highlight:
+        type === 'data' && s.highlight
+          ? createDefaultText(s.highlight, {
+              fontSize: 160,
+              fontWeight: 900,
+              color: backgroundDefaults?.color === '#ffffff' ? '#8b5cf6' : '#ffffff',
+              x: 0.08,
+              y: 0.35,
+              animation: 'zoom-in' as TextAnimation,
+            })
+          : undefined,
+    };
+
+    return {
+      id: `slide-${Date.now()}-${i}`,
+      type,
+      background,
+      texts,
+      imagePrompt: s.imagePrompt || '',
+      imagePromptKo: s.imagePromptKo || '',
+      isLast,
+    };
+  });
 }
 
 function buildStructure(slideCount: number): string {
@@ -187,10 +234,6 @@ export async function expandKeyword(apiKey: string, keyword: string): Promise<st
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-/**
- * 기존 슬라이드의 영어 프롬프트를 한글로 번역 (수동 요청 시)
- * - 신규 생성 시엔 자동으로 함께 오지만, 나중에 사용자가 영어만 바꿨을 때 사용
- */
 export async function translatePromptToKo(
   apiKey: string,
   enPrompt: string

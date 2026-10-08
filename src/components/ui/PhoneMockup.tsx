@@ -16,18 +16,17 @@ import {
   User,
 } from 'lucide-react';
 import type { PhoneApp, Slide, Preset, BrandInfo } from '@/lib/types';
-import { CardSlide } from '@/templates';
+import { CardRenderer } from '@/templates/CardRenderer';
 
 export function PhoneMockup({
   slide,
   preset,
-  colorId,
   brand,
   isLast,
   initialApp = 'tiktok',
 }: {
   slide: Slide;
-  preset: Preset;
+  preset?: Preset;
   colorId?: string;
   brand?: BrandInfo;
   isLast?: boolean;
@@ -65,12 +64,12 @@ export function PhoneMockup({
                   transformOrigin: 'top left',
                 }}
               >
-                <CardSlide
-                  slide={slide}
+                <CardRenderer
+                  slide={{ ...slide, isLast }}
                   preset={preset}
-                  colorId={colorId}
                   brand={brand}
-                  isLast={isLast}
+                  width={1080}
+                  height={1350}
                 />
               </div>
             </div>
@@ -84,7 +83,6 @@ export function PhoneMockup({
 
       <div className="text-xs text-ink-secondary text-center max-w-xs">
         회색/반투명 영역은 실제 앱에서 <strong>UI가 가려지는 부분</strong>입니다.
-        중요한 텍스트는 이 영역을 피해서 배치하세요.
       </div>
     </div>
   );
@@ -119,18 +117,16 @@ function TikTokOverlay() {
           <span className="text-[10px] font-semibold">89</span>
         </div>
       </div>
-
       <div className="absolute left-3 bottom-20 text-white max-w-[60%]">
         <div className="text-sm font-bold mb-1">@your_handle</div>
         <div className="text-xs opacity-90 leading-snug">
-          여기에 캡션과 해시태그가 표시됩니다 #추천 #정보
+          여기에 캡션과 해시태그가 표시됩니다
         </div>
         <div className="flex items-center gap-1.5 mt-2 text-[11px]">
           <Music size={11} />
           <span>원본 오디오 - your_handle</span>
         </div>
       </div>
-
       <div className="absolute bottom-0 left-0 right-0 h-14 bg-black/60 backdrop-blur flex items-center justify-around text-white text-[9px]">
         <div className="flex flex-col items-center gap-0.5 opacity-60">
           <Home size={18} />
@@ -186,7 +182,6 @@ function YouTubeOverlay() {
           <span className="text-[10px] font-semibold">공유</span>
         </div>
       </div>
-
       <div className="absolute left-3 bottom-20 flex items-center gap-2 text-white">
         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-xs font-bold">
           YT
@@ -196,13 +191,11 @@ function YouTubeOverlay() {
           구독
         </button>
       </div>
-
       <div className="absolute left-3 right-20 bottom-10 text-white">
         <div className="text-xs font-medium leading-snug">
           여기에 영상 제목이 표시됩니다 #shorts
         </div>
       </div>
-
       <div className="absolute bottom-0 left-0 right-0 h-14 bg-black/60 backdrop-blur flex items-center justify-around text-white text-[9px]">
         <div className="flex flex-col items-center gap-0.5 opacity-60">
           <Home size={18} />
@@ -247,7 +240,6 @@ function InstagramOverlay() {
         </div>
         <MoreVertical size={22} />
       </div>
-
       <div className="absolute left-3 right-14 bottom-20 text-white">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 p-0.5">
@@ -261,14 +253,13 @@ function InstagramOverlay() {
           </button>
         </div>
         <div className="text-xs opacity-90 leading-snug">
-          여기에 릴스 캡션이 표시됩니다 ✨ #reels #추천
+          여기에 릴스 캡션이 표시됩니다 ✨ #reels
         </div>
         <div className="flex items-center gap-1.5 mt-2 text-[11px] opacity-80">
           <Music size={11} />
           <span>Original audio</span>
         </div>
       </div>
-
       <div className="absolute bottom-0 left-0 right-0 h-14 bg-black/60 backdrop-blur flex items-center justify-around text-white text-[9px]">
         <div className="flex flex-col items-center gap-0.5 opacity-60">
           <Home size={18} />

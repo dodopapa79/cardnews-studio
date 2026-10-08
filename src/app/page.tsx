@@ -19,12 +19,10 @@ import {
   loadCurrentProjectId,
   saveCurrentProjectId,
   createProject,
-  incrementPresetStat,
-  loadPresetStats,
   loadFavorites,
   toggleFavorite as toggleFavoriteStorage,
-  migrateLegacySlides,
   upsertProject,
+  createBlankSlide,
 } from '@/lib/storage';
 import {
   EMPTY_SETTINGS,
@@ -34,7 +32,7 @@ import {
   type CardNewsProject,
   type CardSize,
 } from '@/lib/types';
-import { STYLE_PRESETS, getPresetById } from '@/presets';
+import { BLANK_PRESET, getPresetById } from '@/presets';
 import { generateProjectName } from '@/lib/utils';
 
 export default function Page() {
@@ -44,18 +42,16 @@ export default function Page() {
   const [projects, setProjects] = useState<CardNewsProject[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [slides, setSlides] = useState<Slide[]>([]);
-  const [preset, setPreset] = useState<Preset>(STYLE_PRESETS[0]);
-  const [presetColorId, setPresetColorId] = useState<string>(
-    STYLE_PRESETS[0].colorVariants[0].id
-  );
+  const [preset, setPreset] = useState<Preset>(BLANK_PRESET);
   const [cardSize, setCardSize] = useState<CardSize>('instagram');
   const [customPresets, setCustomPresets] = useState<Preset[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [stats, setStats] = useState<Record<string, number>>({});
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const skipAutoSaveRef = useRef(false);
   const batchLockRef = useRef(false);
 
+  // ─────────────────────────────────
+  // 초기 로드
+  // ─────────────────────────────────
   useEffect(() => {
     (async () => {
       setMounted(true);
@@ -66,27 +62,28 @@ export default function Page() {
       const cp = loadCustomPresets();
       setCustomPresets(cp);
       setFavorites(loadFavorites());
-      setStats(loadPresetStats());
 
-      let loadedProjects = loadProjects();
-      const migrated = migrateLegacySlides(s);
-      if (migrated) {
-        loadedProjects = upsertProject(loadedProjects, migrated);
-      }
+      const loadedProjects = loadProjects();
       setProjects(loadedProjects);
 
       const savedId = loadCurrentProjectId();
       if (savedId) {
         const proj = loadedProjects.find((p) => p.id === savedId);
-        if (proj) await loadProjectToEditor(proj, cp);
-        else if (loadedProjects.length > 0)
+        if (proj) {
+          await loadProjectToEditor(proj, cp);
+        } else if (loadedProjects.length > 0) {
           await loadProjectToEditor(loadedProjects[0], cp);
+        }
       } else if (loadedProjects.length > 0) {
         await loadProjectToEditor(loadedProjects[0], cp);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ─────────────────────────────────
+  // 프로젝트 → 편집기 로드
+  // ─────────────────────────────────
   async function loadProjectToEditor(
     project: CardNewsProject,
     customPresetsArg: Preset[]
@@ -101,7 +98,6 @@ export default function Page() {
 
       const p = getPresetById(restored.presetId, customPresetsArg);
       setPreset(p);
-      setPresetColorId(restored.presetColorId || p.colorVariants[0]?.id || '');
     } finally {
       setTimeout(() => {
         skipAutoSaveRef.current = false;
@@ -109,17 +105,19 @@ export default function Page() {
     }
   }
 
+  // ─────────────────────────────────
+  // 설정 자동 저장
+  // ─────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
     saveSettings(settings);
   }, [settings, mounted]);
 
-  function handlePresetChange(p: Preset, colorId?: string) {
+  // ─────────────────────────────────
+  // 프리셋
+  // ─────────────────────────────────
+  function handlePresetChange(p: Preset) {
     setPreset(p);
-    const cid = colorId || p.colorVariants[0]?.id || '';
-    setPresetColorId(cid);
-    const newStats = incrementPresetStat(p.id);
-    setStats(newStats);
   }
 
   function handleToggleFavorite(id: string) {
@@ -134,7 +132,7 @@ export default function Page() {
       name,
       category: 'custom',
       builtin: false,
-      version: 1,
+      version: 5,
     };
     const updated = [...customPresets, next];
     setCustomPresets(updated);
@@ -146,32 +144,21 @@ export default function Page() {
     const updated = customPresets.filter((p) => p.id !== id);
     setCustomPresets(updated);
     saveCustomPresets(updated);
-    if (preset.id === id) handlePresetChange(STYLE_PRESETS[0]);
-  }
-
-  function handleImportPresets(presets: Preset[]) {
-    const imported = presets.map((p) => ({
-      ...p,
-      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      category: 'custom' as const,
-      builtin: false,
-      version: 1,
-    }));
-    const updated = [...customPresets, ...imported];
-    setCustomPresets(updated);
-    saveCustomPresets(updated);
-    alert(`${imported.length}개 프리셋을 가져왔습니다.`);
+    if (preset.id === id) setPreset(BLANK_PRESET);
   }
 
   /** AI가 생성한 프리셋 하나 추가 */
-  function handleImportCustom(preset: Preset) {
-    const updated = [...customPresets, preset];
+  function handleImportCustom(presetArg: Preset) {
+    const updated = [...customPresets, presetArg];
     setCustomPresets(updated);
     saveCustomPresets(updated);
     // 즉시 적용
-    handlePresetChange(preset);
+    setPreset(presetArg);
   }
 
+  // ─────────────────────────────────
+  // 프로젝트 저장
+  // ─────────────────────────────────
   async function handleSaveProject() {
     if (slides.length === 0) {
       alert('저장할 카드뉴스가 없습니다.');
@@ -179,6 +166,7 @@ export default function Page() {
     }
     try {
       let project: CardNewsProject;
+
       if (currentProjectId) {
         const existing = projects.find((p) => p.id === currentProjectId);
         if (existing) {
@@ -186,7 +174,6 @@ export default function Page() {
             ...existing,
             slides,
             presetId: preset.id,
-            presetColorId,
             cardSize,
             brand: settings.brand,
             updatedAt: Date.now(),
@@ -196,7 +183,6 @@ export default function Page() {
             generateProjectName(slides),
             slides,
             preset.id,
-            presetColorId,
             settings.brand,
             cardSize
           );
@@ -206,11 +192,11 @@ export default function Page() {
           generateProjectName(slides),
           slides,
           preset.id,
-          presetColorId,
           settings.brand,
           cardSize
         );
       }
+
       const next = await saveProjectWithImages(projects, project);
       setProjects(next);
       setCurrentProjectId(project.id);
@@ -220,13 +206,17 @@ export default function Page() {
     }
   }
 
+  // ─────────────────────────────────
+  // 프로젝트 삭제
+  // ─────────────────────────────────
   async function handleDeleteProject(id: string) {
     try {
       const next = await deleteProjectWithImages(projects, id);
       setProjects(next);
       if (currentProjectId === id) {
-        if (next.length > 0) await loadProjectToEditor(next[0], customPresets);
-        else {
+        if (next.length > 0) {
+          await loadProjectToEditor(next[0], customPresets);
+        } else {
           setSlides([]);
           setCurrentProjectId(null);
           saveCurrentProjectId(null);
@@ -237,6 +227,9 @@ export default function Page() {
     }
   }
 
+  // ─────────────────────────────────
+  // 프로젝트 이름 변경
+  // ─────────────────────────────────
   function handleRenameProject(id: string, name: string) {
     const proj = projects.find((p) => p.id === id);
     if (!proj) return;
@@ -245,32 +238,51 @@ export default function Page() {
     setProjects(next);
   }
 
+  // ─────────────────────────────────
+  // 프로젝트 선택 (편집기로 로드)
+  // ─────────────────────────────────
   async function handleSelectProject(proj: CardNewsProject) {
     if (slides.length > 0 && currentProjectId && currentProjectId !== proj.id) {
-      const ok = confirm('현재 카드뉴스를 자동 저장하고 다른 카드뉴스를 열까요?');
-      if (ok) await handleSaveProject();
-      else return;
+      const ok = confirm(
+        '현재 편집 중인 카드뉴스를 자동 저장하고 다른 카드뉴스를 열까요?'
+      );
+      if (ok) {
+        await handleSaveProject();
+      } else {
+        return;
+      }
     }
     await loadProjectToEditor(proj, customPresets);
     setView('create');
   }
 
+  // ─────────────────────────────────
+  // 새로 제작
+  // ─────────────────────────────────
   async function handleCreateNew() {
     if (slides.length > 0) {
       const ok = confirm('현재 카드뉴스를 자동 저장하고 새로 만들까요?');
-      if (ok) await handleSaveProject();
-      else return;
+      if (ok) {
+        await handleSaveProject();
+      } else {
+        return;
+      }
     }
     skipAutoSaveRef.current = true;
     setSlides([]);
     setCurrentProjectId(null);
     saveCurrentProjectId(null);
+    // 빈 프리셋으로 초기화
+    setPreset(BLANK_PRESET);
     setView('create');
     setTimeout(() => {
       skipAutoSaveRef.current = false;
     }, 800);
   }
 
+  // ─────────────────────────────────
+  // 자동 저장 (디바운스)
+  // ─────────────────────────────────
   useEffect(() => {
     if (!mounted) return;
     if (skipAutoSaveRef.current) return;
@@ -287,7 +299,8 @@ export default function Page() {
       }
     }, 2500);
     return () => clearTimeout(timer);
-  }, [slides, presetColorId, cardSize, mounted, currentProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides, cardSize, mounted, currentProjectId]);
 
   if (!mounted) return null;
 
@@ -319,17 +332,13 @@ export default function Page() {
           slides={slides}
           onSlidesChange={setSlides}
           preset={preset}
-          presetColorId={presetColorId}
           onPresetChange={handlePresetChange}
           customPresets={customPresets}
           favorites={favorites}
-          stats={stats}
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
-          onImportPresets={handleImportPresets}
           onImportCustom={handleImportCustom}
           onToggleFavorite={handleToggleFavorite}
-          cardRefs={cardRefs}
           projects={projects}
           currentProjectId={currentProjectId}
           cardSize={cardSize}
@@ -347,16 +356,11 @@ export default function Page() {
       {view === 'presets' && (
         <PresetsView
           current={preset}
-          currentColorId={presetColorId}
-          onSelect={handlePresetChange}
-          onColorChange={setPresetColorId}
           customPresets={customPresets}
           favorites={favorites}
-          stats={stats}
-          brand={settings.brand}
+          onSelect={handlePresetChange}
           onSaveCustom={handleSaveCustom}
           onDeleteCustom={handleDeleteCustom}
-          onImport={handleImportPresets}
           onImportCustom={handleImportCustom}
           onToggleFavorite={handleToggleFavorite}
         />
@@ -365,7 +369,6 @@ export default function Page() {
         <VideoView
           slides={slides}
           preset={preset}
-          presetColorId={presetColorId}
           brand={settings.brand}
           projects={projects}
           currentProjectId={currentProjectId}
@@ -382,7 +385,6 @@ export default function Page() {
             setCurrentProjectId(null);
             setCustomPresets([]);
             setFavorites([]);
-            setStats({});
             setView('dashboard');
           }}
         />

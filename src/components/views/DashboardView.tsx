@@ -1,15 +1,10 @@
 'use client';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import type { ViewId } from '@/components/layout/Sidebar';
 import type { Settings, Slide, CardNewsProject } from '@/lib/types';
 import { formatRelativeTime } from '@/lib/utils';
-import { getPresetById } from '@/presets';
-import { CardSlide } from '@/templates';
 import {
-  PencilRuler,
-  Film,
   CheckCircle2,
   AlertCircle,
   Layers,
@@ -17,7 +12,8 @@ import {
   Plus,
   FolderOpen,
   FileText,
-  Palette,
+  PencilRuler,
+  Film,
 } from 'lucide-react';
 
 export function DashboardView({
@@ -38,13 +34,11 @@ export function DashboardView({
   const geminiOk = !!settings.geminiApiKey;
   const cfOk = !!settings.cfAccountId && !!settings.cfApiToken;
   const hasSlides = slides.length > 0;
-  const slidesWithImages = slides.filter((s) => s.imageUrl).length;
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       {/* 환영 */}
       <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl p-8 text-white relative overflow-hidden">
-        {/* 배경 장식 */}
         <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white/5 -translate-y-32 translate-x-32" />
         <div className="absolute bottom-0 right-20 w-40 h-40 rounded-full bg-white/5 translate-y-20" />
 
@@ -76,7 +70,7 @@ export function DashboardView({
                   className="!text-white hover:!bg-white/10"
                   icon={<PencilRuler size={16} />}
                 >
-                  편집 계속하기
+                  편집 계속
                 </Button>
                 <Button
                   onClick={() => onNavigate('video')}
@@ -92,7 +86,7 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* 현황 카드 */}
+      {/* 현황 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={<CheckCircle2 size={20} />}
@@ -125,7 +119,7 @@ export function DashboardView({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* 내 카드뉴스 목록 */}
+        {/* 프로젝트 목록 */}
         <Card>
           <CardHeader
             title={`내 카드뉴스 (${projects.length})`}
@@ -156,8 +150,10 @@ export function DashboardView({
           ) : (
             <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
               {projects.slice(0, 6).map((p) => {
-                const preset = getPresetById(p.presetId);
                 const cover = p.slides[0];
+                const bgColor = cover?.background.color || '#ffffff';
+                const headColor = cover?.texts.headline?.color || '#0a0a0a';
+                const headText = cover?.texts.headline?.content || '카드뉴스';
                 return (
                   <button
                     key={p.id}
@@ -165,34 +161,19 @@ export function DashboardView({
                     className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-hover transition-colors text-left"
                   >
                     <div
-                      className="shrink-0 rounded-lg overflow-hidden border bg-white"
+                      className="shrink-0 rounded-lg overflow-hidden border flex items-center justify-center"
                       style={{
                         width: 40,
-                        aspectRatio: p.cardSize === 'square' ? '1 / 1' : '4 / 5',
+                        aspectRatio: p.cardSize === 'square' ? '1/1' : '4/5',
+                        backgroundColor: bgColor,
                       }}
                     >
-                      <div
-                        style={{
-                          width: 1080,
-                          height: p.cardSize === 'square' ? 1080 : 1350,
-                          transform: `scale(${
-                            40 / 1080
-                          })`,
-                          transformOrigin: 'top left',
-                        }}
+                      <span
+                        className="text-[7px] font-bold text-center px-1 leading-tight"
+                        style={{ color: headColor }}
                       >
-                        {cover && (
-                          <CardSlide
-                            slide={cover}
-                            preset={preset}
-                            colorId={p.presetColorId}
-                            brand={p.brand}
-                            width={1080}
-                            height={p.cardSize === 'square' ? 1080 : 1350}
-                            isLast={false}
-                          />
-                        )}
-                      </div>
+                        {headText.slice(0, 15)}
+                      </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{p.name}</div>
@@ -233,25 +214,6 @@ export function DashboardView({
               done={false}
               onClick={() => (hasSlides ? onNavigate('video') : onNewProject())}
             />
-          </div>
-
-          {/* 프리셋 미리보기 */}
-          <div className="mt-4 pt-4 border-t border-surface-border">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
-                <Palette size={12} />
-                프리셋
-              </div>
-              <button
-                onClick={() => onNavigate('presets')}
-                className="text-xs text-primary-600 hover:text-primary-700"
-              >
-                전체 보기 →
-              </button>
-            </div>
-            <div className="text-[11px] text-ink-muted">
-              10가지 스타일 + 업종별 6가지 프리셋 제공
-            </div>
           </div>
         </Card>
       </div>

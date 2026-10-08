@@ -6,20 +6,18 @@ import type {
   Settings,
   Slide,
 } from './types';
-import { EMPTY_SETTINGS, EMPTY_BRAND } from './types';
-import {
-  extractAndSaveImages,
-  restoreImages,
-  deleteProjectImages,
-} from './projectStore';
+import { EMPTY_SETTINGS, EMPTY_BRAND, DEFAULT_BACKGROUND, createDefaultText } from './types';
 
-const SETTINGS_KEY = 'cardnews.settings.v4';
-const PROJECTS_KEY = 'cardnews.projects.v4';
-const PRESETS_KEY = 'cardnews.customPresets.v4';
-const PRESET_STATS_KEY = 'cardnews.presetStats.v4';
-const FAVORITES_KEY = 'cardnews.favorites.v4';
-const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v4';
+// v5로 새로 시작 (기존 v4 데이터 무시)
+const SETTINGS_KEY = 'cardnews.settings.v5';
+const PROJECTS_KEY = 'cardnews.projects.v5';
+const PRESETS_KEY = 'cardnews.customPresets.v5';
+const FAVORITES_KEY = 'cardnews.favorites.v5';
+const CURRENT_PROJECT_KEY = 'cardnews.currentProjectId.v5';
 
+// ─────────────────────────────────────────────
+// 설정
+// ─────────────────────────────────────────────
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return EMPTY_SETTINGS;
   try {
@@ -41,6 +39,9 @@ export function saveSettings(s: Settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
 }
 
+// ─────────────────────────────────────────────
+// 프로젝트 (메타데이터만, 이미지 제외)
+// ─────────────────────────────────────────────
 export function loadProjects(): CardNewsProject[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -67,7 +68,6 @@ export function createProject(
   name: string,
   slides: Slide[],
   presetId: string,
-  presetColorId: string,
   brand: BrandInfo,
   cardSize: CardSize = 'instagram'
 ): CardNewsProject {
@@ -77,47 +77,11 @@ export function createProject(
     name,
     slides,
     presetId,
-    presetColorId,
     cardSize,
     brand,
     createdAt: now,
     updatedAt: now,
   };
-}
-
-export async function saveProjectWithImages(
-  projects: CardNewsProject[],
-  project: CardNewsProject
-): Promise<CardNewsProject[]> {
-  const cleaned = await extractAndSaveImages(project);
-  const updated = { ...cleaned, updatedAt: Date.now() };
-  const existing = projects.findIndex((p) => p.id === updated.id);
-  let next: CardNewsProject[];
-  if (existing >= 0) {
-    next = [...projects];
-    next[existing] = updated;
-  } else {
-    next = [updated, ...projects];
-  }
-  next.sort((a, b) => b.updatedAt - a.updatedAt);
-  saveProjects(next);
-  return next;
-}
-
-export async function loadProjectWithImages(
-  project: CardNewsProject
-): Promise<CardNewsProject> {
-  return await restoreImages(project);
-}
-
-export async function deleteProjectWithImages(
-  projects: CardNewsProject[],
-  id: string
-): Promise<CardNewsProject[]> {
-  await deleteProjectImages(id);
-  const next = projects.filter((p) => p.id !== id);
-  saveProjects(next);
-  return next;
 }
 
 export function upsertProject(
@@ -158,6 +122,9 @@ export function saveCurrentProjectId(id: string | null) {
   else localStorage.removeItem(CURRENT_PROJECT_KEY);
 }
 
+// ─────────────────────────────────────────────
+// 커스텀 프리셋
+// ─────────────────────────────────────────────
 export function loadCustomPresets(): Preset[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -173,25 +140,9 @@ export function saveCustomPresets(presets: Preset[]) {
   localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
 }
 
-export function loadPresetStats(): Record<string, number> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(PRESET_STATS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-export function incrementPresetStat(presetId: string): Record<string, number> {
-  const stats = loadPresetStats();
-  stats[presetId] = (stats[presetId] || 0) + 1;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(PRESET_STATS_KEY, JSON.stringify(stats));
-  }
-  return stats;
-}
-
+// ─────────────────────────────────────────────
+// 즐겨찾기
+// ─────────────────────────────────────────────
 export function loadFavorites(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -213,24 +164,244 @@ export function toggleFavorite(presetId: string): string[] {
   return next;
 }
 
-export function migrateLegacySlides(settings: Settings): CardNewsProject | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem('cardnews.slides.v2');
-    if (!raw) return null;
-    const slides = JSON.parse(raw) as Slide[];
-    if (!slides?.length) return null;
-    const project = createProject(
-      '이전 카드뉴스',
-      slides,
-      'preset-centered',
-      'white-black',
-      settings.brand,
-      'instagram'
-    );
-    localStorage.removeItem('cardnews.slides.v2');
-    return project;
-  } catch {
-    return null;
+// ─────────────────────────────────────────────
+// 이미지 저장 (배경 이미지용)
+// ─────────────────────────────────────────────
+const IMAGE_DB_NAME = 'cardnews-studio-v5';
+const IMAGE_STORE = 'backgrounds';
+let imageDbPromise: Promise<IDBDatabase> | null = null;
+
+function openImageDB(): Promise<IDBDatabase> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('IndexedDB는 브라우저에서만 사용 가능'));
   }
+  if (imageDbPromise) return imageDbPromise;
+
+  imageDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(IMAGE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+        db.createObjectStore(IMAGE_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+  return imageDbPromise;
+}
+
+export interface StoredImage {
+  id: string;
+  projectId: string;
+  slideId: string;
+  dataUrl: string;
+  createdAt: number;
+}
+
+export async function saveBackgroundImage(image: StoredImage): Promise<void> {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    const req = store.put(image);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveBackgroundImages(images: StoredImage[]): Promise<void> {
+  if (images.length === 0) return;
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    images.forEach((img) => store.put(img));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getBackgroundImage(id: string): Promise<StoredImage | null> {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getBackgroundImagesByProject(
+  projectId: string
+): Promise<StoredImage[]> {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    const allReq = store.getAll();
+    allReq.onsuccess = () => {
+      const all = allReq.result as StoredImage[];
+      resolve(all.filter((i) => i.projectId === projectId));
+    };
+    allReq.onerror = () => reject(allReq.error);
+  });
+}
+
+export async function deleteBackgroundImagesByProject(
+  projectId: string
+): Promise<void> {
+  const images = await getBackgroundImagesByProject(projectId);
+  if (images.length === 0) return;
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    images.forEach((img) => store.delete(img.id));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function clearAllBackgroundImages(): Promise<void> {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    const req = store.clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getStorageUsage(): Promise<{ count: number; bytes: number }> {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const items = req.result as StoredImage[];
+      const bytes = items.reduce((sum, item) => sum + (item.dataUrl?.length || 0), 0);
+      resolve({ count: items.length, bytes });
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ─────────────────────────────────────────────
+// 프로젝트 저장 (이미지 분리)
+// ─────────────────────────────────────────────
+export async function saveProjectWithImages(
+  projects: CardNewsProject[],
+  project: CardNewsProject
+): Promise<CardNewsProject[]> {
+  // 배경 이미지 분리 저장
+  const storedImages: StoredImage[] = [];
+  const cleanedSlides = project.slides.map((slide) => {
+    const bg = slide.background;
+    if (!bg.imageUrl) return slide;
+
+    // 이미지 URL이 있으면 IndexedDB에 저장
+    const imageId = bg.imageId || `bg-${project.id}-${slide.id}`;
+    storedImages.push({
+      id: imageId,
+      projectId: project.id,
+      slideId: slide.id,
+      dataUrl: bg.imageUrl,
+      createdAt: Date.now(),
+    });
+
+    return {
+      ...slide,
+      background: {
+        ...bg,
+        imageId,
+        imageUrl: '', // localStorage에는 저장 안 함
+      },
+    };
+  });
+
+  if (storedImages.length > 0) {
+    await saveBackgroundImages(storedImages);
+  }
+
+  const cleanedProject = { ...project, slides: cleanedSlides };
+  return upsertProject(projects, cleanedProject);
+}
+
+export async function loadProjectWithImages(
+  project: CardNewsProject
+): Promise<CardNewsProject> {
+  const storedImages = await getBackgroundImagesByProject(project.id);
+  const imageMap = new Map(storedImages.map((img) => [img.id, img.dataUrl]));
+
+  const restoredSlides = project.slides.map((slide) => {
+    const bg = slide.background;
+    if (bg.imageId && imageMap.has(bg.imageId)) {
+      return {
+        ...slide,
+        background: { ...bg, imageUrl: imageMap.get(bg.imageId)! },
+      };
+    }
+    return slide;
+  });
+
+  return { ...project, slides: restoredSlides };
+}
+
+export async function deleteProjectWithImages(
+  projects: CardNewsProject[],
+  id: string
+): Promise<CardNewsProject[]> {
+  await deleteBackgroundImagesByProject(id);
+  return deleteProject(projects, id);
+}
+
+// ─────────────────────────────────────────────
+// 기본 슬라이드 생성 (빈 프리셋용)
+// ─────────────────────────────────────────────
+export function createBlankSlide(type: Slide['type'] = 'cover'): Slide {
+  const id = `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  return {
+    id,
+    type,
+    background: {
+      ...DEFAULT_BACKGROUND,
+      type: 'color',
+      color: '#ffffff',
+      pattern: 'none',
+    },
+    texts: {
+      label: undefined,
+      headline: createDefaultText(
+        type === 'cover' ? '제목을 입력하세요' : '슬라이드 제목',
+        {
+          fontSize: 88,
+          fontWeight: 900,
+          color: '#0a0a0a',
+          x: 0.08,
+          y: 0.4,
+          maxWidth: 0.84,
+        }
+      ),
+      body: createDefaultText('본문을 입력하세요', {
+        fontSize: 32,
+        fontWeight: 400,
+        color: '#525252',
+        x: 0.08,
+        y: 0.62,
+        lineHeight: 1.55,
+        maxWidth: 0.84,
+      }),
+      highlight: undefined,
+      footer: undefined,
+    },
+    imagePrompt: '',
+    imagePromptKo: '',
+    isLast: false,
+  };
 }
