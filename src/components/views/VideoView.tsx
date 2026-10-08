@@ -52,6 +52,9 @@ const TEXT_ANIMS: { id: TextAnimation; name: string }[] = [
   { id: 'zoom-in', name: '줌인' },
 ];
 
+/** 카드 썸네일 크기 (px) */
+const CARD_THUMB_WIDTH = 88;
+
 export function VideoView({
   slides: currentSlides,
   preset: currentPreset,
@@ -466,44 +469,53 @@ export function VideoView({
   return (
     <>
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* 프로젝트 선택 가로 스크롤 */}
-        <Card padding={false} className="p-3">
-          <div className="flex items-center gap-3 mb-2 px-1">
-            <FolderOpen size={14} className="text-primary-600" />
-            <span className="text-sm font-semibold">카드뉴스 선택</span>
+        {/* ═══ 카드뉴스 선택 — 1줄 가로 스크롤, 고정 크기 ═══ */}
+        <Card padding={false} className="p-3 overflow-hidden">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <FolderOpen size={14} className="text-primary-600 shrink-0" />
+            <span className="text-sm font-semibold shrink-0">카드뉴스 선택</span>
             <span className="text-xs text-ink-muted">({projects.length}개)</span>
           </div>
           <div
-            className="flex gap-2 overflow-x-auto pb-1"
-            style={{ scrollbarWidth: 'thin' }}
+            className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+            style={{ height: CARD_THUMB_WIDTH * 1.4 }}
           >
             {projects.map((p) => {
               const preset = getPresetById(p.presetId);
               const cover = p.slides[0];
               const isCurrent = selectedProjectId === p.id;
+              const ratio = p.cardSize === 'square' ? 1 : 4 / 5;
               return (
                 <button
                   key={p.id}
                   onClick={() => loadFromProject(p)}
-                  className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all text-left ${
+                  className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all text-left relative ${
                     isCurrent
                       ? 'border-primary-500 shadow-md'
                       : 'border-surface-border hover:border-primary-300'
                   }`}
-                  style={{ width: 90 }}
+                  style={{
+                    width: CARD_THUMB_WIDTH,
+                    height: CARD_THUMB_WIDTH / ratio + 32,
+                  }}
                 >
+                  {/* 썸네일 */}
                   <div
-                    className="relative bg-white"
+                    className="relative bg-white overflow-hidden"
                     style={{
-                      aspectRatio: p.cardSize === 'square' ? '1 / 1' : '4 / 5',
+                      width: CARD_THUMB_WIDTH,
+                      height: CARD_THUMB_WIDTH / ratio,
                     }}
                   >
                     <div
                       style={{
                         width: 1080,
                         height: p.cardSize === 'square' ? 1080 : 1350,
-                        transform: 'scale(0.083)',
+                        transform: `scale(${CARD_THUMB_WIDTH / 1080})`,
                         transformOrigin: 'top left',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
                       }}
                     >
                       {cover && (
@@ -524,6 +536,7 @@ export function VideoView({
                       </div>
                     )}
                   </div>
+                  {/* 이름 */}
                   <div className="p-1.5 bg-white">
                     <div className="text-[10px] font-semibold truncate">
                       {p.name}
@@ -787,7 +800,6 @@ export function VideoView({
             </Card>
           </div>
 
-          {/* 우측 미리보기 + 생성 */}
           <div className="lg:col-span-5 space-y-3">
             <Card padding={false} className="sticky top-20 p-4">
               <div className="flex items-center justify-between mb-3">

@@ -47,18 +47,20 @@ export function PresetCard({
   const [previewColorId, setPreviewColorId] = useState(
     selected && currentColorId ? currentColorId : preset.colorVariants[0].id
   );
+  const [showColors, setShowColors] = useState(false);
 
   const activeColorId = selected && currentColorId ? currentColorId : previewColorId;
 
-  // 크기별 치수
-  const dims = {
-    sm: { width: 100, scale: 0.093 },
-    md: { width: 160, scale: 0.148 },
-    lg: { width: 220, scale: 0.204 },
-  }[size];
+  // 크기별 스케일
+  const scales = {
+    sm: 0.075, // 100px
+    md: 0.098, // 106px
+    lg: 0.135, // 146px
+  };
+  const scale = scales[size];
 
   return (
-    <div className="group">
+    <div className="group relative">
       <button
         onClick={onSelect}
         className={`w-full rounded-lg overflow-hidden text-left transition-all ${
@@ -76,7 +78,7 @@ export function PresetCard({
             style={{
               width: 1080,
               height: 1350,
-              transform: `scale(${dims.scale})`,
+              transform: `scale(${scale})`,
               transformOrigin: 'top left',
               position: 'absolute',
               top: 0,
@@ -92,52 +94,41 @@ export function PresetCard({
             />
           </div>
 
+          {/* 선택됨 표시 */}
           {selected && (
-            <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-lg">
-              <Check size={12} strokeWidth={3} />
+            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-lg">
+              <Check size={11} strokeWidth={3} />
             </div>
           )}
 
+          {/* 즐겨찾기 */}
           {onToggleFavorite && (
             <div
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleFavorite();
               }}
-              className={`absolute top-1.5 left-1.5 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-all ${
+              className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer transition-all ${
                 favorite
                   ? 'bg-amber-500 text-white'
                   : 'bg-white/80 text-ink-secondary opacity-0 group-hover:opacity-100'
               }`}
             >
-              <Star size={11} fill={favorite ? 'currentColor' : 'none'} />
+              <Star size={10} fill={favorite ? 'currentColor' : 'none'} />
             </div>
           )}
 
-          {/* 액션 (hover) */}
-          <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {onCustomize && (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCustomize();
-                }}
-                className="w-6 h-6 rounded-full bg-white/90 flex items-center justify-center cursor-pointer hover:bg-white"
-                title="커스터마이즈"
-              >
-                <Palette size={11} />
-              </div>
-            )}
+          {/* 액션 */}
+          <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {onExport && (
               <div
                 onClick={(e) => {
                   e.stopPropagation();
                   onExport();
                 }}
-                className="w-6 h-6 rounded-full bg-white/90 flex items-center justify-center cursor-pointer hover:bg-white"
-                title="내보내기"
+                className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center cursor-pointer hover:bg-white"
               >
-                <Download size={11} />
+                <Download size={10} />
               </div>
             )}
             {onDelete && (
@@ -146,42 +137,65 @@ export function PresetCard({
                   e.stopPropagation();
                   if (confirm(`"${preset.name}" 삭제할까요?`)) onDelete();
                 }}
-                className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center cursor-pointer"
-                title="삭제"
+                className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center cursor-pointer"
               >
-                <Trash2 size={11} />
+                <Trash2 size={10} />
               </div>
             )}
           </div>
+
+          {/* 색상 도트 (카드 내부 좌측 하단, hover 시 펼침) */}
+          {onColorChange && preset.colorVariants.length > 1 && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onMouseEnter={() => setShowColors(true)}
+              onMouseLeave={() => setShowColors(false)}
+              className="absolute bottom-1 left-1 flex items-center"
+            >
+              {/* 대표 색 */}
+              <div
+                className={`w-5 h-5 rounded-full border-2 shadow-md cursor-pointer ${
+                  activeColorId === preset.colorVariants[0].id
+                    ? 'border-primary-500'
+                    : 'border-white'
+                }`}
+                style={{ background: preset.colorVariants[0].accent }}
+              />
+
+              {/* 확장 도트 */}
+              <div
+                className={`ml-1 flex gap-1 transition-all overflow-hidden ${
+                  showColors ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0'
+                }`}
+              >
+                {preset.colorVariants.slice(1).map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setPreviewColorId(c.id);
+                      onColorChange(c.id);
+                    }}
+                    className={`w-5 h-5 rounded-full border-2 transition-all shrink-0 ${
+                      activeColorId === c.id
+                        ? 'border-primary-500 scale-110'
+                        : 'border-white shadow-sm hover:scale-110'
+                    }`}
+                    style={{ background: c.accent }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* 정보 */}
-        <div className="p-2 bg-white border-t border-surface-border">
-          <div className="text-[11px] font-semibold truncate">{preset.name}</div>
+        {/* 이름 */}
+        <div className="p-1.5 bg-white border-t border-surface-border">
+          <div className="text-[11px] font-semibold truncate leading-tight">
+            {preset.name}
+          </div>
         </div>
       </button>
-
-      {/* 색상 도트 */}
-      {onColorChange && preset.colorVariants.length > 0 && (
-        <div className="flex gap-1 mt-1.5 px-0.5 justify-center flex-wrap">
-          {preset.colorVariants.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => {
-                setPreviewColorId(c.id);
-                onColorChange(c.id);
-              }}
-              className={`w-4 h-4 rounded-full border-2 transition-all ${
-                activeColorId === c.id
-                  ? 'border-primary-500 scale-125 shadow-md'
-                  : 'border-white shadow-sm hover:scale-110'
-              }`}
-              style={{ background: c.accent }}
-              title={c.name}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

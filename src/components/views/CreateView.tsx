@@ -4,17 +4,15 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { Tabs } from '@/components/ui/Tabs';
 import { Modal } from '@/components/ui/Modal';
 import { InputPanel } from '@/components/InputPanel';
-import { PresetPicker } from '@/components/PresetPicker';
+import { PresetStrip } from '@/components/PresetStrip';
 import { HorizontalSlideStrip } from '@/components/HorizontalSlideStrip';
 import { DraggableCardPreview } from '@/components/DraggableCardPreview';
 import { PhoneMockup } from '@/components/ui/PhoneMockup';
 import { ProjectList } from '@/components/ProjectList';
 import { SlideStyleEditor } from '@/components/SlideStyleEditor';
 import { generateImage } from '@/lib/imagegen';
-import { translatePromptToKo } from '@/lib/gemini';
 import { exportCardsAsZip } from '@/lib/card-renderer';
 import type {
   Preset,
@@ -31,15 +29,12 @@ import {
   ArrowUp,
   ArrowDown,
   X,
-  Palette,
   Loader2,
   Save,
   FolderOpen,
   Plus,
   Download,
   FilePlus,
-  Layout,
-  ChevronDown,
 } from 'lucide-react';
 
 export function CreateView({
@@ -100,15 +95,12 @@ export function CreateView({
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [colorId, setColorId] = useState(presetColorId || preset.colorVariants[0]?.id);
-  const [rightTab, setRightTab] = useState<'content' | 'style' | 'preset'>('content');
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [projectListOpen, setProjectListOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exporting, setExporting] = useState('');
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [translating, setTranslating] = useState(false);
-  const [showSizeSelect, setShowSizeSelect] = useState(false);
   const autoGenRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -120,6 +112,11 @@ export function CreateView({
       setSelectedIdx(slides.length - 1);
     }
   }, [slides.length, selectedIdx]);
+
+  // 슬라이드 이동 시 선택된 요소 초기화
+  useEffect(() => {
+    setSelectedElement(null);
+  }, [selectedIdx]);
 
   // 첫 카드 자동 이미지
   useEffect(() => {
@@ -137,7 +134,6 @@ export function CreateView({
   const selected = slides[selectedIdx];
   const isLast = selectedIdx === slides.length - 1;
   const currentProject = projects.find((p) => p.id === currentProjectId);
-  const dim = CARD_SIZE_DIMENSIONS[cardSize];
 
   const update = (i: number, patch: Partial<Slide>) => {
     onSlidesChange(slides.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -232,21 +228,6 @@ export function CreateView({
     setTimeout(() => onSaveProject?.(), 500);
   }
 
-  async function handleTranslate() {
-    if (!selected || !selected.imagePrompt) return;
-    if (!settings.geminiApiKey) {
-      alert('Gemini API 키가 필요합니다.');
-      return;
-    }
-    setTranslating(true);
-    try {
-      const ko = await translatePromptToKo(settings.geminiApiKey, selected.imagePrompt);
-      if (ko) update(selectedIdx, { imagePromptKo: ko });
-    } finally {
-      setTranslating(false);
-    }
-  }
-
   async function handleExport(size: CardSize) {
     const nodes = cardRefs.current.filter(Boolean) as HTMLDivElement[];
     if (!nodes.length) {
@@ -265,21 +246,17 @@ export function CreateView({
   }
 
   // ═══════════════════════════════════════
-  // 빈 상태 = 새로 제작
+  // 빈 상태
   // ═══════════════════════════════════════
   if (slides.length === 0) {
     return (
       <>
         <div className="max-w-2xl mx-auto mt-8 space-y-4">
-          {/* 카드 사이즈 먼저 선택 */}
           <Card>
             <CardHeader title="카드 사이즈 선택" subtitle="먼저 사이즈를 고르세요" />
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => {
-                  onCardSizeChange('instagram');
-                  setShowSizeSelect(true);
-                }}
+                onClick={() => onCardSizeChange('instagram')}
                 className={`p-5 rounded-xl border-2 transition text-center ${
                   cardSize === 'instagram'
                     ? 'border-primary-500 bg-primary-50'
@@ -295,12 +272,8 @@ export function CreateView({
                 <div className="font-semibold text-base">인스타그램</div>
                 <div className="text-xs text-ink-muted mt-1">1080 × 1350 (4:5)</div>
               </button>
-
               <button
-                onClick={() => {
-                  onCardSizeChange('square');
-                  setShowSizeSelect(true);
-                }}
+                onClick={() => onCardSizeChange('square')}
                 className={`p-5 rounded-xl border-2 transition text-center ${
                   cardSize === 'square'
                     ? 'border-primary-500 bg-primary-50'
@@ -319,7 +292,6 @@ export function CreateView({
             </div>
           </Card>
 
-          {/* 새로 제작 or 목록에서 불러오기 */}
           <Card>
             <div className="text-center py-8">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-primary-50 flex items-center justify-center text-primary-600 mb-3">
@@ -404,7 +376,7 @@ export function CreateView({
     <>
       <div className="max-w-7xl mx-auto flex flex-col gap-4">
         {/* ═══ 상단 툴바 ═══ */}
-        <Card padding={false} className="px-4 py-3 flex items-center gap-2 flex-wrap">
+        <Card padding={false} className="px-4 py-2.5 flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
             icon={<FilePlus size={14} />}
@@ -413,20 +385,19 @@ export function CreateView({
             새로 제작
           </Button>
 
-          <div className="h-6 w-px bg-surface-border mx-1" />
+          <div className="h-6 w-px bg-surface-border" />
 
           <Badge variant="primary">
-            {currentProject ? currentProject.name.slice(0, 14) : '새 카드뉴스'}
+            {currentProject ? currentProject.name.slice(0, 12) : '새 카드뉴스'}
           </Badge>
           <span className="text-sm text-ink-muted hidden md:inline">
             {slides.length}장
           </span>
 
-          {/* 카드 사이즈 */}
-          <div className="flex items-center gap-1 ml-2 pl-3 border-l border-surface-border">
+          <div className="flex items-center gap-1 ml-1">
             <button
               onClick={() => onCardSizeChange('instagram')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition ${
+              className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${
                 cardSize === 'instagram'
                   ? 'bg-primary-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200'
@@ -436,7 +407,7 @@ export function CreateView({
             </button>
             <button
               onClick={() => onCardSizeChange('square')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition ${
+              className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${
                 cardSize === 'square'
                   ? 'bg-primary-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200'
@@ -449,7 +420,7 @@ export function CreateView({
           <div className="ml-auto flex gap-1.5 flex-wrap">
             {/* 색상 도트 */}
             <div className="flex items-center gap-1 pr-2 border-r border-surface-border">
-              {preset.colorVariants.map((c) => (
+              {preset.colorVariants.slice(0, 6).map((c) => (
                 <button
                   key={c.id}
                   onClick={() => {
@@ -469,14 +440,6 @@ export function CreateView({
 
             <Button
               size="sm"
-              variant="ghost"
-              icon={<Palette size={14} />}
-              onClick={() => setRightTab('preset')}
-            >
-              {preset.name}
-            </Button>
-            <Button
-              size="sm"
               variant="secondary"
               icon={<Save size={14} />}
               onClick={onSaveProject}
@@ -492,7 +455,7 @@ export function CreateView({
               목록
             </Button>
 
-            {/* 삭제 버튼 */}
+            {/* 삭제 */}
             {currentProjectId && (
               <Button
                 size="sm"
@@ -512,7 +475,7 @@ export function CreateView({
               </Button>
             )}
 
-            {/* PNG 저장 */}
+            {/* PNG */}
             <div className="relative">
               <Button
                 size="sm"
@@ -557,14 +520,14 @@ export function CreateView({
             >
               {batchLoading
                 ? `${batchProgress.current}/${batchProgress.total}`
-                : '이미지 한번에 저장'}
+                : '이미지 생성'}
             </Button>
           </div>
         </Card>
 
-        {/* ═══ 프리셋 최상단 ═══ */}
-        <Card>
-          <PresetPicker
+        {/* ═══ 프리셋 1줄 스트립 ═══ */}
+        <Card padding={false} className="px-3 py-2">
+          <PresetStrip
             current={preset}
             currentColorId={colorId}
             customPresets={customPresets}
@@ -572,19 +535,6 @@ export function CreateView({
             stats={stats}
             brand={settings.brand}
             onSelect={(p, cid) => {
-              // 프리셋 변경 시 저장 질문
-              if (slides.length > 0 && preset.id !== p.id) {
-                setTimeout(() => {
-                  if (
-                    confirm(
-                      `"${p.name}" 프리셋을 적용했습니다.\n\n이 스타일을 프리셋으로 저장할까요?`
-                    )
-                  ) {
-                    const name = prompt('프리셋 이름을 입력하세요');
-                    if (name?.trim()) onSaveCustom(name.trim());
-                  }
-                }, 100);
-              }
               onPresetChange(p, cid);
               if (cid) setColorId(cid);
             }}
@@ -595,9 +545,8 @@ export function CreateView({
             onSaveCustom={onSaveCustom}
             onDeleteCustom={onDeleteCustom}
             onImport={onImportPresets}
-            onImportCustom={onImportCustom}
+            onImportCustom={onImportCustom || (() => {})}
             onToggleFavorite={onToggleFavorite}
-            inline
           />
         </Card>
 
@@ -614,7 +563,7 @@ export function CreateView({
           />
         </Card>
 
-        {/* ═══ 2컬럼: 미리보기 | 편집 ═══ */}
+        {/* ═══ 2컬럼 ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7">
             {selected && (
@@ -629,7 +578,6 @@ export function CreateView({
                 onOpenPhoneMockup={() => setPhoneModalOpen(true)}
                 onElementSelect={(el) => {
                   setSelectedElement(el);
-                  if (el) setRightTab('style');
                 }}
               />
             )}
@@ -670,182 +618,136 @@ export function CreateView({
 
               {selected && (
                 <div className="space-y-3">
-                  <Tabs
-                    tabs={[
-                      { id: 'content', label: '내용 & 스타일' },
-                      { id: 'preset', label: '프리셋' },
-                    ]}
-                    active={rightTab === 'style' ? 'content' : rightTab}
-                    onChange={(v) => setRightTab(v as any)}
-                  />
+                  {/* 콘텐츠 편집 */}
+                  <div className="space-y-3">
+                    <Input
+                      label="라벨"
+                      value={selected.label}
+                      onChange={(e) =>
+                        update(selectedIdx, { label: e.target.value })
+                      }
+                      placeholder="예: TRAVEL, NEWS"
+                    />
+                    <Input
+                      label="헤드라인"
+                      value={selected.headline}
+                      onChange={(e) =>
+                        update(selectedIdx, { headline: e.target.value })
+                      }
+                      placeholder="15자 이내"
+                    />
+                    <Textarea
+                      label="본문"
+                      value={selected.body}
+                      onChange={(e) =>
+                        update(selectedIdx, { body: e.target.value })
+                      }
+                      placeholder="60자 이내"
+                      rows={3}
+                    />
+                    {selected.type === 'data' && (
+                      <Input
+                        label="강조 숫자"
+                        value={selected.highlight}
+                        onChange={(e) =>
+                          update(selectedIdx, { highlight: e.target.value })
+                        }
+                        placeholder="예: 300만원"
+                      />
+                    )}
+                  </div>
 
-                  <div className="max-h-[calc(100vh-380px)] overflow-y-auto pr-1">
-                    {rightTab !== 'preset' && (
-                      <div className="space-y-3">
-                        <Input
-                          label="라벨"
-                          value={selected.label}
-                          onChange={(e) =>
-                            update(selectedIdx, { label: e.target.value })
-                          }
-                          placeholder="예: TRAVEL, NEWS"
-                        />
-                        <Input
-                          label="헤드라인"
-                          value={selected.headline}
-                          onChange={(e) =>
-                            update(selectedIdx, { headline: e.target.value })
-                          }
-                          placeholder="15자 이내"
-                        />
-                        <Textarea
-                          label="본문"
-                          value={selected.body}
-                          onChange={(e) =>
-                            update(selectedIdx, { body: e.target.value })
-                          }
-                          placeholder="60자 이내"
-                          rows={3}
-                        />
-                        {selected.type === 'data' && (
-                          <Input
-                            label="강조 숫자"
-                            value={selected.highlight}
-                            onChange={(e) =>
-                              update(selectedIdx, { highlight: e.target.value })
-                            }
-                            placeholder="예: 300만원"
-                          />
-                        )}
+                  {/* 이미지 */}
+                  <div className="border-t pt-3">
+                    <div className="text-sm font-semibold text-ink-secondary mb-2">
+                      🖼 이미지
+                    </div>
 
-                        {/* 이미지 */}
-                        <div className="border-t pt-3">
-                          <div className="text-sm font-semibold text-ink-secondary mb-2">
-                            🖼 이미지
-                          </div>
+                    <Textarea
+                      label="프롬프트 (영어)"
+                      value={selected.imagePrompt}
+                      onChange={(e) =>
+                        update(selectedIdx, { imagePrompt: e.target.value })
+                      }
+                      placeholder="A clean modern office..."
+                      rows={3}
+                      className="font-mono text-xs"
+                    />
 
-                          <Textarea
-                            label="프롬프트 (영어)"
-                            value={selected.imagePrompt}
-                            onChange={(e) =>
-                              update(selectedIdx, { imagePrompt: e.target.value })
-                            }
-                            placeholder="A clean modern office..."
-                            rows={3}
-                            className="font-mono text-xs"
-                          />
-
-                          {/* 한글 설명 */}
-                          {selected.imagePromptKo && (
-                            <div className="mt-2 text-xs text-ink-secondary bg-surface-bg rounded-lg p-2">
-                              <span className="font-medium">한글 설명:</span>{' '}
-                              {selected.imagePromptKo}
-                            </div>
-                          )}
-
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={handleTranslate}
-                              loading={translating}
-                            >
-                              한글로 번역
-                            </Button>
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-3">
-                            <Select
-                              value={selected.imageLayout}
-                              onChange={(e) =>
-                                update(selectedIdx, {
-                                  imageLayout: e.target.value as any,
-                                })
-                              }
-                              className="!w-auto"
-                            >
-                              <option value="none">이미지 없음</option>
-                              <option value="full-bleed">전체 배경</option>
-                              <option value="top-image">상단</option>
-                              <option value="split">좌우 분할</option>
-                            </Select>
-
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              icon={<ImageIcon size={14} />}
-                              loading={generatingIdx === selectedIdx}
-                              onClick={() => genImg(selectedIdx)}
-                              disabled={generatingIdx !== null || batchLoading}
-                              className="ml-auto"
-                            >
-                              {generatingIdx === selectedIdx
-                                ? '생성 중...'
-                                : '이미지 생성'}
-                            </Button>
-                          </div>
-
-                          {selected.imageUrl && (
-                            <div className="mt-3 rounded-xl border-2 border-primary-200 overflow-hidden">
-                              <img
-                                src={selected.imageUrl}
-                                alt=""
-                                className="w-full max-h-72 object-contain bg-gray-100"
-                              />
-                              <div className="flex items-center gap-2 p-2 bg-primary-50">
-                                <div className="text-xs text-primary-700 flex-1">
-                                  이미지 준비됨
-                                </div>
-                                <button
-                                  onClick={() =>
-                                    update(selectedIdx, { imageUrl: '' })
-                                  }
-                                  className="p-1 rounded text-primary-700 hover:bg-primary-100"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 스타일 편집기 */}
-                        <div className="border-t pt-3">
-                          <SlideStyleEditor
-                            slide={selected}
-                            preset={preset}
-                            colorId={colorId}
-                            onChange={(patch) => update(selectedIdx, patch)}
-                            selectedElement={selectedElement}
-                          />
-                        </div>
+                    {/* 한글 설명 (읽기 전용 참고) */}
+                    {selected.imagePromptKo && (
+                      <div className="mt-2 text-xs text-ink-muted bg-surface-bg rounded-lg p-2.5 leading-relaxed">
+                        <span className="font-medium text-ink-secondary">
+                          참고:{' '}
+                        </span>
+                        {selected.imagePromptKo}
                       </div>
                     )}
 
-                    {rightTab === 'preset' && (
-                      <PresetPicker
-                        current={preset}
-                        currentColorId={colorId}
-                        customPresets={customPresets}
-                        favorites={favorites}
-                        stats={stats}
-                        brand={settings.brand}
-                        onSelect={(p, cid) => {
-                          onPresetChange(p, cid);
-                          if (cid) setColorId(cid);
-                        }}
-                        onColorChange={(cid) => {
-                          setColorId(cid);
-                          onPresetChange(preset, cid);
-                        }}
-                        onSaveCustom={onSaveCustom}
-                        onDeleteCustom={onDeleteCustom}
-                        onImport={onImportPresets}
-                        onImportCustom={onImportCustom}
-                        onToggleFavorite={onToggleFavorite}
-                        inline
-                      />
+                    <div className="flex items-center gap-2 mt-3">
+                      <Select
+                        value={selected.imageLayout}
+                        onChange={(e) =>
+                          update(selectedIdx, {
+                            imageLayout: e.target.value as any,
+                          })
+                        }
+                        className="!w-auto"
+                      >
+                        <option value="none">이미지 없음</option>
+                        <option value="full-bleed">전체 배경</option>
+                        <option value="top-image">상단</option>
+                        <option value="split">좌우 분할</option>
+                      </Select>
+
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<ImageIcon size={14} />}
+                        loading={generatingIdx === selectedIdx}
+                        onClick={() => genImg(selectedIdx)}
+                        disabled={generatingIdx !== null || batchLoading}
+                        className="ml-auto"
+                      >
+                        {generatingIdx === selectedIdx
+                          ? '생성 중...'
+                          : '이미지 생성'}
+                      </Button>
+                    </div>
+
+                    {selected.imageUrl && (
+                      <div className="mt-3 rounded-xl border-2 border-primary-200 overflow-hidden">
+                        <img
+                          src={selected.imageUrl}
+                          alt=""
+                          className="w-full max-h-72 object-contain bg-gray-100"
+                        />
+                        <div className="flex items-center gap-2 p-2 bg-primary-50">
+                          <div className="text-xs text-primary-700 flex-1">
+                            이미지 준비됨
+                          </div>
+                          <button
+                            onClick={() =>
+                              update(selectedIdx, { imageUrl: '' })
+                            }
+                            className="p-1 rounded text-primary-700 hover:bg-primary-100"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
                     )}
+                  </div>
+
+                  {/* 스타일 편집기 — 요소 선택 시 표시 */}
+                  <div className="border-t pt-3">
+                    <SlideStyleEditor
+                      slide={selected}
+                      preset={preset}
+                      colorId={colorId}
+                      onChange={(patch) => update(selectedIdx, patch)}
+                      selectedElement={selectedElement}
+                    />
                   </div>
                 </div>
               )}

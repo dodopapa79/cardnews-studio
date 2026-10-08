@@ -1,5 +1,6 @@
-import type { Preset, Typography, Decoration, Padding } from '@/lib/types';
+import type { Preset, Typography, Decoration } from '@/lib/types';
 import {
+  BLANK_COLORS,
   CENTERED_COLORS,
   BOTTOM_FOCUS_COLORS,
   LEFT_BOLD_COLORS,
@@ -10,7 +11,6 @@ import {
   SIDE_BAR_COLORS,
   FULL_OVERLAY_COLORS,
   MAGAZINE_COLORS,
-  BLANK_COLORS,
 } from './colors';
 
 const FONT = 'Pretendard, system-ui, sans-serif';
@@ -37,10 +37,10 @@ const baseDeco: Decoration = {
 };
 
 // ─────────────────────────────────────────────
-// 스타일 프리셋 11종 (빈 템플릿 포함)
+// 스타일 프리셋 11종 (빈 템플릿이 첫 번째)
 // ─────────────────────────────────────────────
 export const STYLE_PRESETS: Preset[] = [
-  // 0. 빈 템플릿
+  // 0. 빈 템플릿 (흰 배경이 기본)
   {
     id: 'preset-blank',
     name: '빈 템플릿',
@@ -56,10 +56,10 @@ export const STYLE_PRESETS: Preset[] = [
     decoration: { ...baseDeco, badgeStyle: 'none' },
     padding: { top: 100, right: 100, bottom: 120, left: 100 },
     positions: {
-      headline: { x: 0.5, y: 0.35 },
-      body: { x: 0.5, y: 0.6 },
-      badge: { x: 0.5, y: 0.15 },
-      label: { x: 0.5, y: 0.1 },
+      label: { x: 0.1, y: 0.1 },
+      badge: { x: 0.1, y: 0.15 },
+      headline: { x: 0.1, y: 0.4 },
+      body: { x: 0.1, y: 0.62 },
     },
     builtin: true,
   },
@@ -83,9 +83,9 @@ export const STYLE_PRESETS: Preset[] = [
     decoration: { ...baseDeco, badgeStyle: 'underline', cornerRadius: 0 },
     padding: { top: 140, right: 100, bottom: 140, left: 100 },
     positions: {
+      badge: { x: 0.5, y: 0.2 },
       headline: { x: 0.5, y: 0.42 },
       body: { x: 0.5, y: 0.62 },
-      badge: { x: 0.5, y: 0.2 },
     },
     builtin: true,
   },
@@ -108,9 +108,9 @@ export const STYLE_PRESETS: Preset[] = [
     decoration: { ...baseDeco, badgeStyle: 'pill', cornerRadius: 0, shadow: true },
     padding: { top: 900, right: 90, bottom: 100, left: 90 },
     positions: {
+      badge: { x: 0.08, y: 0.58 },
       headline: { x: 0.08, y: 0.68 },
       body: { x: 0.08, y: 0.82 },
-      badge: { x: 0.08, y: 0.58 },
     },
     builtin: true,
   },
@@ -134,9 +134,9 @@ export const STYLE_PRESETS: Preset[] = [
     decoration: { ...baseDeco, badgeStyle: 'square', cornerRadius: 4, shadow: true },
     padding: { top: 120, right: 110, bottom: 120, left: 110 },
     positions: {
+      badge: { x: 0.1, y: 0.2 },
       headline: { x: 0.1, y: 0.4 },
       body: { x: 0.1, y: 0.7 },
-      badge: { x: 0.1, y: 0.2 },
     },
     builtin: true,
   },
@@ -235,9 +235,9 @@ export const STYLE_PRESETS: Preset[] = [
     decoration: { ...baseDeco, badgeStyle: 'pill', cornerRadius: 24, shadow: true },
     padding: { top: 90, right: 90, bottom: 90, left: 90 },
     positions: {
+      badge: { x: 0.08, y: 0.55 },
       headline: { x: 0.08, y: 0.62 },
       body: { x: 0.08, y: 0.78 },
-      badge: { x: 0.08, y: 0.55 },
     },
     builtin: true,
   },
@@ -285,9 +285,9 @@ export const STYLE_PRESETS: Preset[] = [
     decoration: { ...baseDeco, badgeStyle: 'pill' },
     padding: { top: 100, right: 90, bottom: 100, left: 90 },
     positions: {
+      badge: { x: 0.08, y: 0.52 },
       headline: { x: 0.08, y: 0.62 },
       body: { x: 0.08, y: 0.82 },
-      badge: { x: 0.08, y: 0.52 },
     },
     builtin: true,
   },
@@ -452,7 +452,11 @@ export const INDUSTRY_PRESETS: Preset[] = [
 
 export const ALL_BUILTIN_PRESETS = [...STYLE_PRESETS, ...INDUSTRY_PRESETS];
 
+/**
+ * ID로 프리셋 조회. 못 찾으면 빈 템플릿을 반환.
+ * (이전에 STYLE_PRESETS[1]을 폴백으로 쓰던 버그 수정)
+ */
 export function getPresetById(id: string, customPresets: Preset[] = []): Preset {
   const found = [...ALL_BUILTIN_PRESETS, ...customPresets].find((p) => p.id === id);
-  return found || STYLE_PRESETS[1];
+  return found || STYLE_PRESETS[0];
 }

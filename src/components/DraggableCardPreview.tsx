@@ -86,11 +86,21 @@ export function DraggableCardPreview({
             <Grid3x3 size={16} />
           </button>
           {selectedElement && (
-            <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={resetElement}>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RotateCcw size={14} />}
+              onClick={resetElement}
+            >
               요소 초기화
             </Button>
           )}
-          <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={resetPositions}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<RotateCcw size={14} />}
+            onClick={resetPositions}
+          >
             전체 초기화
           </Button>
           <Button
@@ -173,7 +183,7 @@ export function DraggableCardPreview({
 
       {selectedElement && (
         <div className="mt-3 text-xs text-center text-primary-700 bg-primary-50 rounded-lg py-2">
-          선택됨: <strong>{selectedElement}</strong> — 드래그 또는 오른쪽 스타일 탭에서 편집
+          선택됨: <strong>{selectedElement}</strong> — 우측 패널에서 편집하세요
         </div>
       )}
     </Card>

@@ -71,7 +71,7 @@ function hexToRgba(hex: string, opacity: number): string {
 }
 
 // ─────────────────────────────────────────────
-// 배경
+// 배경 레이어
 // ─────────────────────────────────────────────
 function BackgroundLayer({
   color,
@@ -145,7 +145,7 @@ function BackgroundLayer({
 }
 
 // ─────────────────────────────────────────────
-// 이미지 레이어
+// 이미지 레이어 (클릭 지원)
 // ─────────────────────────────────────────────
 function ImageLayer({
   src,
@@ -159,6 +159,10 @@ function ImageLayer({
   width,
   height,
   radius,
+  onClick,
+  editable,
+  isSelected,
+  accent,
 }: {
   src: string;
   layoutType: 'full' | 'top' | 'split-right';
@@ -171,6 +175,10 @@ function ImageLayer({
   width: number;
   height: number;
   radius: number;
+  onClick?: (e: React.MouseEvent) => void;
+  editable?: boolean;
+  isSelected?: boolean;
+  accent?: string;
 }) {
   let pos: React.CSSProperties = {};
   if (layoutType === 'full') {
@@ -206,12 +214,17 @@ function ImageLayer({
 
   return (
     <div
+      onClick={onClick}
       style={{
         ...pos,
         overflow: 'hidden',
         borderRadius: radius,
         WebkitMaskImage: maskImage,
         maskImage,
+        cursor: editable ? 'pointer' : 'default',
+        outline: isSelected && accent ? `3px solid ${accent}` : 'none',
+        outlineOffset: -3,
+        zIndex: isSelected ? 5 : undefined,
       }}
     >
       <img
@@ -235,6 +248,7 @@ function ImageLayer({
             inset: 0,
             background: overlayColor,
             opacity: overlayOpacity ?? 0.4,
+            pointerEvents: 'none',
           }}
         />
       )}
@@ -243,7 +257,7 @@ function ImageLayer({
 }
 
 // ─────────────────────────────────────────────
-// 자유 텍스트
+// 자유 텍스트 (클릭 + 드래그)
 // ─────────────────────────────────────────────
 function FreeText({
   text,
@@ -554,7 +568,11 @@ export function CardSlide({
   const textColor = onImage ? '#ffffff' : color.text;
   const textMutedColor = onImage ? '#ffffffcc' : color.textMuted;
 
+  const imageSelected = editable && selectedElement === 'image';
+
+  // ─────────────────────────────────────
   // 뱃지
+  // ─────────────────────────────────────
   const renderBadge = () => {
     if (isLast) return null;
     if (decoration.badgeStyle === 'none') return null;
@@ -643,7 +661,14 @@ export function CardSlide({
     );
   };
 
-  // 이미지
+  // ─────────────────────────────────────
+  // 이미지 (클릭 지원)
+  // ─────────────────────────────────────
+  const handleImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (editable) onElementClick?.('image');
+  };
+
   const renderImage = () => {
     if (!hasImage) return null;
     if (imgLayout === 'full-bleed') {
@@ -660,6 +685,10 @@ export function CardSlide({
           width={width}
           height={height}
           radius={0}
+          onClick={handleImageClick}
+          editable={editable}
+          isSelected={imageSelected}
+          accent={color.accent}
         />
       );
     }
@@ -677,6 +706,10 @@ export function CardSlide({
           width={width}
           height={height}
           radius={0}
+          onClick={handleImageClick}
+          editable={editable}
+          isSelected={imageSelected}
+          accent={color.accent}
         />
       );
     }
@@ -694,13 +727,19 @@ export function CardSlide({
           width={width}
           height={height}
           radius={0}
+          onClick={handleImageClick}
+          editable={editable}
+          isSelected={imageSelected}
+          accent={color.accent}
         />
       );
     }
     return null;
   };
 
-  // 텍스트 요소들 (모든 layout에서 자유 배치)
+  // ─────────────────────────────────────
+  // 텍스트 요소들
+  // ─────────────────────────────────────
   const headlineEl = (
     <FreeText
       text={slide.headline}

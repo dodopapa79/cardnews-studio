@@ -65,9 +65,31 @@ ${structure}
 2. **중간 슬라이드**: 구체적 정보. 숫자·통계·혜택·대상·신청방법
 3. **마지막 슬라이드(cta)**: 명확한 행동 유도
 4. **말투**: ${tone}
-5. **이미지 프롬프트 (imagePrompt)**: 영어로 작성. "no text, no watermark, minimal, clean, high quality" 포함
-6. **이미지 프롬프트 한글 설명 (imagePromptKo)**: 위 영어 프롬프트가 어떤 이미지인지 한글로 짧게 설명
-7. **label**: 각 슬라이드에 어울리는 짧은 라벨 (예: FEATURED, TIP, INFO, NEWS, HOWTO)
+5. **label**: 각 슬라이드에 어울리는 짧은 영문 라벨 (예: FEATURED, TIP, INFO, NEWS, HOWTO)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 이미지 프롬프트 (매우 중요)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 슬라이드마다 아래 두 가지를 **반드시** 생성:
+
+1. **imagePrompt** (영어):
+   - 이미지 생성 AI에 전달할 영어 프롬프트
+   - 반드시 포함: "no text, no watermark, minimal, clean, high quality"
+   - 사람 얼굴 클로즈업 지양, 사물·추상 배경 위주
+
+2. **imagePromptKo** (한글):
+   - 위 영어 프롬프트가 **어떤 이미지인지** 사용자가 이해할 수 있도록 한글로 짧게 설명
+   - 20~35자 이내
+   - 예시: "의료용 주사기와 청진기의 미니멀 일러스트"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 imageLayout
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- cover → "full-bleed"
+- data / quote → "none"
+- point → "top-image" 또는 "split"
 
 반드시 아래 JSON 스키마로만 응답:
 {
@@ -79,7 +101,7 @@ ${structure}
       "highlight": "string (data 타입만, 큰 숫자)",
       "label": "string (영문 라벨)",
       "imagePrompt": "string (영어 이미지 프롬프트)",
-      "imagePromptKo": "string (한글 설명)",
+      "imagePromptKo": "string (한글 설명, 20~35자)",
       "imageLayout": "full-bleed" | "top-image" | "split" | "none"
     }
   ]
@@ -165,7 +187,10 @@ export async function expandKeyword(apiKey: string, keyword: string): Promise<st
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-/** 영어 이미지 프롬프트를 한글로 번역 */
+/**
+ * 기존 슬라이드의 영어 프롬프트를 한글로 번역 (수동 요청 시)
+ * - 신규 생성 시엔 자동으로 함께 오지만, 나중에 사용자가 영어만 바꿨을 때 사용
+ */
 export async function translatePromptToKo(
   apiKey: string,
   enPrompt: string
