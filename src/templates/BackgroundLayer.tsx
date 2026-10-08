@@ -131,13 +131,9 @@ interface BackgroundLayerProps {
   background: BackgroundConfig;
   width: number;
   height: number;
-  /** 편집용 클릭 핸들러 */
   onClick?: () => void;
-  /** 편집 가능 여부 */
   editable?: boolean;
-  /** 선택됨 (outline 표시) */
   isSelected?: boolean;
-  /** 강조 색 (선택 시 outline 색상) */
   accent?: string;
 }
 
@@ -147,19 +143,17 @@ export function BackgroundLayer({
   height,
   onClick,
   editable,
-  isSelected,
-  accent = '#8b5cf6',
 }: BackgroundLayerProps) {
-  const isImage = bg.type === 'image' && bg.imageUrl;
+  // 이미지 조건 강화: imageUrl이 있으면 type이 뭐든 이미지로 처리
+  const hasImageUrl = !!bg.imageUrl;
+  const isImage = hasImageUrl;
   const isGradient = bg.type === 'gradient' && !!bg.colorEnd;
   const filter = buildImageFilter(bg);
   const focalX = bg.imageFocalX ?? 0.5;
   const focalY = bg.imageFocalY ?? 0.5;
+  // imageLayout 미지정 시 full-bleed 폴백
   const imageLayout = bg.imageLayout || 'full-bleed';
 
-  const bgIsDark = isDarkColor(bg.color);
-
-  // 베이스 배경
   const baseStyle: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
@@ -170,7 +164,7 @@ export function BackgroundLayer({
   let backgroundColor: string | undefined;
   let backgroundImage: string | undefined;
 
-  if (isGradient) {
+  if (isGradient && !isImage) {
     backgroundImage = `linear-gradient(135deg, ${bg.color} 0%, ${bg.colorEnd} 100%)`;
   } else {
     backgroundColor = bg.color;
@@ -185,13 +179,11 @@ export function BackgroundLayer({
         backgroundColor,
         backgroundImage,
         cursor: editable ? 'pointer' : 'default',
-        outline: isSelected ? `3px solid ${accent}` : 'none',
-        outlineOffset: -3,
         zIndex: 0,
         overflow: 'hidden',
       }}
     >
-      {/* 패턴 (색상 배경 위) */}
+      {/* 패턴 (이미지 없을 때만) */}
       {!isImage && (
         <PatternOverlay
           type={bg.pattern}
@@ -200,7 +192,7 @@ export function BackgroundLayer({
         />
       )}
 
-      {/* 이미지 배치 — full-bleed (전체 배경) */}
+      {/* full-bleed */}
       {isImage && imageLayout === 'full-bleed' && (
         <>
           <img
@@ -219,7 +211,6 @@ export function BackgroundLayer({
               display: 'block',
             }}
           />
-          {/* 오버레이: 지정한 값이 있으면 그 값, 없으면 기본 그라데이션(글자 가독성용) */}
           {bg.overlayColor ? (
             (bg.overlayOpacity ?? 0.4) > 0 && (
               <div
@@ -245,7 +236,7 @@ export function BackgroundLayer({
         </>
       )}
 
-      {/* 이미지 배치 — top-image (상단 55%) */}
+      {/* top-image */}
       {isImage && imageLayout === 'top-image' && (
         <>
           <div
@@ -273,7 +264,6 @@ export function BackgroundLayer({
               }}
             />
           </div>
-          {/* 하단 배경색으로 부드럽게 이어짐 */}
           <div
             style={{
               position: 'absolute',
@@ -288,7 +278,7 @@ export function BackgroundLayer({
         </>
       )}
 
-      {/* 이미지 배치 — split (좌우 분할) */}
+      {/* split */}
       {isImage && imageLayout === 'split' && (
         <>
           <div
@@ -316,7 +306,6 @@ export function BackgroundLayer({
               }}
             />
           </div>
-          {/* 좌측으로 배경색 페이드 */}
           <div
             style={{
               position: 'absolute',
@@ -331,7 +320,7 @@ export function BackgroundLayer({
         </>
       )}
 
-      {/* 상단 이미지 하단 그라데이션 (topImageFade 옵션) */}
+      {/* topImageFade */}
       {isImage && bg.topImageFade && imageLayout !== 'top-image' && (
         <div
           style={{
@@ -346,7 +335,7 @@ export function BackgroundLayer({
         />
       )}
 
-      {/* 하단 검정 그라데이션 */}
+      {/* bottomFade */}
       {bg.bottomFade && (
         <div
           style={{
@@ -365,13 +354,12 @@ export function BackgroundLayer({
 }
 
 // ─────────────────────────────────────────────
-// 전체 배경 이미지 위에 글자가 올라가는지 (밝은 글자가 필요한지) 판단
+// 이미지 위 글자 밝기 판단
 // ─────────────────────────────────────────────
 export function hasDarkImageBackdrop(bg: BackgroundConfig): boolean {
-  const isImage = bg.type === 'image' && !!bg.imageUrl;
+  const isImage = !!bg.imageUrl;
   if (!isImage) return false;
   if ((bg.imageLayout || 'full-bleed') !== 'full-bleed') return false;
-  // 밝은 오버레이를 진하게 덮은 경우는 어두운 배경이 아님
   if (
     bg.overlayColor &&
     (bg.overlayOpacity ?? 0) >= 0.5 &&

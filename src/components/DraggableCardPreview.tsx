@@ -33,6 +33,11 @@ export function DraggableCardPreview({
     onSelectBlock(id);
   }
 
+  function handleBackgroundClick() {
+    setSelectedBlockId(null);
+    onSelectBackground();
+  }
+
   return (
     <Card padding={false} className="p-3">
       <div className="flex items-center justify-between mb-3 px-1 flex-wrap gap-2">
@@ -43,7 +48,9 @@ export function DraggableCardPreview({
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={`p-1.5 rounded-lg transition-colors ${
-              showGrid ? 'bg-primary-100 text-primary-700' : 'hover:bg-surface-hover text-ink-secondary'
+              showGrid
+                ? 'bg-primary-100 text-primary-700'
+                : 'hover:bg-surface-hover text-ink-secondary'
             }`}
             title="그리드"
           >
@@ -56,7 +63,12 @@ export function DraggableCardPreview({
           >
             선택 해제
           </Button>
-          <Button size="sm" variant="secondary" icon={<Smartphone size={14} />} onClick={onOpenPhoneMockup}>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Smartphone size={14} />}
+            onClick={onOpenPhoneMockup}
+          >
             폰
           </Button>
         </div>
@@ -73,18 +85,41 @@ export function DraggableCardPreview({
         >
           {showGrid && (
             <div className="absolute inset-0 z-20 pointer-events-none">
-              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <svg
+                width="100%"
+                height="100%"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
                 {[...Array(11)].map((_, i) => (
-                  <line key={`v${i}`} x1={i * 10} y1="0" x2={i * 10} y2="100" stroke="#7c3aed" strokeWidth="0.15" opacity="0.4" />
+                  <line
+                    key={`v${i}`}
+                    x1={i * 10}
+                    y1="0"
+                    x2={i * 10}
+                    y2="100"
+                    stroke="#7c3aed"
+                    strokeWidth="0.15"
+                    opacity="0.4"
+                  />
                 ))}
                 {[...Array(11)].map((_, i) => (
-                  <line key={`h${i}`} x1="0" y1={i * 10} x2="100" y2={i * 10} stroke="#7c3aed" strokeWidth="0.15" opacity="0.4" />
+                  <line
+                    key={`h${i}`}
+                    x1="0"
+                    y1={i * 10}
+                    x2="100"
+                    y2={i * 10}
+                    stroke="#7c3aed"
+                    strokeWidth="0.15"
+                    opacity="0.4"
+                  />
                 ))}
               </svg>
             </div>
           )}
 
-          <div className="rounded-xl overflow-hidden border-2 border-white shadow-xl bg-white w-full h-full">
+          <div className="overflow-hidden shadow-xl bg-white w-full h-full">
             <div
               style={{
                 width: dim.width,
@@ -102,10 +137,7 @@ export function DraggableCardPreview({
                 editable
                 selectedBlockId={selectedBlockId}
                 onSelectBlock={handleSelectBlock}
-                onSelectBackground={() => {
-                  setSelectedBlockId(null);
-                  onSelectBackground();
-                }}
+                onSelectBackground={handleBackgroundClick}
               />
             </div>
           </div>

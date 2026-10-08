@@ -103,44 +103,6 @@ function LastCardBrand({
 }
 
 // ─────────────────────────────────────────────
-// 자동 세로 배치 계산
-// ─────────────────────────────────────────────
-interface LayoutInfo {
-  blockId: string;
-  top: number;      // 카드 상단 기준 px
-  height: number;   // 블록 높이 px (추정)
-}
-
-function estimateBlockHeight(block: Block, cardWidth: number): number {
-  // 블록 타입별 대략적 높이 계산 (폰트 크기 기반 아님, 블록 자체에서 결정)
-  // 실제 높이는 렌더 후 측정하지만, 초기 배치는 추정치 사용
-  switch (block.type) {
-    case 'headline':
-      return 130;
-    case 'body':
-      return 100;
-    case 'label':
-      return 50;
-    case 'highlight':
-      return 180;
-    case 'list': {
-      const count = block.content.items?.length || 0;
-      return count * 130 + 20;
-    }
-    case 'numbered-card': {
-      const count = block.content.items?.length || 0;
-      return count * 150 + 20;
-    }
-    case 'point-box':
-      return 160;
-    case 'divider':
-      return 20;
-    default:
-      return 80;
-  }
-}
-
-// ─────────────────────────────────────────────
 // CardRenderer
 // ─────────────────────────────────────────────
 export interface CardRendererProps {
@@ -173,10 +135,7 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
     const bgIsDark = isDark(slide.background.color);
     const onDarkImage = hasDarkImageBackdrop(slide.background);
 
-    // ─────────────────────────────────
-    // 자동 배치 (y 비율 → 실제 px)
-    // ─────────────────────────────────
-    // 편집 가능한 블록만 표시
+    // 편집 가능한 블록만 표시 (visible + content 있음)
     const visibleBlocks = slide.blocks.filter(
       (b) => b.visible !== false && hasContent(b)
     );
@@ -187,9 +146,6 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
     // padding
     const paddingTop = 90;
     const paddingBottom = slide.isLast ? 260 : 120;
-
-    // 사용 가능한 세로 공간
-    const availableHeight = height - paddingTop - paddingBottom;
 
     return (
       <div
@@ -219,13 +175,13 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
             width={width}
             height={height}
             editable={editable}
-            isSelected={!selectedBlockId}
+            isSelected={false}
             accent="#8b5cf6"
             onClick={onSelectBackground}
           />
         </div>
 
-        {/* 콘텐츠 블록 — 세로 순차 배치 */}
+        {/* 콘텐츠 블록 — 세로 중앙 정렬 + 클릭 통과 */}
         <div
           style={{
             position: 'absolute',
@@ -237,12 +193,20 @@ export const CardRenderer = forwardRef<HTMLDivElement, CardRendererProps>(
             paddingRight: 90,
             display: 'flex',
             flexDirection: 'column',
+            justifyContent: 'center',
             gap: 28,
             zIndex: 3,
+            pointerEvents: 'none',
           }}
         >
           {sortedBlocks.map((block) => (
-            <div key={block.id} style={{ width: '100%' }}>
+            <div
+              key={block.id}
+              style={{
+                width: '100%',
+                pointerEvents: editable ? 'auto' : 'none',
+              }}
+            >
               <BlockRenderer
                 block={block}
                 preset={preset}
