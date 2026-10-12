@@ -2,8 +2,8 @@
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { formatRelativeTime } from '@/lib/utils';
-import { CardSlide } from '@/templates';
-import { getPresetById } from '@/presets';
+import { CardRenderer } from '@/templates/CardRenderer';
+import { getPresetById } from '@/lib/presets';
 import type { CardNewsProject, Preset } from '@/lib/types';
 import { FolderOpen, Trash2, FileText, Plus, Pencil } from 'lucide-react';
 
@@ -90,6 +90,10 @@ function ProjectRow({
 }) {
   const preset = getPresetById(project.presetId, customPresets);
   const coverSlide = project.slides[0];
+  const dim =
+    project.cardSize === 'square'
+      ? { width: 1080, height: 1080 }
+      : { width: 1080, height: 1350 };
 
   return (
     <div
@@ -103,23 +107,23 @@ function ProjectRow({
       {/* 썸네일 */}
       <div
         className="shrink-0 rounded-lg overflow-hidden border bg-white"
-        style={{ width: 60, aspectRatio: '4 / 5' }}
+        style={{ width: 60, aspectRatio: `${dim.width} / ${dim.height}` }}
       >
         <div
           style={{
-            width: 1080,
-            height: 1350,
-            transform: 'scale(0.0555)',
+            width: dim.width,
+            height: dim.height,
+            transform: `scale(${60 / dim.width})`,
             transformOrigin: 'top left',
           }}
         >
           {coverSlide && (
-            <CardSlide
+            <CardRenderer
               slide={coverSlide}
               preset={preset}
-              colorId={project.presetColorId}
               brand={project.brand}
-              isLast={false}
+              width={dim.width}
+              height={dim.height}
             />
           )}
         </div>
