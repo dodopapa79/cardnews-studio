@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 const TITLES: Record<ViewId, string> = {
   dashboard: '대시보드',
   create: '카드뉴스 만들기',
+  projects: '프로젝트 목록',
   presets: '프리셋 관리',
   video: '영상 만들기',
   settings: '설정',
@@ -17,6 +18,7 @@ export function AppShell({
   hasSlides,
   projectName,
   onCreateNew,
+  projectCount,
   children,
 }: {
   active: ViewId;
@@ -24,6 +26,7 @@ export function AppShell({
   hasSlides: boolean;
   projectName?: string;
   onCreateNew?: () => void;
+  projectCount?: number;
   children: ReactNode;
 }) {
   return (
@@ -34,6 +37,7 @@ export function AppShell({
         hasSlides={hasSlides}
         projectName={projectName}
         onCreateNew={onCreateNew}
+        projectCount={projectCount}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <Header title={TITLES[active]} />

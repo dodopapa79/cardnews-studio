@@ -7,14 +7,16 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Plus,
+  FolderOpen,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-export type ViewId = 'dashboard' | 'create' | 'presets' | 'video' | 'settings';
+export type ViewId = 'dashboard' | 'create' | 'presets' | 'video' | 'settings' | 'projects';
 
 const MENU: { id: ViewId; label: string; icon: any }[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
   { id: 'create', label: '카드뉴스 만들기', icon: PencilRuler },
+  { id: 'projects', label: '프로젝트 목록', icon: FolderOpen },
   { id: 'presets', label: '프리셋', icon: Palette },
   { id: 'video', label: '영상 만들기', icon: Film },
   { id: 'settings', label: '설정', icon: SettingsIcon },
@@ -26,12 +28,14 @@ export function Sidebar({
   hasSlides,
   projectName,
   onCreateNew,
+  projectCount,
 }: {
   active: ViewId;
   onChange: (v: ViewId) => void;
   hasSlides: boolean;
   projectName?: string;
   onCreateNew?: () => void;
+  projectCount?: number;
 }) {
   return (
     <aside className="w-64 bg-white border-r border-surface-border flex flex-col h-screen sticky top-0 shrink-0">
@@ -66,6 +70,7 @@ export function Sidebar({
         {MENU.map((m) => {
           const Icon = m.icon;
           const isActive = active === m.id;
+          const showBadge = m.id === 'projects' && (projectCount ?? 0) > 0;
           return (
             <button
               key={m.id}
@@ -78,7 +83,19 @@ export function Sidebar({
               )}
             >
               <Icon size={18} />
-              <span>{m.label}</span>
+              <span className="flex-1 text-left">{m.label}</span>
+              {showBadge && (
+                <span
+                  className={clsx(
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : 'bg-primary-100 text-primary-700'
+                  )}
+                >
+                  {projectCount}
+                </span>
+              )}
             </button>
           );
         })}
