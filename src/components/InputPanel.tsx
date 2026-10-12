@@ -15,7 +15,6 @@ export function InputPanel({
 }: {
   settings: Settings;
   onSlides: (s: Slide[]) => void;
-  /** 현재 선택된 프리셋 (생성 즉시 스타일 적용) */
   preset?: Preset;
   compact?: boolean;
 }) {
@@ -26,6 +25,10 @@ export function InputPanel({
   const [slideCount, setSlideCount] = useState(6);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 🆕 CTA용 블로그 정보
+  const [myBlogUrl, setMyBlogUrl] = useState(settings.workerUrl ? '' : '');
+  const [myBlogName, setMyBlogName] = useState('');
 
   const ready = !!settings.geminiApiKey;
 
@@ -49,7 +52,17 @@ export function InputPanel({
         if (!manual.trim()) throw new Error('내용을 입력하세요.');
         source = manual;
       }
-      const slides = await generateCardNews(settings.geminiApiKey, source, { slideCount, preset });
+
+      // 🆕 CTA용 블로그 정보
+      const ctaBlogUrl = myBlogUrl.trim() || (mode === 'blog' ? blogUrl.trim() : '');
+      const ctaBlogName = myBlogName.trim();
+
+      const slides = await generateCardNews(settings.geminiApiKey, source, {
+        slideCount,
+        preset,
+        blogUrl: ctaBlogUrl,
+        blogName: ctaBlogName,
+      });
       onSlides(slides);
     } catch (e: any) {
       setError(e.message || '오류가 발생했습니다.');
@@ -96,6 +109,28 @@ export function InputPanel({
             rows={compact ? 4 : 6}
           />
         )}
+
+        {/* 🆕 CTA용 블로그 정보 */}
+        <div className="p-3 rounded-lg bg-primary-50 border border-primary-200 space-y-2">
+          <div className="text-xs font-semibold text-primary-800 flex items-center gap-1.5">
+            🎯 블로그 유입 정보 (마지막 카드 CTA에 반영)
+          </div>
+          <Input
+            placeholder="내 블로그 주소 (예: https://blog.naver.com/myblog)"
+            value={myBlogUrl}
+            onChange={(e) => setMyBlogUrl(e.target.value)}
+          />
+          <Input
+            placeholder="블로그 이름 (선택, 예: 우리집 살림노트)"
+            value={myBlogName}
+            onChange={(e) => setMyBlogName(e.target.value)}
+          />
+          <div className="text-[10px] text-primary-700 leading-relaxed">
+            💡 마지막 카드에 "지금 블로그에서 확인하세요" 문구와 함께 표시됩니다.
+            <br />
+            비워두면 AI가 자연스럽게 "블로그에서 자세히" 문구를 생성합니다.
+          </div>
+        </div>
 
         <div className="flex items-center gap-3">
           <label className="text-sm text-ink-secondary">슬라이드</label>
