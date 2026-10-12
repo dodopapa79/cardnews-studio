@@ -16,6 +16,7 @@ import {
   RotateCcw,
   HardDrive,
   Layout,
+  Wand2,
 } from 'lucide-react';
 
 export function SettingsView({
@@ -147,6 +148,43 @@ export function SettingsView({
             <div className="font-semibold mb-1">ℹ️ Worker 프록시 사용 중</div>
             <div className="break-all text-[10px] font-mono">{local.workerUrl}</div>
           </div>
+        </div>
+      </Card>
+
+      {/* 🆕 이미지 자동 생성 */}
+      <Card>
+        <CardHeader
+          title="이미지 자동 생성"
+          subtitle="카드뉴스 생성 시 첫 카드 배경 이미지를 자동으로 만들지 여부"
+        />
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-surface-border hover:bg-surface-hover cursor-pointer transition">
+            <input
+              type="checkbox"
+              checked={local.autoGenerateFirstImage}
+              onChange={(e) => update({ autoGenerateFirstImage: e.target.checked })}
+              className="w-4 h-4"
+            />
+            <div className="flex-1">
+              <div className="font-medium text-sm flex items-center gap-2">
+                <Wand2 size={14} className="text-primary-600" />
+                첫 카드 배경 이미지 자동 생성
+              </div>
+              <div className="text-xs text-ink-muted mt-0.5">
+                체크하면 카드뉴스 생성 직후 첫 번째 카드의 배경 이미지가 자동으로 만들어집니다.
+                <br />
+                체크 해제하면 모든 카드가 프리셋 배경만 사용합니다.
+              </div>
+            </div>
+            <Badge variant={local.autoGenerateFirstImage ? 'success' : 'default'}>
+              {local.autoGenerateFirstImage ? 'ON' : 'OFF'}
+            </Badge>
+          </label>
+          {!cfOk && local.autoGenerateFirstImage && (
+            <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 text-xs text-orange-700">
+              ⚠️ Cloudflare Workers AI 정보를 먼저 입력해야 자동 생성이 작동합니다.
+            </div>
+          )}
         </div>
       </Card>
 

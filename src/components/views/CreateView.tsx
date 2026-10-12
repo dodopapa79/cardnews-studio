@@ -106,18 +106,28 @@ export function CreateView({
     setSelectedBackground(false);
   }, [selectedIdx]);
 
-  // 첫 카드 자동 이미지
+  // 첫 카드 자동 이미지 (설정에서 켠 경우에만)
   useEffect(() => {
     if (slides.length === 0) return;
+    if (!settings.autoGenerateFirstImage) return;  // ← 옵션 반영
     const first = slides[0];
-    if (!first.background.imageUrl && first.imagePrompt && !autoGenRef.current.has(first.id)) {
+    if (
+      !first.background.imageUrl &&
+      first.imagePrompt &&
+      !autoGenRef.current.has(first.id)
+    ) {
       if (settings.cfAccountId && settings.cfApiToken) {
         autoGenRef.current.add(first.id);
         setTimeout(() => genImgInternal(0), 800);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slides.length, settings.cfAccountId, settings.cfApiToken]);
+  }, [
+    slides.length,
+    settings.cfAccountId,
+    settings.cfApiToken,
+    settings.autoGenerateFirstImage,  // ← 의존성 추가
+  ]);
 
   const updateSlide = (i: number, patch: Partial<Slide>) => {
     onSlidesChange(slides.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -250,11 +260,9 @@ export function CreateView({
   }
 
   function handleAccentChange(color: string) {
-    // page.tsx의 handleAccentChange 호출 (프리셋 업데이트)
     if (onAccentChange) {
       onAccentChange(color);
     } else {
-      // 폴백: 여기서 직접
       const updated = applyAccentColor(preset, color);
       onPresetChange(updated);
     }

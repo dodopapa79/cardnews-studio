@@ -47,7 +47,7 @@ export const DEFAULT_BACKGROUND: BackgroundConfig = {
 };
 
 // ─────────────────────────────────────────────
-// 텍스트 관련 (블록 내부용)
+// 텍스트 관련
 // ─────────────────────────────────────────────
 export type TextAlign = 'left' | 'center' | 'right';
 
@@ -71,7 +71,7 @@ export const TEXT_ANIMATIONS: { id: TextAnimation; name: string }[] = [
 ];
 
 // ─────────────────────────────────────────────
-// 블록 타입 (8종)
+// 블록 타입
 // ─────────────────────────────────────────────
 export type BlockType =
   | 'headline'
@@ -83,18 +83,15 @@ export type BlockType =
   | 'point-box'
   | 'divider';
 
-/** 리스트/카드 항목 */
 export interface BlockItem {
   number?: string;
   title: string;
   desc?: string;
 }
 
-/** 블록 하나 */
 export interface Block {
   id: string;
   type: BlockType;
-  /** 세로 위치 (0~1) */
   y: number;
   content: {
     text?: string;
@@ -106,7 +103,7 @@ export interface Block {
 }
 
 // ─────────────────────────────────────────────
-// 슬라이드 (콘텐츠 + 배경)
+// 슬라이드
 // ─────────────────────────────────────────────
 export type SlideType = 'cover' | 'point' | 'data' | 'quote' | 'cta';
 
@@ -121,7 +118,7 @@ export interface Slide {
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 — 스타일만 정의
+// 프리셋
 // ─────────────────────────────────────────────
 export interface HeadlineStyle {
   fontSize: number;
@@ -225,12 +222,11 @@ export interface Preset {
   blockStyles: PresetBlockStyles;
   builtin: boolean;
   version?: number;
-  /** 포인트 색상 — 이 값이 있으면 blockStyles의 강조 색들을 덮어씀 */
   accentColor?: string;
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 JSON (AI가 생성 → 붙여넣기)
+// 프리셋 JSON
 // ─────────────────────────────────────────────
 export interface PresetImportJSON {
   name: string;
@@ -333,6 +329,8 @@ export interface Settings {
   workerUrl: string;
   brand: BrandInfo;
   defaultCardSize: CardSize;
+  /** 카드뉴스 생성 시 첫 카드 배경 이미지를 자동 생성할지 여부 */
+  autoGenerateFirstImage: boolean;
 }
 
 export const EMPTY_SETTINGS: Settings = {
@@ -342,4 +340,5 @@ export const EMPTY_SETTINGS: Settings = {
   workerUrl: 'https://tight-unit-99da.whyno2617.workers.dev',
   brand: EMPTY_BRAND,
   defaultCardSize: 'instagram',
+  autoGenerateFirstImage: false,
 };
