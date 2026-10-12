@@ -77,7 +77,7 @@ function makeHeadline(o: Partial<HeadlineStyle> = {}): HeadlineStyle {
 
 function makeBody(o: Partial<BodyStyle> = {}): BodyStyle {
   return {
-    fontSize: 40,
+    fontSize: 52,        // 기존 40 → 52 (옵션 B)
     fontWeight: 400,
     color: '#525252',
     align: 'left',
@@ -116,7 +116,7 @@ function makeList(o: Partial<ListStyle> = {}): ListStyle {
     numberSize: 48,
     titleSize: 36,
     titleColor: '#0a0a0a',
-    descSize: 28,
+    descSize: 36,        // 기존 28 → 36 (옵션 B)
     descColor: '#6b6b6b',
     ...o,
   };
@@ -133,7 +133,7 @@ function makeNumberedCard(o: Partial<NumberedCardStyle> = {}): NumberedCardStyle
     numberColor: '#3b5bfd',
     titleSize: 40,
     titleColor: '#0a0a0a',
-    descSize: 30,
+    descSize: 38,        // 기존 30 → 38 (옵션 B)
     descColor: '#6b6b6b',
     ...o,
   };

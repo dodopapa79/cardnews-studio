@@ -5,7 +5,6 @@ import type {
   Slide,
   Preset,
   Block,
-  BlockItem,
   BrandInfo,
 } from './types';
 
@@ -66,11 +65,7 @@ function buildImageFilter(bg: any): string {
   return parts.length > 0 ? parts.join(' ') : 'none';
 }
 
-function getAnimProgress(
-  elapsed: number,
-  delay: number,
-  duration: number
-): number {
+function getAnimProgress(elapsed: number, delay: number, duration: number): number {
   if (elapsed < delay) return 0;
   if (elapsed > delay + duration) return 1;
   return (elapsed - delay) / duration;
@@ -83,10 +78,7 @@ interface AnimTransform {
   scale: number;
 }
 
-function applyAnimation(
-  type: TextAnimation,
-  progress: number
-): AnimTransform {
+function applyAnimation(type: TextAnimation, progress: number): AnimTransform {
   const t = progress;
   if (type === 'none' || t >= 1)
     return { alpha: 1, offsetX: 0, offsetY: 0, scale: 1 };
@@ -134,7 +126,7 @@ function wrapText(
 }
 
 // ─────────────────────────────────────────────
-// 배경 그리기 (imageLayout 처리 강화)
+// 배경 그리기
 // ─────────────────────────────────────────────
 async function drawBackground(
   ctx: CanvasRenderingContext2D,
@@ -145,7 +137,6 @@ async function drawBackground(
 ) {
   const bg = slide.background;
 
-  // 기본 배경색/그라디언트
   if (bg.type === 'gradient' && bg.colorEnd) {
     const grad = ctx.createLinearGradient(0, 0, width, height);
     grad.addColorStop(0, bg.color);
@@ -157,7 +148,6 @@ async function drawBackground(
     ctx.fillRect(0, 0, width, height);
   }
 
-  // 이미지: type 무관, imageUrl 있으면 그림
   if (bg.imageUrl) {
     let img = imageCache.get(bg.imageUrl);
     if (!img) {
@@ -239,11 +229,9 @@ async function drawBackground(
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, width * 0.6, height);
       }
-      // layout === 'none'이면 이미지 안 그림
     }
   }
 
-  // topImageFade (top-image 아닐 때만)
   if (bg.topImageFade && (bg.imageLayout || 'full-bleed') !== 'top-image') {
     const grad = ctx.createLinearGradient(0, height * 0.4, 0, height * 0.65);
     grad.addColorStop(0, `${bg.color}00`);
@@ -253,7 +241,6 @@ async function drawBackground(
     ctx.fillRect(0, height * 0.4, width, height * 0.25);
   }
 
-  // bottomFade
   if (bg.bottomFade) {
     const grad = ctx.createLinearGradient(0, height * 0.75, 0, height);
     grad.addColorStop(0, '#00000000');
@@ -262,23 +249,15 @@ async function drawBackground(
     ctx.fillRect(0, height * 0.75, width, height * 0.25);
   }
 
-  // 패턴 (이미지 없을 때만)
   if (!bg.imageUrl) {
     if (bg.pattern === 'mesh') {
       const accent = bg.colorEnd || bg.color;
-      const r1 = ctx.createRadialGradient(
-        width * 0.2, height * 0.2, 0,
-        width * 0.2, height * 0.2, width * 0.7
-      );
+      const r1 = ctx.createRadialGradient(width * 0.2, height * 0.2, 0, width * 0.2, height * 0.2, width * 0.7);
       r1.addColorStop(0, hexToRgba(accent, 0.4));
       r1.addColorStop(1, 'transparent');
       ctx.fillStyle = r1;
       ctx.fillRect(0, 0, width, height);
-
-      const r2 = ctx.createRadialGradient(
-        width * 0.8, height * 0.6, 0,
-        width * 0.8, height * 0.6, width * 0.8
-      );
+      const r2 = ctx.createRadialGradient(width * 0.8, height * 0.6, 0, width * 0.8, height * 0.6, width * 0.8);
       r2.addColorStop(0, hexToRgba(accent, 0.33));
       r2.addColorStop(1, 'transparent');
       ctx.fillStyle = r2;
@@ -320,34 +299,158 @@ async function drawBackground(
 }
 
 // ─────────────────────────────────────────────
-// 블록 하나 그리기 (y 반환)
+// 라운드 사각형 헬퍼 (roundRect 폴백 포함)
 // ─────────────────────────────────────────────
-interface DrawBlockParams {
-  ctx: CanvasRenderingContext2D;
-  block: Block;
-  preset: Preset;
-  width: number;
-  height: number;
-  paddingLeft: number;
-  paddingRight: number;
-  y: number;
-  slideElapsed: number;
-  staggerMs: number;
-  orderIndex: number;
+function roundRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }
 
-function drawBlock({
-  ctx,
-  block,
-  preset,
-  width,
-  paddingLeft,
-  paddingRight,
-  y,
-  slideElapsed,
-  staggerMs,
-  orderIndex,
-}: DrawBlockParams): number {
+// ─────────────────────────────────────────────
+// 블록 높이 측정 (1패스)
+// DOM과 동일한 계산 로직을 최대한 반영
+// ─────────────────────────────────────────────
+function measureBlockHeight(
+  ctx: CanvasRenderingContext2D,
+  block: Block,
+  preset: Preset,
+  width: number,
+  paddingLeft: number,
+  paddingRight: number
+): number {
+  const bs = preset.blockStyles;
+  const contentWidth = width - paddingLeft - paddingRight;
+
+  switch (block.type) {
+    case 'headline': {
+      if (!block.content.text) return 0;
+      const s = bs.headline;
+      ctx.font = `${s.fontWeight} ${s.fontSize}px ${preset.fontFamily}`;
+      const lines = wrapText(ctx, block.content.text, contentWidth);
+      return lines.length * s.fontSize * s.lineHeight + 24;
+    }
+    case 'body': {
+      if (!block.content.text) return 0;
+      const s = bs.body;
+      ctx.font = `${s.fontWeight} ${s.fontSize}px ${preset.fontFamily}`;
+      const lines = wrapText(ctx, block.content.text, contentWidth);
+      return lines.length * s.fontSize * s.lineHeight + 24;
+    }
+    case 'label': {
+      if (!block.content.text) return 0;
+      const s = bs.label;
+      const pad = s.padding ?? 12;
+      return s.fontSize + pad * 2 + 20;
+    }
+    case 'highlight': {
+      if (!block.content.text) return 0;
+      const s = bs.highlight;
+      ctx.font = `${s.fontWeight} ${s.fontSize}px ${preset.fontFamily}`;
+      const lines = wrapText(ctx, block.content.text, contentWidth);
+      return lines.length * s.fontSize * 1.3 + 24;
+    }
+    case 'list': {
+      const s = bs.list;
+      const items = block.content.items || [];
+      let total = 0;
+      for (const item of items) {
+        ctx.font = `700 ${s.titleSize}px ${preset.fontFamily}`;
+        const titleLines = wrapText(
+          ctx,
+          item.title,
+          contentWidth - s.itemPadding * 2 - (item.number ? s.numberSize + 16 : 0)
+        );
+        let itemH = s.itemPadding * 2 + titleLines.length * s.titleSize * 1.35;
+        if (item.desc) {
+          ctx.font = `400 ${s.descSize}px ${preset.fontFamily}`;
+          const descLines = wrapText(
+            ctx,
+            item.desc,
+            contentWidth - s.itemPadding * 2 - (item.number ? s.numberSize + 16 : 0)
+          );
+          itemH += 8 + descLines.length * s.descSize * 1.5;
+        }
+        total += itemH + s.itemGap;
+      }
+      if (items.length > 0) total -= s.itemGap;
+      return total + 8;
+    }
+    case 'numbered-card': {
+      const s = bs.numberedCard;
+      const items = block.content.items || [];
+      let total = 0;
+      for (const item of items) {
+        ctx.font = `700 ${s.titleSize}px ${preset.fontFamily}`;
+        const titleLines = wrapText(
+          ctx,
+          item.title,
+          contentWidth - s.cardPadding * 2 - (item.number ? s.numberSize + 16 : 0)
+        );
+        let itemH = s.cardPadding * 2 + titleLines.length * s.titleSize * 1.35;
+        if (item.desc) {
+          ctx.font = `400 ${s.descSize}px ${preset.fontFamily}`;
+          const descLines = wrapText(
+            ctx,
+            item.desc,
+            contentWidth - s.cardPadding * 2 - (item.number ? s.numberSize + 16 : 0)
+          );
+          itemH += 8 + descLines.length * s.descSize * 1.5;
+        }
+        total += itemH + s.cardGap;
+      }
+      if (items.length > 0) total -= s.cardGap;
+      return total + 8;
+    }
+    case 'point-box': {
+      if (!block.content.text) return 0;
+      const s = bs.pointBox;
+      const pad = s.padding;
+      const innerW = contentWidth - pad * 2 - s.borderLeftWidth;
+      ctx.font = `500 ${s.textSize}px ${preset.fontFamily}`;
+      const lines = wrapText(ctx, block.content.text, innerW);
+      const textH = lines.length * s.textSize * 1.4;
+      const labelH = block.content.boxLabel ? s.labelSize * 1.4 + 8 : 0;
+      return pad * 2 + labelH + textH + 20;
+    }
+    case 'divider':
+      return 24;
+    default:
+      return 120;
+  }
+}
+
+// ─────────────────────────────────────────────
+// 블록 그리기 (2패스 - y 반환)
+// ─────────────────────────────────────────────
+function drawBlock(
+  ctx: CanvasRenderingContext2D,
+  block: Block,
+  preset: Preset,
+  width: number,
+  paddingLeft: number,
+  paddingRight: number,
+  y: number,
+  slideElapsed: number,
+  staggerMs: number,
+  orderIndex: number
+): number {
   const bs = preset.blockStyles;
   const contentWidth = width - paddingLeft - paddingRight;
   const delay = orderIndex * staggerMs;
@@ -422,8 +525,7 @@ function drawBlock({
     const boxH = s.fontSize + pad * 2;
     if (s.background) {
       ctx.fillStyle = hexToRgba(s.background, s.backgroundOpacity ?? 1);
-      ctx.beginPath();
-      ctx.rect(paddingLeft, y, boxW, boxH); // 라운드 제거
+      roundRectPath(ctx, paddingLeft, y, boxW, boxH, radius);
       ctx.fill();
     }
     ctx.fillStyle = s.color;
@@ -454,15 +556,31 @@ function drawBlock({
     let cy = y;
     for (const item of block.content.items) {
       const itemY = cy;
-      const itemH = s.itemPadding * 2 + s.titleSize * 1.4 +
-        (item.desc ? s.descSize * 1.4 + 6 : 0);
+      const textX0 = paddingLeft + s.itemPadding;
+      const numberOffset = item.number ? s.numberSize + 16 : 0;
+      const textW = contentWidth - s.itemPadding * 2 - numberOffset;
+
+      ctx.font = `700 ${s.titleSize}px ${preset.fontFamily}`;
+      const titleLines = wrapText(ctx, item.title, textW);
+      const titleH = titleLines.length * s.titleSize * 1.35;
+
+      let descH = 0;
+      let descLines: string[] = [];
+      if (item.desc) {
+        ctx.font = `400 ${s.descSize}px ${preset.fontFamily}`;
+        descLines = wrapText(ctx, item.desc, textW);
+        descH = 8 + descLines.length * s.descSize * 1.5;
+      }
+
+      const itemH = s.itemPadding * 2 + Math.max(titleH, item.number ? s.numberSize : 0) + descH;
+
       // 배경
       ctx.fillStyle = hexToRgba(s.itemBg, s.itemBgOpacity ?? 1);
-      ctx.beginPath();
-      ctx.rect(paddingLeft, itemY, contentWidth, itemH); // 라운드 제거
+      roundRectPath(ctx, paddingLeft, itemY, contentWidth, itemH, s.itemBorderRadius);
       ctx.fill();
+
+      let textX = textX0;
       // 번호
-      let textX = paddingLeft + s.itemPadding;
       if (item.number) {
         ctx.font = `700 ${s.numberSize}px ${preset.fontFamily}`;
         ctx.fillStyle = s.numberColor;
@@ -476,17 +594,22 @@ function drawBlock({
       ctx.fillStyle = s.titleColor;
       ctx.textBaseline = 'top';
       ctx.textAlign = 'left';
-      ctx.fillText(item.title, textX, itemY + s.itemPadding);
+      let ty = itemY + s.itemPadding;
+      for (const line of titleLines) {
+        ctx.fillText(line, textX, ty);
+        ty += s.titleSize * 1.35;
+      }
       // 설명
-      if (item.desc) {
+      if (item.desc && descLines.length > 0) {
         ctx.font = `400 ${s.descSize}px ${preset.fontFamily}`;
         ctx.fillStyle = s.descColor;
-        ctx.fillText(
-          item.desc,
-          textX,
-          itemY + s.itemPadding + s.titleSize * 1.4 + 6
-        );
+        let dy = itemY + s.itemPadding + titleH + 8;
+        for (const line of descLines) {
+          ctx.fillText(line, textX, dy);
+          dy += s.descSize * 1.5;
+        }
       }
+
       cy = itemY + itemH + s.itemGap;
     }
     nextY = cy + 8;
@@ -497,36 +620,57 @@ function drawBlock({
     const s = bs.numberedCard;
     let cy = y;
     for (const item of block.content.items) {
-      const itemH = s.cardPadding * 2 + s.titleSize * 1.4 +
-        (item.desc ? s.descSize * 1.4 + 6 : 0);
+      const itemY = cy;
+      const numberOffset = item.number ? s.numberSize + 16 : 0;
+      const textW = contentWidth - s.cardPadding * 2 - numberOffset;
+
+      ctx.font = `700 ${s.titleSize}px ${preset.fontFamily}`;
+      const titleLines = wrapText(ctx, item.title, textW);
+      const titleH = titleLines.length * s.titleSize * 1.35;
+
+      let descH = 0;
+      let descLines: string[] = [];
+      if (item.desc) {
+        ctx.font = `400 ${s.descSize}px ${preset.fontFamily}`;
+        descLines = wrapText(ctx, item.desc, textW);
+        descH = 8 + descLines.length * s.descSize * 1.5;
+      }
+
+      const itemH = s.cardPadding * 2 + Math.max(titleH, item.number ? s.numberSize : 0) + descH;
+
       ctx.fillStyle = hexToRgba(s.cardBg, s.cardBgOpacity ?? 1);
-      ctx.beginPath();
-      ctx.rect(paddingLeft, cy, contentWidth, itemH); // 라운드 제거
+      roundRectPath(ctx, paddingLeft, itemY, contentWidth, itemH, s.cardBorderRadius);
       ctx.fill();
+
       let textX = paddingLeft + s.cardPadding;
       if (item.number) {
         ctx.font = `900 ${s.numberSize}px ${preset.fontFamily}`;
         ctx.fillStyle = s.numberColor;
         ctx.textBaseline = 'top';
         ctx.textAlign = 'left';
-        ctx.fillText(item.number, textX, cy + s.cardPadding);
+        ctx.fillText(item.number, textX, itemY + s.cardPadding);
         textX += s.numberSize + 16;
       }
       ctx.font = `700 ${s.titleSize}px ${preset.fontFamily}`;
       ctx.fillStyle = s.titleColor;
       ctx.textBaseline = 'top';
       ctx.textAlign = 'left';
-      ctx.fillText(item.title, textX, cy + s.cardPadding);
-      if (item.desc) {
+      let ty = itemY + s.cardPadding;
+      for (const line of titleLines) {
+        ctx.fillText(line, textX, ty);
+        ty += s.titleSize * 1.35;
+      }
+      if (item.desc && descLines.length > 0) {
         ctx.font = `400 ${s.descSize}px ${preset.fontFamily}`;
         ctx.fillStyle = s.descColor;
-        ctx.fillText(
-          item.desc,
-          textX,
-          cy + s.cardPadding + s.titleSize * 1.4 + 6
-        );
+        let dy = itemY + s.cardPadding + titleH + 8;
+        for (const line of descLines) {
+          ctx.fillText(line, textX, dy);
+          dy += s.descSize * 1.5;
+        }
       }
-      cy += itemH + s.cardGap;
+
+      cy = itemY + itemH + s.cardGap;
     }
     nextY = cy + 8;
   }
@@ -535,7 +679,6 @@ function drawBlock({
   else if (block.type === 'point-box' && block.content.text) {
     const s = bs.pointBox;
     const pad = s.padding;
-    // 텍스트 높이 측정
     const innerW = contentWidth - pad * 2 - s.borderLeftWidth;
     ctx.font = `500 ${s.textSize}px ${preset.fontFamily}`;
     const lines = wrapText(ctx, block.content.text, innerW);
@@ -544,14 +687,17 @@ function drawBlock({
     const labelH = block.content.boxLabel ? s.labelSize * 1.4 + 8 : 0;
     const boxH = pad * 2 + labelH + textH;
 
-    // 배경
     ctx.fillStyle = hexToRgba(s.bgColor, s.bgOpacity ?? 1);
-    ctx.beginPath();
-    ctx.rect(paddingLeft, y, contentWidth, boxH); // 라운드 제거
+    roundRectPath(ctx, paddingLeft, y, contentWidth, boxH, s.borderRadius);
     ctx.fill();
-    // 왼쪽 보더
+
+    // 왼쪽 보더 (라운드 잘림 방지 위해 클립)
+    ctx.save();
+    roundRectPath(ctx, paddingLeft, y, contentWidth, boxH, s.borderRadius);
+    ctx.clip();
     ctx.fillStyle = s.borderLeftColor;
     ctx.fillRect(paddingLeft, y, s.borderLeftWidth, boxH);
+    ctx.restore();
 
     let cy = y + pad;
     const textX = paddingLeft + pad + s.borderLeftWidth;
@@ -632,34 +778,34 @@ async function drawBrand(
         });
         imageCache.set(brand.logoUrl, logo);
       }
-      const logoSize = 80;
+      const logoSize = 90;
       ctx.drawImage(logo, centerX - logoSize / 2, currentY, logoSize, logoSize);
       currentY += logoSize + 16;
     } catch {}
   }
   if (brand.brandName) {
     ctx.fillStyle = mainColor;
-    ctx.font = `900 34px ${'Pretendard, system-ui, sans-serif'}`;
+    ctx.font = `900 36px ${'Pretendard, system-ui, sans-serif'}`;
     ctx.fillText(brand.brandName, centerX, currentY);
-    currentY += 44;
+    currentY += 46;
   }
   if (brand.website) {
     ctx.fillStyle = mutedColor;
-    ctx.font = `500 24px ${'Pretendard, system-ui, sans-serif'}`;
+    ctx.font = `500 26px ${'Pretendard, system-ui, sans-serif'}`;
     ctx.fillText(brand.website, centerX, currentY);
-    currentY += 32;
+    currentY += 34;
   }
   if (brand.handle) {
     ctx.fillStyle = mutedColor;
     ctx.globalAlpha = 0.8;
-    ctx.font = `500 20px ${'Pretendard, system-ui, sans-serif'}`;
+    ctx.font = `500 22px ${'Pretendard, system-ui, sans-serif'}`;
     ctx.fillText(brand.handle, centerX, currentY);
   }
   ctx.restore();
 }
 
 // ─────────────────────────────────────────────
-// 슬라이드 하나 그리기
+// 슬라이드 하나 그리기 (2패스: 측정 → 배치 → 그리기)
 // ─────────────────────────────────────────────
 async function drawSlide(
   ctx: CanvasRenderingContext2D,
@@ -679,74 +825,38 @@ async function drawSlide(
   const paddingLeft = 90;
   const paddingRight = 90;
 
-  const visibleBlocks = slide.blocks
-    .filter(hasContent)
-    .sort((a, b) => a.y - b.y);
+  const visibleBlocks = slide.blocks.filter(hasContent).sort((a, b) => a.y - b.y);
 
-  // 블록 총 높이 추정 (y값이 0~1 정규화이므로 그대로 곱해서 사용)
-  // y가 0~1이면 absolute 배치, 아니면 순차 배치
-  // 여기서는 순차 배치 + 세로 중앙 정렬로 통일
-  const totalH = visibleBlocks.reduce((sum, b) => {
-    return sum + estimateBlockHeight(b, preset, width);
-  }, 0) + Math.max(0, visibleBlocks.length - 1) * 28;
+  // 1패스: 실제 텍스트 측정으로 정확한 높이 계산
+  const blockHeights = visibleBlocks.map((b) =>
+    measureBlockHeight(ctx, b, preset, width, paddingLeft, paddingRight)
+  );
+  const totalH =
+    blockHeights.reduce((s, h) => s + h, 0) + Math.max(0, visibleBlocks.length - 1) * 28;
 
   const areaH = height - paddingTop - paddingBottom;
   let y = paddingTop + Math.max(0, (areaH - totalH) / 2);
 
+  // 2패스: 실제 그리기
   for (let i = 0; i < visibleBlocks.length; i++) {
-    const block = visibleBlocks[i];
-    y = drawBlock({
+    y = drawBlock(
       ctx,
-      block,
+      visibleBlocks[i],
       preset,
       width,
-      height,
       paddingLeft,
       paddingRight,
       y,
-      slideElapsed: elapsedMs,
+      elapsedMs,
       staggerMs,
-      orderIndex: i,
-    });
+      i
+    );
     y += 28;
   }
 
   if (slide.isLast) {
     const bgDark = isDarkColor(slide.background.color);
     await drawBrand(ctx, brand, width, height, bgDark, imageCache);
-  }
-}
-
-function estimateBlockHeight(block: Block, preset: Preset, width: number): number {
-  const bs = preset.blockStyles;
-  const contentWidth = width - 180;
-  switch (block.type) {
-    case 'headline':
-      return bs.headline.fontSize * bs.headline.lineHeight * 1.5;
-    case 'body':
-      return bs.body.fontSize * bs.body.lineHeight * 2;
-    case 'label':
-      return bs.label.fontSize + (bs.label.padding ?? 12) * 2 + 20;
-    case 'highlight':
-      return bs.highlight.fontSize * 1.3;
-    case 'list': {
-      const s = bs.list;
-      const n = block.content.items?.length ?? 0;
-      return n * (s.itemPadding * 2 + s.titleSize * 1.4 + s.itemGap + 20);
-    }
-    case 'numbered-card': {
-      const s = bs.numberedCard;
-      const n = block.content.items?.length ?? 0;
-      return n * (s.cardPadding * 2 + s.titleSize * 1.4 + s.cardGap + 20);
-    }
-    case 'point-box': {
-      const s = bs.pointBox;
-      return s.padding * 2 + s.textSize * 1.4 * 2 + 20;
-    }
-    case 'divider':
-      return 24;
-    default:
-      return 120;
   }
 }
 
@@ -760,7 +870,7 @@ function applyTransitionOverlay(
   width: number,
   height: number
 ) {
-  if (transition === 'none' || progress >= 1) return;
+  if (progress >= 1) return;
   const t = progress;
   if (transition === 'fade') {
     ctx.fillStyle = `rgba(0,0,0,${1 - t})`;
@@ -800,7 +910,6 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
   const ctx = canvas.getContext('2d')!;
   const imageCache = new Map<string, HTMLImageElement>();
 
-  // 오디오 준비
   onStatus?.('오디오 준비 중...');
   const audioCtx = new AudioContext();
   const audioDest = audioCtx.createMediaStreamDestination();
@@ -826,7 +935,6 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
     }
   }
 
-  // MediaRecorder
   const canvasStream = canvas.captureStream(fps);
   const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
   tracks.push(...audioDest.stream.getAudioTracks());
@@ -849,7 +957,6 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
   const totalMs = slides.length * slideDurationMs;
   const totalSec = totalMs / 1000;
 
-  // 배경 이미지 프리로드
   onStatus?.('배경 이미지 준비 중...');
   for (const slide of slides) {
     if (slide.background.imageUrl) {
@@ -859,7 +966,6 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
     }
   }
 
-  // 렌더 루프
   onStatus?.('영상 녹화 중...');
   await audioCtx.resume();
 
@@ -887,22 +993,15 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
         return;
       }
 
-      const slideIdx = Math.min(
-        Math.floor(elapsed / slideDurationMs),
-        slides.length - 1
-      );
+      const slideIdx = Math.min(Math.floor(elapsed / slideDurationMs), slides.length - 1);
       const slideElapsed = elapsed - slideIdx * slideDurationMs;
       const isTransition =
-        slideElapsed > slideDurationMs - transitionMs &&
-        slideIdx < slides.length - 1;
+        slideElapsed > slideDurationMs - transitionMs && slideIdx < slides.length - 1;
 
       ctx.clearRect(0, 0, width, height);
 
       if (isTransition) {
         const t = (slideElapsed - (slideDurationMs - transitionMs)) / transitionMs;
-        // 두 슬라이드를 겹쳐 그림 (단순 fade 방식)
-        ctx.save();
-        ctx.globalAlpha = 1;
         await drawSlide(
           ctx,
           slides[slideIdx],
@@ -914,7 +1013,6 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
           textStaggerMs,
           imageCache
         );
-        ctx.restore();
         applyTransitionOverlay(ctx, t, transition, width, height);
       } else {
         await drawSlide(
@@ -947,9 +1045,6 @@ export async function generateVideo(options: VideoOptions): Promise<Blob> {
   return new Blob(chunks, { type: 'video/webm' });
 }
 
-// ─────────────────────────────────────────────
-// 다운로드 유틸
-// ─────────────────────────────────────────────
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
