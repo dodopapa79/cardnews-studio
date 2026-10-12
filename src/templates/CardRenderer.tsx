@@ -57,7 +57,7 @@ function LastCardBrand({
             width: 90,
             height: 90,
             objectFit: 'contain',
-            filter: dark ? 'brightness(0) invert(1)' : 'none',
+            // 필터 제거 — 원본 로고 색상 그대로 표시
           }}
         />
       )}
