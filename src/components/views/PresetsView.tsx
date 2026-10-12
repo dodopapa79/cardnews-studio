@@ -13,6 +13,7 @@ export function PresetsView({
   onDeleteCustom,
   onImportCustom,
   onToggleFavorite,
+  onAccentChange,
 }: {
   current: Preset;
   customPresets: Preset[];
@@ -23,6 +24,7 @@ export function PresetsView({
   onDeleteCustom: (id: string) => void;
   onImportCustom: (preset: Preset) => void;
   onToggleFavorite: (id: string) => void;
+  onAccentChange?: (color: string) => void;
 }) {
   return (
     <div className="max-w-7xl mx-auto">
@@ -37,6 +39,7 @@ export function PresetsView({
           onDeleteCustom={onDeleteCustom}
           onImportCustom={onImportCustom}
           onToggleFavorite={onToggleFavorite}
+          onAccentChange={onAccentChange}
         />
       </Card>
     </div>

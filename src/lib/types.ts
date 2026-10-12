@@ -94,20 +94,14 @@ export interface BlockItem {
 export interface Block {
   id: string;
   type: BlockType;
-  /** 세로 위치 (0~1) — AI가 배치, 사용자가 드래그로 미세 조정 가능 */
+  /** 세로 위치 (0~1) */
   y: number;
-  /** 콘텐츠 (블록 종류별로 다름) */
   content: {
-    /** headline, body, label, highlight, point-box의 텍스트 */
     text?: string;
-    /** point-box의 라벨 */
     boxLabel?: string;
-    /** list, numbered-card의 항목들 */
     items?: BlockItem[];
   };
-  /** 애니메이션 */
   animation?: TextAnimation;
-  /** 표시 여부 */
   visible?: boolean;
 }
 
@@ -119,18 +113,15 @@ export type SlideType = 'cover' | 'point' | 'data' | 'quote' | 'cta';
 export interface Slide {
   id: string;
   type: SlideType;
-  /** 배경 (프리셋이 담당) */
   background: BackgroundConfig;
-  /** 콘텐츠 블록 배열 (AI가 생성) */
   blocks: Block[];
-  /** 이미지 프롬프트 */
   imagePrompt: string;
   imagePromptKo: string;
   isLast?: boolean;
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 — 스타일만 정의 (콘텐츠 X)
+// 프리셋 — 스타일만 정의
 // ─────────────────────────────────────────────
 export interface HeadlineStyle {
   fontSize: number;
@@ -234,15 +225,18 @@ export interface Preset {
   blockStyles: PresetBlockStyles;
   builtin: boolean;
   version?: number;
+  /** 포인트 색상 — 이 값이 있으면 blockStyles의 강조 색들을 덮어씀 */
+  accentColor?: string;
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 JSON (AI가 생성 → 사용자가 붙여넣기)
+// 프리셋 JSON (AI가 생성 → 붙여넣기)
 // ─────────────────────────────────────────────
 export interface PresetImportJSON {
   name: string;
   description?: string;
   fontFamily?: string;
+  accentColor?: string;
   background: {
     type?: BackgroundType;
     color?: string;

@@ -1,17 +1,23 @@
 'use client';
 import { useState } from 'react';
-import { ChevronRight, Sparkles, Check } from 'lucide-react';
+import { ChevronRight, Sparkles, Check, Palette } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { PresetCard } from '@/components/PresetCard';
 import { PresetImportModal } from '@/components/PresetImportModal';
 import { Button } from '@/components/ui/Button';
 import { STYLE_PRESETS } from '@/lib/presets';
 import { sortPresets } from '@/lib/utils';
+import { applyAccentColor, getAccentColor } from '@/lib/preset-utils';
 import type { Preset, BrandInfo, Slide } from '@/lib/types';
 import { makeBlockId } from '@/lib/blocks';
 import { CardRenderer } from '@/templates/CardRenderer';
 
-// 프리셋 미리보기용 샘플 슬라이드
+const ACCENT_PRESETS = [
+  '#3b5bfd', '#7c3aed', '#c084fc', '#ec4899', '#ef4444',
+  '#f97316', '#eab308', '#84cc16', '#10b981', '#06b6d4',
+  '#0a0a0a', '#ffffff',
+];
+
 function makeSampleSlide(preset: Preset): Slide {
   return {
     id: 'sample',
@@ -56,6 +62,7 @@ export function PresetStrip({
   onDeleteCustom,
   onImportCustom,
   onToggleFavorite,
+  onAccentChange,
 }: {
   current: Preset;
   customPresets: Preset[];
@@ -66,8 +73,10 @@ export function PresetStrip({
   onDeleteCustom: (id: string) => void;
   onImportCustom: (preset: Preset) => void;
   onToggleFavorite: (id: string) => void;
+  onAccentChange?: (color: string) => void;
 }) {
   const [openAll, setOpenAll] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
 
   const allPresets = sortPresets([...STYLE_PRESETS, ...customPresets], favorites);
 
@@ -79,7 +88,7 @@ export function PresetStrip({
       seen.add(current.id);
     }
     for (const p of allPresets) {
-      if (result.length >= 6) break;
+      if (result.length >= 5) break;
       if (!seen.has(p.id)) {
         result.push(p);
         seen.add(p.id);
@@ -87,6 +96,12 @@ export function PresetStrip({
     }
     return result;
   })();
+
+  const accent = getAccentColor(current);
+
+  function handleAccentChange(color: string) {
+    onAccentChange?.(color);
+  }
 
   return (
     <>
@@ -108,6 +123,65 @@ export function PresetStrip({
               onClick={() => onSelect(p)}
             />
           ))}
+        </div>
+
+        {/* 포인트 색상 피커 */}
+        <div className="shrink-0 relative">
+          <button
+            onClick={() => setColorOpen(!colorOpen)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-bg hover:bg-surface-hover text-xs font-semibold text-ink-secondary transition border border-surface-border"
+            title="포인트 색상"
+          >
+            <Palette size={13} />
+            <span
+              className="w-4 h-4 rounded-full border border-white shadow-sm"
+              style={{ background: accent }}
+            />
+            <span className="hidden md:inline">포인트</span>
+          </button>
+          {colorOpen && (
+            <div className="absolute right-0 top-full mt-1 z-30 bg-white rounded-lg shadow-lg border border-surface-border p-3 min-w-[220px]">
+              <div className="text-xs font-semibold text-ink-secondary mb-2">
+                포인트 색상 선택
+              </div>
+              <div className="grid grid-cols-6 gap-1.5 mb-3">
+                {ACCENT_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      handleAccentChange(c);
+                      setColorOpen(false);
+                    }}
+                    className={`w-7 h-7 rounded-full border-2 transition hover:scale-110 ${
+                      accent.toLowerCase() === c.toLowerCase()
+                        ? 'border-primary-500 scale-110'
+                        : 'border-white shadow-sm'
+                    }`}
+                    style={{ background: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <span className="font-medium text-ink-secondary">직접:</span>
+                <input
+                  type="color"
+                  value={accent}
+                  onChange={(e) => handleAccentChange(e.target.value)}
+                  className="w-8 h-8 rounded cursor-pointer border"
+                />
+                <input
+                  type="text"
+                  value={accent}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (/^#[0-9a-fA-F]{0,6}$/.test(v)) handleAccentChange(v);
+                  }}
+                  className="flex-1 border rounded px-2 py-1 font-mono text-xs"
+                />
+              </label>
+            </div>
+          )}
         </div>
 
         <button
@@ -138,15 +212,13 @@ export function PresetStrip({
           onDeleteCustom={onDeleteCustom}
           onImportCustom={onImportCustom}
           onToggleFavorite={onToggleFavorite}
+          onAccentChange={onAccentChange}
         />
       </Modal>
     </>
   );
 }
 
-// ─────────────────────────────────────────
-// 미니 스트립 카드 (1줄용)
-// ─────────────────────────────────────────
 function MiniStripCard({
   preset,
   selected,
@@ -209,9 +281,6 @@ function MiniStripCard({
   );
 }
 
-// ─────────────────────────────────────────
-// 프리셋 갤러리
-// ─────────────────────────────────────────
 function PresetGallery({
   current,
   customPresets,
@@ -222,6 +291,7 @@ function PresetGallery({
   onDeleteCustom,
   onImportCustom,
   onToggleFavorite,
+  onAccentChange,
 }: {
   current: Preset;
   customPresets: Preset[];
@@ -232,6 +302,7 @@ function PresetGallery({
   onDeleteCustom: (id: string) => void;
   onImportCustom: (preset: Preset) => void;
   onToggleFavorite: (id: string) => void;
+  onAccentChange?: (color: string) => void;
 }) {
   const [tab, setTab] = useState<'builtin' | 'custom'>('builtin');
   const [saveModal, setSaveModal] = useState(false);
@@ -241,8 +312,53 @@ function PresetGallery({
   const list =
     tab === 'builtin' ? STYLE_PRESETS : sortPresets(customPresets, favorites);
 
+  const accent = getAccentColor(current);
+
   return (
     <div className="space-y-4">
+      {/* 포인트 색상 바 */}
+      <div className="p-3 rounded-lg bg-surface-bg border border-surface-border space-y-2">
+        <div className="flex items-center gap-2">
+          <Palette size={14} className="text-primary-600" />
+          <span className="text-sm font-semibold">포인트 색상 일괄 변경</span>
+          <span className="text-xs text-ink-muted ml-auto">
+            강조/라벨/리스트/번호/박스/구분선 색상이 한 번에 바뀝니다
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {ACCENT_PRESETS.map((c) => (
+            <button
+              key={c}
+              onClick={() => onAccentChange?.(c)}
+              className={`w-8 h-8 rounded-full border-2 transition hover:scale-110 ${
+                accent.toLowerCase() === c.toLowerCase()
+                  ? 'border-primary-500 scale-110'
+                  : 'border-white shadow-sm'
+              }`}
+              style={{ background: c }}
+              title={c}
+            />
+          ))}
+          <div className="ml-2 flex items-center gap-2">
+            <input
+              type="color"
+              value={accent}
+              onChange={(e) => onAccentChange?.(e.target.value)}
+              className="w-8 h-8 rounded cursor-pointer border"
+            />
+            <input
+              type="text"
+              value={accent}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onAccentChange?.(v);
+              }}
+              className="w-24 border rounded px-2 py-1 font-mono text-xs"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
           <button

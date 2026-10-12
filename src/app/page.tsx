@@ -33,6 +33,7 @@ import {
   type CardSize,
 } from '@/lib/types';
 import { STYLE_PRESETS, getPresetById } from '@/lib/presets';
+import { applyAccentColor } from '@/lib/preset-utils';
 import { generateProjectName } from '@/lib/utils';
 
 export default function Page() {
@@ -100,6 +101,10 @@ export default function Page() {
 
   function handlePresetChange(p: Preset) {
     setPreset(p);
+  }
+
+  function handleAccentChange(color: string) {
+    setPreset((prev) => applyAccentColor(prev, color));
   }
 
   function handleToggleFavorite(id: string) {
@@ -286,6 +291,7 @@ export default function Page() {
           onSlidesChange={setSlides}
           preset={preset}
           onPresetChange={handlePresetChange}
+          onAccentChange={handleAccentChange}
           customPresets={customPresets}
           favorites={favorites}
           onSaveCustom={handleSaveCustom}
@@ -330,6 +336,7 @@ export default function Page() {
           onDeleteCustom={handleDeleteCustom}
           onImportCustom={handleImportCustom}
           onToggleFavorite={handleToggleFavorite}
+          onAccentChange={handleAccentChange}
         />
       )}
 
