@@ -15,6 +15,7 @@ import { BlockStyleEditor } from '@/components/BlockStyleEditor';
 import { generateImage } from '@/lib/imagegen';
 import { exportCardsAsZip, renderCardToPng, downloadBlob } from '@/lib/card-renderer';
 import { applyPresetBackground } from '@/lib/presets';
+import { applyAccentColor } from '@/lib/preset-utils';
 import { createEmptyBlock, makeBlockId } from '@/lib/blocks';
 import { CardRenderer, BackgroundOnlyRenderer } from '@/templates/CardRenderer';
 import type {
@@ -32,6 +33,7 @@ export function CreateView({
   onSlidesChange,
   preset,
   onPresetChange,
+  onAccentChange,
   customPresets,
   favorites,
   onSaveCustom,
@@ -54,6 +56,7 @@ export function CreateView({
   onSlidesChange: (s: Slide[]) => void;
   preset: Preset;
   onPresetChange: (p: Preset) => void;
+  onAccentChange?: (color: string) => void;
   customPresets: Preset[];
   favorites: string[];
   onSaveCustom: (name: string) => void;
@@ -148,7 +151,7 @@ export function CreateView({
     const old = s.blocks.find((b) => b.id === blockId);
     if (!old) return;
     const newBlock = createEmptyBlock(newType, old.y);
-    newBlock.id = blockId; // id 유지
+    newBlock.id = blockId;
     updateSlide(selectedIdx, {
       blocks: s.blocks.map((b) => (b.id === blockId ? newBlock : b)),
     });
@@ -238,7 +241,6 @@ export function CreateView({
   function handleApplyPreset(newPreset: Preset) {
     onPresetChange(newPreset);
     if (slides.length > 0) {
-      // 배경만 교체, 콘텐츠는 그대로
       const updated = slides.map((s) => ({
         ...s,
         background: applyPresetBackground(s, newPreset),
@@ -247,8 +249,18 @@ export function CreateView({
     }
   }
 
+  function handleAccentChange(color: string) {
+    // page.tsx의 handleAccentChange 호출 (프리셋 업데이트)
+    if (onAccentChange) {
+      onAccentChange(color);
+    } else {
+      // 폴백: 여기서 직접
+      const updated = applyAccentColor(preset, color);
+      onPresetChange(updated);
+    }
+  }
+
   function handlePresetStyleChange(patch: any) {
-    // 현재 프리셋의 blockStyles를 즉시 수정 (커스텀 프리셋으로 만들지 않고 인메모리)
     const updatedPreset = {
       ...preset,
       blockStyles: { ...preset.blockStyles, ...patch },
@@ -409,6 +421,7 @@ export function CreateView({
             onDeleteCustom={onDeleteCustom}
             onImportCustom={(p) => { onImportCustom(p); handleApplyPreset(p); }}
             onToggleFavorite={onToggleFavorite}
+            onAccentChange={handleAccentChange}
           />
         </Card>
 
@@ -483,7 +496,6 @@ export function CreateView({
 
               {selected && (
                 <div className="space-y-3">
-                  {/* 블록 편집 or 스타일 편집 or 배경 */}
                   {selectedBackground ? (
                     <BackgroundEditorInline background={selected.background} onChange={(patch) => updateSlide(selectedIdx, { background: { ...selected.background, ...patch } })} />
                   ) : selectedBlockId ? (
