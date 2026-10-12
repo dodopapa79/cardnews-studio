@@ -45,6 +45,8 @@ export const BG_PRESETS: BgPreset[] = [
   { id: 'bg-grad-emerald', name: '에메랄드', category: 'gradient', background: { type: 'gradient', color: '#059669', colorEnd: '#065f46', pattern: 'none' }, isDark: true },
   { id: 'bg-grad-rose', name: '로즈', category: 'gradient', background: { type: 'gradient', color: '#ec4899', colorEnd: '#831843', pattern: 'none' }, isDark: true },
   { id: 'bg-grad-midnight', name: '미드나이트', category: 'gradient', background: { type: 'gradient', color: '#0a0a1a', colorEnd: '#1e1b4b', pattern: 'none' }, isDark: true },
+  // 🆕 블루 메시 배경 추가
+  { id: 'bg-mesh-blue-navy', name: '메시 (블루 네이비)', category: 'pattern', background: { type: 'gradient', color: '#0A1B3D', colorEnd: '#1E4FA3', pattern: 'mesh' }, isDark: true },
   { id: 'bg-grid-white', name: '격자 (화이트)', category: 'pattern', background: { type: 'color', color: '#ffffff', pattern: 'grid' }, isDark: false },
   { id: 'bg-grid-dark', name: '격자 (다크)', category: 'pattern', background: { type: 'color', color: '#0a0a0a', pattern: 'grid' }, isDark: true },
   { id: 'bg-dots-light', name: '점 (라이트)', category: 'pattern', background: { type: 'color', color: '#f5f4f0', pattern: 'dots' }, isDark: false },
@@ -156,9 +158,6 @@ function makeDivider(o: Partial<DividerStyle> = {}): DividerStyle {
   };
 }
 
-/**
- * 포인트 색상을 하나로 통일해서 blockStyles 생성.
- */
 function makeAccentBlockStyles(
   accent: string,
   overrides: {
@@ -192,7 +191,7 @@ function makeAccentBlockStyles(
 }
 
 // ─────────────────────────────────────────────
-// 프리셋 10종
+// 프리셋 11종
 // ─────────────────────────────────────────────
 export const STYLE_PRESETS: Preset[] = [
   // 1. 빈 프리셋
@@ -504,6 +503,55 @@ export const STYLE_PRESETS: Preset[] = [
         bgColor: '#dbeafe',
         textColor: '#0f172a',
       },
+    }),
+    builtin: true,
+  },
+
+  // ═══════════════════════════════════
+  // 11. 🆕 블루 메시 다크
+  // ═══════════════════════════════════
+  {
+    id: 'preset-blue-mesh',
+    name: '블루 메시 다크',
+    category: 'style',
+    description: '메시 그라데이션 · #1E4FA3 블루 포인트',
+    fontFamily: FONT,
+    background: {
+      type: 'gradient',
+      color: '#0A1B3D',
+      colorEnd: '#1E4FA3',
+      pattern: 'mesh',
+    },
+    accentColor: '#7EA6E0',
+    blockStyles: makeAccentBlockStyles('#7EA6E0', {
+      headline: { color: '#ffffff' },
+      body: { color: '#B8CDE9' },
+      label: {
+        background: '#7EA6E0',
+        backgroundOpacity: 0.18,
+        padding: 10,
+        borderRadius: 999,
+      },
+      list: {
+        itemBg: '#7EA6E0',
+        itemBgOpacity: 0.12,
+        titleColor: '#ffffff',
+        descColor: '#B8CDE9',
+      },
+      numberedCard: {
+        cardBg: '#7EA6E0',
+        cardBgOpacity: 0.12,
+        titleColor: '#ffffff',
+        descColor: '#B8CDE9',
+      },
+      pointBox: {
+        bgColor: '#7EA6E0',
+        bgOpacity: 0.12,
+        borderLeftColor: '#7EA6E0',
+        labelColor: '#7EA6E0',
+        textColor: '#ffffff',
+      },
+      divider: { color: '#7EA6E040' },
     }),
     builtin: true,
   },
